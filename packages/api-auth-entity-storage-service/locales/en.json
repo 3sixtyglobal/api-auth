@@ -1,0 +1,49 @@
+{
+	"error": {
+		"entityStorageAuthenticationService": {
+			"loginFailed": "Login failed",
+			"userNotFound": "The user with the specified e-mail could not be found",
+			"passwordMismatch": "The password does not match the user's password",
+			"nodeIdNotSet": "The node ID has not been set"
+		},
+		"entityStorageAuthenticationAdminService": {
+			"userExists": "The user with the specified e-mail already exists",
+			"createUserFailed": "Creating the user failed",
+			"getUserFailed": "Getting the user failed",
+			"updateUserFailed": "Updating the user failed",
+			"removeUserFailed": "Removing the user failed",
+			"updatePasswordFailed": "Updating the user's password failed",
+			"userNotFound": "The user with the specified e-mail could not be found \"{notFoundId}\""
+		},
+		"authHeaderProcessor": {
+			"nodeIdNotSet": "The node ID has not been set"
+		},
+		"passwordHelper": {
+			"currentPasswordMismatch": "The current password is incorrect"
+		},
+		"entityStorageAuthenticationAuditService": {
+			"auditEntryNotFound": "The audit entry with the specified identifier could not be found \"{notFoundId}\"",
+			"getAuditEntryFailed": "Getting the audit entry failed",
+			"updateAuditEntryFailed": "Updating the audit entry failed",
+			"removeAuditEntryFailed": "Removing the audit entry failed"
+		},
+		"entityStorageAuthenticationRateService": {
+			"actionConfigMissing": "No rate-limit configuration exists for action \"{action}\".",
+			"rateLimitExceeded": "The rate limit for action \"{action}\" has been exceeded. Retry after {retryAfterSeconds} seconds."
+		},
+		"tokenHelper": {
+			"missing": "The JSON Web token could not be found in the authorization header",
+			"headerKeyIdMismatch": "The JSON Web token key identifier does not match the expected signing key",
+			"payloadIssuerMismatch": "The JSON Web token issuer does not match the expected signing key",
+			"payloadMissingSubject": "The JSON Web token payload does not contain a subject",
+			"payloadMissingOrganization": "The JSON Web token payload does not contain an organization",
+			"expired": "The JSON Web token has expired",
+			"userNotVerified": "The user associated with the JSON Web token could not be verified",
+			"organizationNotVerified": "The organization associated with the JSON Web token could not be verified",
+			"tenantNotVerified": "The tenant associated with the JSON Web token could not be verified"
+		},
+		"validation": {
+			"saltEntropyTooLow": "Salt must have at least 8 unique characters for sufficient entropy."
+		}
+	}
+}

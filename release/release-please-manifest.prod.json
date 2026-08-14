@@ -1,0 +1,5 @@
+{
+	"packages/api-auth-entity-storage-models": "0.9.1",
+	"packages/api-auth-entity-storage-service": "0.9.1",
+	"packages/api-auth-entity-storage-rest-client": "0.9.1"
+}

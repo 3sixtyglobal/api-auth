@@ -1,0 +1,43 @@
+{
+	"language": "en-GB",
+	"ignorePaths": [
+		"**/node_modules/**",
+		"LICENSE",
+		"**/coverage/**",
+		"**/dist/**",
+		"**/docs/reference/**",
+		"**/docs/open-api/**",
+		"**/tests/**",
+		"*.yaml",
+		"package.json",
+		"vitest.config.*",
+		"tsconfig.json",
+		"tsconfig.eslint.json",
+		"typedoc.json",
+		"eslint.config*",
+		"**/wordlists/**",
+		"changelog.md"
+	],
+	"words": [
+		"abbrev",
+		"autorelease",
+		"cutoff",
+		"Fastify",
+		"hotfixes",
+		"livez",
+		"nameof",
+		"openapi",
+		"readyz",
+		"requestor",
+		"Stiftung",
+		"pver",
+		"teardown"
+	],
+	"ignoreRegExpList": [
+		"/from\\s+(['\"]).*\\1/",
+		"/eslint-disable.*/",
+		"/^```shell[\\s\\S]*?```$/gm",
+		"/^```json[\\s\\S]*?```$/gm",
+		"/^```typescript[\\s\\S]*?```$/gm"
+	]
+}
