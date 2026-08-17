@@ -12,6 +12,11 @@
 		},
 		"validation": {
 			"saltEntropyTooLow": "Salt must have at least 8 unique characters for sufficient entropy."
+		},
+		"tenantOverrideProcessor": {
+			"insufficientRoleForTenantOverride": "Caller does not hold the required role for tenant override.",
+			"missingUserIdForTenantOverride": "Missing user id for tenant override.",
+			"tenantNotFound": "Tenant \"{notFoundId}\" not found."
 		}
 	}
 }

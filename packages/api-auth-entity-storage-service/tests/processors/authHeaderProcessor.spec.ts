@@ -57,7 +57,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -111,7 +110,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -210,7 +208,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 1
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -257,8 +254,7 @@ describe("AuthHeaderProcessor", () => {
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "hashed",
-			salt: "salt",
-			roles: "user-admin"
+			salt: "salt"
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
 			token: "jwt",
@@ -299,7 +295,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -354,7 +349,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -399,7 +393,6 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -452,7 +445,6 @@ describe("AuthHeaderProcessor", () => {
 				organization: USER_ORG,
 				password: "hashed",
 				salt: "salt",
-				roles: "user-admin",
 				passwordVersion: 0
 			});
 			vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({

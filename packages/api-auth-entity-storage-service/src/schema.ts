@@ -1,8 +1,15 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { EntitySchemaFactory, EntitySchemaHelper } from "@twin.org/entity";
+import { SharedStore } from "@twin.org/core";
+import {
+	EntitySchemaFactory,
+	EntitySchemaHelper,
+	type IEntitySchemaProperty
+} from "@twin.org/entity";
+import { type ISchemaMigration, SchemaMigrationFactory } from "@twin.org/entity-storage-models";
 import { nameof } from "@twin.org/nameof";
 import { AuthenticationUser } from "./entities/authenticationUser.js";
+import { AuthenticationUserV0 } from "./entities/authenticationUserV0.js";
 
 /**
  * Initialize the schema for the authentication service.
@@ -10,5 +17,33 @@ import { AuthenticationUser } from "./entities/authenticationUser.js";
 export function initSchema(): void {
 	EntitySchemaFactory.register(nameof<AuthenticationUser>(), () =>
 		EntitySchemaHelper.getSchema(AuthenticationUser)
+	);
+	EntitySchemaFactory.register(nameof<AuthenticationUserV0>(), () =>
+		EntitySchemaHelper.getSchema(AuthenticationUserV0)
+	);
+
+	const migrationV0V1: ISchemaMigration<AuthenticationUserV0, AuthenticationUser> = {
+		removeEntityProperty: (
+			entity: AuthenticationUserV0,
+			removedProperties: IEntitySchemaProperty<AuthenticationUserV0>[]
+		): void => {
+			// If the scope property is not being removed, we don't need to do anything
+			if (removedProperties.find(prop => prop.property === "scope") === undefined) {
+				return;
+			}
+
+			// We need to store the old roles in here if a migration is performed
+			// they will be picked up by the start method of the AuthenticationService
+			// and used to populate the new roles table
+			const migratedRoles = SharedStore.get<{ [id: string]: string[] }>("migrationUserRoles") ?? {};
+			migratedRoles[entity.identity] = entity.scope
+				.split(",")
+				.map(role => role.trim().toLocaleLowerCase());
+			SharedStore.set("migrationUserRoles", migratedRoles);
+		}
+	};
+	SchemaMigrationFactory.register(
+		`${nameof<AuthenticationUser>()}_0_1`,
+		() => migrationV0V1 as ISchemaMigration
 	);
 }

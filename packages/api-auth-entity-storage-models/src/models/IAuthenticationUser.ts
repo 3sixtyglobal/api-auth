@@ -19,9 +19,4 @@ export interface IAuthenticationUser {
 	 * The users organization.
 	 */
 	organizationIdentity: string;
-
-	/**
-	 * The roles assigned to the user.
-	 */
-	roles: string[];
 }

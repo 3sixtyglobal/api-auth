@@ -98,8 +98,7 @@ describe("EntityStorageAuthenticationService", () => {
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
-			salt: "c2FsdA==",
-			roles: "read,write"
+			salt: "c2FsdA=="
 		});
 		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("generated-password-hash");
 		vi.spyOn(PasswordValidator, "comparePasswordHashes").mockReturnValue(true);
@@ -129,7 +128,6 @@ describe("EntityStorageAuthenticationService", () => {
 			event: "login-success",
 			data: {
 				userIdentity: "did:user:123",
-				roles: ["read", "write"],
 				organizationIdentity: "did:org:456",
 				tenantId: "tenant-1"
 			}
@@ -300,8 +298,7 @@ describe("EntityStorageAuthenticationService", () => {
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
-			salt: "c2FsdA==",
-			roles: "read,write"
+			salt: "c2FsdA=="
 		});
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
@@ -347,7 +344,6 @@ describe("EntityStorageAuthenticationService", () => {
 			data: {
 				organizationIdentity: "did:org:456",
 				tenantId: undefined,
-				roles: ["read", "write"],
 				version: 0
 			}
 		});
@@ -411,8 +407,7 @@ describe("EntityStorageAuthenticationService", () => {
 			identity: "did:user:other",
 			organization: "did:org:456",
 			password: "stored-password-hash",
-			salt: "c2FsdA==",
-			roles: "read,write"
+			salt: "c2FsdA=="
 		});
 		const createTokenSpy = vi.spyOn(TokenHelper, "createToken");
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
@@ -448,8 +443,7 @@ describe("EntityStorageAuthenticationService", () => {
 			identity: "did:user:123",
 			organization: "did:org:other",
 			password: "stored-password-hash",
-			salt: "c2FsdA==",
-			roles: "read,write"
+			salt: "c2FsdA=="
 		});
 		const createTokenSpy = vi.spyOn(TokenHelper, "createToken");
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
@@ -486,8 +480,7 @@ describe("EntityStorageAuthenticationService", () => {
 			organization: "did:org:456",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			passwordVersion: 2,
-			roles: "read,write"
+			passwordVersion: 2
 		});
 		const createTokenSpy = vi.spyOn(TokenHelper, "createToken");
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
@@ -520,8 +513,7 @@ describe("EntityStorageAuthenticationService", () => {
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
-			salt: "c2FsdA==",
-			roles: "read,write"
+			salt: "c2FsdA=="
 		});
 		vi.spyOn(PasswordHelper, "updatePassword").mockResolvedValue(undefined);
 
@@ -627,8 +619,7 @@ describe("EntityStorageAuthenticationService", () => {
 						identity: "did:user:123",
 						organization: "did:org:456",
 						password: "stored-password-hash",
-						salt: "c2FsdA==",
-						roles: "read,write"
+						salt: "c2FsdA=="
 					});
 
 					const result = await service.login("user@example.com", "correct-password");
@@ -644,8 +635,7 @@ describe("EntityStorageAuthenticationService", () => {
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
-					salt: "c2FsdA==",
-					roles: "read"
+					salt: "c2FsdA=="
 				});
 			});
 
@@ -672,8 +662,7 @@ describe("EntityStorageAuthenticationService", () => {
 					identity: "did:user:tenant-a",
 					organization: "did:org:456",
 					password: "stored-password-hash",
-					salt: "c2FsdA==",
-					roles: "read"
+					salt: "c2FsdA=="
 				});
 			});
 
@@ -683,8 +672,7 @@ describe("EntityStorageAuthenticationService", () => {
 					identity: "did:user:tenant-b",
 					organization: "did:org:456",
 					password: "stored-password-hash",
-					salt: "c2FsdA==",
-					roles: "write"
+					salt: "c2FsdA=="
 				});
 			});
 
@@ -719,8 +707,7 @@ describe("EntityStorageAuthenticationService", () => {
 						identity: "did:user:123",
 						organization: "did:org:456",
 						password: "stored-password-hash",
-						salt: "c2FsdA==",
-						roles: "read"
+						salt: "c2FsdA=="
 					});
 
 					await service.updatePassword("current-password", "new-password");
@@ -744,8 +731,7 @@ describe("EntityStorageAuthenticationService", () => {
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
-					salt: "c2FsdA==",
-					roles: "read"
+					salt: "c2FsdA=="
 				});
 			});
 
@@ -766,8 +752,7 @@ describe("EntityStorageAuthenticationService", () => {
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
-					salt: "c2FsdA==",
-					roles: "read"
+					salt: "c2FsdA=="
 				});
 			});
 

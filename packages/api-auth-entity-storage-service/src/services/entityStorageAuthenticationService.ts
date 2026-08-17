@@ -7,7 +7,7 @@ import type {
 	IAuthenticationAuditComponent
 } from "@twin.org/api-auth-models";
 import { AuthAuditEvent } from "@twin.org/api-auth-models";
-import { RolesHelper, type ITenantAdminComponent } from "@twin.org/api-models";
+import type { ITenantAdminComponent } from "@twin.org/api-models";
 import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
 	Coerce,
@@ -327,8 +327,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			data: {
 				userIdentity: loginUser.identity,
 				organizationIdentity: loginUser.organization,
-				tenantId: loginTenantId,
-				roles: RolesHelper.toArray(loginUser.roles)
+				tenantId: loginTenantId
 			}
 		});
 
@@ -434,7 +433,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			data: {
 				organizationIdentity: payloadOrg,
 				tenantId,
-				roles: RolesHelper.toArray(refreshUser?.roles),
 				version: refreshUser?.passwordVersion ?? 0
 			}
 		});

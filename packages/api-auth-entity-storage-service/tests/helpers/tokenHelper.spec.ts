@@ -388,8 +388,7 @@ describe("TokenHelper", () => {
 				sub: "user123",
 				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600,
-				customClaim: "customValue",
-				roles: ["admin", "editor"]
+				customClaim: "customValue"
 			};
 
 			const token = "custom-claims.jwt.token";

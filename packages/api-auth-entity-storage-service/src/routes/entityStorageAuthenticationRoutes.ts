@@ -27,7 +27,7 @@ import { HttpStatusCode } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationRoutes";
 
 /**
- * The default authorization roles for the routes, use to populate authorization rules.
+ * The default authorization permissions for the routes, use to populate authorization rules.
  */
 const PERMISSIONS_DEFAULT_ROUTE_READER = "user:read";
 const PERMISSIONS_DEFAULT_ROUTE_WRITER = {

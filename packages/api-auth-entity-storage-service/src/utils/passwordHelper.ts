@@ -59,7 +59,6 @@ export class PasswordHelper {
 			password: hashedPassword,
 			identity: user.identity,
 			organization: user.organization,
-			roles: user.roles,
 			passwordVersion: (user.passwordVersion ?? 0) + 1
 		};
 

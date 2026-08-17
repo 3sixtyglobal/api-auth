@@ -5,8 +5,8 @@ import { entity, property } from "@twin.org/entity";
 /**
  * Class defining the storage for user login credentials.
  */
-@entity({ version: 1 })
-export class AuthenticationUser {
+@entity({ version: 0 })
+export class AuthenticationUserV0 {
 	/**
 	 * The user e-mail address.
 	 */
@@ -36,6 +36,12 @@ export class AuthenticationUser {
 	 */
 	@property({ type: "string" })
 	public organization!: string;
+
+	/**
+	 * The scope assigned to the user, comma separated.
+	 */
+	@property({ type: "string" })
+	public scope!: string;
 
 	/**
 	 * The password version counter, incremented on every password change to invalidate existing tokens.

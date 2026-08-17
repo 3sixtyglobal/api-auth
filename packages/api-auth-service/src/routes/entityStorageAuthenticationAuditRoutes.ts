@@ -32,7 +32,7 @@ import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationAuditRoutes";
 
 /**
- * The default authorization roles for the routes, use to populate authorization rules.
+ * The default authorization permissions for the routes, use to populate authorization rules.
  */
 const PERMISSIONS_DEFAULT_ROUTE_READER = "audit:read";
 const PERMISSIONS_DEFAULT_ROUTE_WRITER = {

@@ -32,7 +32,7 @@ import { HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationAdminRoutes";
 
 /**
- * The default authorization roles for the routes, use to populate authorization rules.
+ * The default authorization permissions for the routes, use to populate authorization rules.
  */
 const PERMISSIONS_DEFAULT_ROUTE_READER = "user-admin:read";
 const PERMISSIONS_DEFAULT_ROUTE_WRITER = {
@@ -79,8 +79,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							email: "user@example.com",
 							password: "MyPassword123!",
 							userIdentity: "did:example:123456789abcdefghi",
-							organizationIdentity: "did:example:123456789abcdefghi",
-							roles: ["role1", "role2"]
+							organizationIdentity: "did:example:123456789abcdefghi"
 						}
 					}
 				}
@@ -117,8 +116,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						},
 						body: {
 							userIdentity: "did:example:123456789abcdefghi",
-							organizationIdentity: "did:example:123456789abcdefghi",
-							roles: ["role1", "role2"]
+							organizationIdentity: "did:example:123456789abcdefghi"
 						}
 					}
 				}
@@ -204,8 +202,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							body: {
 								email: "user@example.com",
 								userIdentity: "did:example:123456789abcdefghi",
-								organizationIdentity: "did:example:123456789abcdefghi",
-								roles: ["role1", "role2"]
+								organizationIdentity: "did:example:123456789abcdefghi"
 							}
 						}
 					}
@@ -252,8 +249,7 @@ export function generateRestRoutesAuthenticationAdmin(
 								body: {
 									email: "user@example.com",
 									userIdentity: "did:example:123456789abcdefghi",
-									organizationIdentity: "did:example:123456789abcdefghi",
-									roles: ["role1", "role2"]
+									organizationIdentity: "did:example:123456789abcdefghi"
 								}
 							}
 						}

@@ -6,7 +6,6 @@ import type {
 } from "@twin.org/api-auth-entity-storage-models";
 import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
 import { AuthAuditEvent } from "@twin.org/api-auth-models";
-import { RolesHelper } from "@twin.org/api-models";
 import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
 	ComponentFactory,
@@ -109,11 +108,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			nameof(user.organizationIdentity),
 			user.organizationIdentity
 		);
-		Guards.array<string>(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.roles),
-			user.roles
-		);
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
@@ -136,7 +130,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				password: hashedPassword,
 				identity: user.userIdentity,
 				organization: user.organizationIdentity,
-				roles: RolesHelper.toString(user.roles),
 				passwordVersion: 0
 			};
 
@@ -150,8 +143,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				data: {
 					userIdentity: user.userIdentity,
 					organizationIdentity: user.organizationIdentity,
-					tenantId: requestorTenantId,
-					roles: user.roles
+					tenantId: requestorTenantId
 				}
 			});
 		} catch (error) {
@@ -195,13 +187,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				user.organizationIdentity
 			);
 		}
-		if (!Is.empty(user.roles)) {
-			Guards.array<string>(
-				EntityStorageAuthenticationAdminService.CLASS_NAME,
-				nameof(user.roles),
-				user.roles
-			);
-		}
 
 		try {
 			const existingUser = await this._userEntityStorage.get(user.email);
@@ -214,9 +199,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			}
 
 			const updatedFields: string[] = [];
-			const updatedRoles = Is.array(user.roles)
-				? RolesHelper.toString(user.roles)
-				: existingUser.roles;
 
 			if (user.userIdentity !== undefined && user.userIdentity !== existingUser.identity) {
 				updatedFields.push("userIdentity");
@@ -227,13 +209,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			) {
 				updatedFields.push("organizationIdentity");
 			}
-			if (Is.array(user.roles) && updatedRoles !== existingUser.roles) {
-				updatedFields.push("roles");
-			}
 
 			existingUser.identity = user.userIdentity ?? existingUser.identity;
 			existingUser.organization = user.organizationIdentity ?? existingUser.organization;
-			existingUser.roles = Is.array(user.roles) ? updatedRoles : existingUser.roles;
 
 			await this._userEntityStorage.set(existingUser);
 
@@ -246,8 +224,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					updatedFields,
 					userIdentity: existingUser.identity,
 					organizationIdentity: existingUser.organization,
-					tenantId: requestorTenantId,
-					roles: RolesHelper.toArray(existingUser.roles)
+					tenantId: requestorTenantId
 				}
 			});
 		} catch (error) {
@@ -281,8 +258,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			return {
 				email: user.email,
 				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				roles: RolesHelper.toArray(user.roles)
+				organizationIdentity: user.organization
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -319,8 +295,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			return {
 				email: user.email,
 				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				roles: RolesHelper.toArray(user.roles)
+				organizationIdentity: user.organization
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -360,8 +335,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				data: {
 					userIdentity: user.identity,
 					organizationIdentity: user.organization,
-					tenantId: requestorTenantId,
-					roles: RolesHelper.toArray(user.roles)
+					tenantId: requestorTenantId
 				}
 			});
 		} catch (error) {
