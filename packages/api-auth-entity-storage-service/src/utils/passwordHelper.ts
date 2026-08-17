@@ -1,7 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@twin.org/api-auth-entity-storage-models";
+import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
+import { AuthAuditEvent } from "@twin.org/api-auth-models";
 import { Converter, GeneralError, Is, RandomHelper } from "@twin.org/core";
 import { PasswordGenerator, PasswordValidator } from "@twin.org/crypto";
 import type { IEntityStorageConnector } from "@twin.org/entity-storage-models";
@@ -59,7 +59,7 @@ export class PasswordHelper {
 			password: hashedPassword,
 			identity: user.identity,
 			organization: user.organization,
-			scope: user.scope,
+			roles: user.roles,
 			passwordVersion: (user.passwordVersion ?? 0) + 1
 		};
 

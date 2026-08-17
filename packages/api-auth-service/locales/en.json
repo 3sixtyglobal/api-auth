@@ -1,0 +1,17 @@
+{
+	"error": {
+		"entityStorageAuthenticationAuditService": {
+			"auditEntryNotFound": "The audit entry with the specified identifier could not be found \"{notFoundId}\"",
+			"getAuditEntryFailed": "Getting the audit entry failed",
+			"updateAuditEntryFailed": "Updating the audit entry failed",
+			"removeAuditEntryFailed": "Removing the audit entry failed"
+		},
+		"entityStorageAuthenticationRateService": {
+			"actionConfigMissing": "No rate-limit configuration exists for action \"{action}\".",
+			"rateLimitExceeded": "The rate limit for action \"{action}\" has been exceeded. Retry after {retryAfterSeconds} seconds."
+		},
+		"validation": {
+			"saltEntropyTooLow": "Salt must have at least 8 unique characters for sufficient entropy."
+		}
+	}
+}

@@ -9,7 +9,7 @@ import type {
 	IAuditRemoveRequest,
 	IAuditUpdateRequest,
 	IAuthenticationAuditComponent
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@twin.org/api-auth-models";
 import {
 	HttpContextIdKeys,
 	HttpHeaderHelper,
@@ -30,6 +30,15 @@ import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
  * The source used when communicating about these routes.
  */
 const ROUTES_SOURCE = "authenticationAuditRoutes";
+
+/**
+ * The default authorization roles for the routes, use to populate authorization rules.
+ */
+const PERMISSIONS_DEFAULT_ROUTE_READER = "audit:read";
+const PERMISSIONS_DEFAULT_ROUTE_WRITER = {
+	permission: "audit:write",
+	inherits: [PERMISSIONS_DEFAULT_ROUTE_READER]
+};
 
 /**
  * The tag to associate with the routes.
@@ -96,7 +105,8 @@ export function generateRestRoutesAuthenticationAudit(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const getRoute: IRestRoute<IAuditGetRequest, IAuditGetResponse> = {
@@ -145,7 +155,8 @@ export function generateRestRoutesAuthenticationAudit(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	const updateRoute: IRestRoute<IAuditUpdateRequest, INoContentResponse> = {
@@ -182,7 +193,8 @@ export function generateRestRoutesAuthenticationAudit(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const removeRoute: IRestRoute<IAuditRemoveRequest, INoContentResponse> = {
@@ -214,7 +226,8 @@ export function generateRestRoutesAuthenticationAudit(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const queryRoute: IRestRoute<IAuditQueryRequest, IAuditQueryResponse> = {
@@ -272,7 +285,8 @@ export function generateRestRoutesAuthenticationAudit(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	return [createRoute, getRoute, updateRoute, removeRoute, queryRoute];

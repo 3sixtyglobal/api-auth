@@ -124,7 +124,7 @@ The actor identifier to filter the audit entries, optional.
 
 `string`
 
-The organization identifier to filter the audit entries, optional.
+The organisation identifier to filter the audit entries, optional.
 
 ###### tenantId?
 

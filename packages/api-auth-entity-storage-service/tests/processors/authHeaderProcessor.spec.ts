@@ -57,7 +57,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -111,7 +111,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -210,7 +210,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 1
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -258,7 +258,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin"
+			roles: "user-admin"
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
 			token: "jwt",
@@ -299,7 +299,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -354,7 +354,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -399,7 +399,7 @@ describe("AuthHeaderProcessor", () => {
 			organization: "did:org:456",
 			password: "hashed",
 			salt: "salt",
-			scope: "user-admin",
+			roles: "user-admin",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -452,7 +452,7 @@ describe("AuthHeaderProcessor", () => {
 				organization: USER_ORG,
 				password: "hashed",
 				salt: "salt",
-				scope: "user-admin",
+				roles: "user-admin",
 				passwordVersion: 0
 			});
 			vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({

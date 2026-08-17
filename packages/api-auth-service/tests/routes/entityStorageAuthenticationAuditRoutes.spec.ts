@@ -3,7 +3,7 @@
 import type {
 	IAuthenticationAuditComponent,
 	IAuthenticationAuditEntry
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@twin.org/api-auth-models";
 import { ComponentFactory } from "@twin.org/core";
 import { HeaderTypes, HttpStatusCode } from "@twin.org/web";
 import {

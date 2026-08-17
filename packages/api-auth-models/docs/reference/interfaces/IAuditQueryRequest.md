@@ -20,7 +20,7 @@ The actor identifier to filter by.
 
 > `optional` **organizationId?**: `string`
 
-The organization identifier to filter by.
+The organisation identifier to filter by.
 
 #### tenantId?
 

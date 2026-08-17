@@ -55,6 +55,9 @@
 		"release-please": "17.10.4"
 	},
 	"workspaces": [
+		"packages/api-auth-models",
+		"packages/api-auth-service",
+		"packages/api-auth-rest-client",
 		"packages/api-auth-entity-storage-models",
 		"packages/api-auth-entity-storage-service",
 		"packages/api-auth-entity-storage-rest-client"

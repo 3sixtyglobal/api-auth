@@ -44,7 +44,7 @@ export interface IAuthenticationAuditComponent extends IComponent {
 	 * Query the audit entries.
 	 * @param options The query options.
 	 * @param options.actorId The actor identifier to filter the audit entries, optional.
-	 * @param options.organizationId The organization identifier to filter the audit entries, optional.
+	 * @param options.organizationId The organisation identifier to filter the audit entries, optional.
 	 * @param options.tenantId The tenant identifier to filter the audit entries, optional.
 	 * @param options.nodeId The node identifier to filter the audit entries, optional.
 	 * @param options.event The audit event to filter the audit entries, optional.

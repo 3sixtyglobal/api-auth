@@ -1,13 +1,13 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
+import type { IAuthenticationComponent } from "@twin.org/api-auth-entity-storage-models";
 import type {
 	IAuthenticationRateActionConfig,
 	IAuthenticationRateComponent,
-	IAuthenticationAuditComponent,
-	IAuthenticationComponent
-} from "@twin.org/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@twin.org/api-auth-entity-storage-models";
-import type { ITenantAdminComponent } from "@twin.org/api-models";
+	IAuthenticationAuditComponent
+} from "@twin.org/api-auth-models";
+import { AuthAuditEvent } from "@twin.org/api-auth-models";
+import { RolesHelper, type ITenantAdminComponent } from "@twin.org/api-models";
 import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
 	Coerce,
@@ -302,7 +302,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				user.organization,
 				loginTenantId,
 				this._defaultTtlMinutes,
-				user.scope,
 				user.passwordVersion ?? 0
 			);
 			loginUser = user;
@@ -329,7 +328,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				userIdentity: loginUser.identity,
 				organizationIdentity: loginUser.organization,
 				tenantId: loginTenantId,
-				scope: loginUser.scope.split(",")
+				roles: RolesHelper.toArray(loginUser.roles)
 			}
 		});
 
@@ -367,8 +366,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
 		}
 
-		let refreshPasswordVersion: number | undefined;
 		let tenantId: string | undefined;
+		let refreshUser: AuthenticationUser | undefined;
 
 		// If the verify fails on the current token then it will throw an exception.
 		const headerAndPayload = await TokenHelper.verify(
@@ -401,8 +400,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 					this._userEntityStorage.get(sub, "identity")
 				);
 
-				refreshPasswordVersion = user?.passwordVersion;
-				if (user?.identity === sub && (passwordVersion ?? 0) === (refreshPasswordVersion ?? 0)) {
+				refreshUser = user;
+
+				if (user?.identity === sub && (passwordVersion ?? 0) === (user?.passwordVersion ?? 0)) {
 					validParts.push("user");
 				}
 				if (user?.organization === org) {
@@ -416,7 +416,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await this._authenticationRateService.check("token-refresh", refreshSub);
 
 		const payloadOrg = Coerce.string(headerAndPayload.payload.org);
-		const payloadScope = Coerce.string(headerAndPayload.payload?.scope);
 
 		const refreshTokenAndExpiry = await TokenHelper.createToken(
 			this._vaultConnector,
@@ -426,8 +425,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			payloadOrg,
 			tenantId,
 			this._defaultTtlMinutes,
-			payloadScope,
-			refreshPasswordVersion ?? 0
+			refreshUser?.passwordVersion ?? 0
 		);
 
 		await this._authenticationAuditService?.create({
@@ -436,8 +434,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			data: {
 				organizationIdentity: payloadOrg,
 				tenantId,
-				scope: payloadScope?.split(",").filter(scope => scope.length > 0),
-				version: refreshPasswordVersion ?? 0
+				roles: RolesHelper.toArray(refreshUser?.roles),
+				version: refreshUser?.passwordVersion ?? 0
 			}
 		});
 

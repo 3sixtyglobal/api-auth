@@ -54,11 +54,11 @@ The users organization.
 
 ***
 
-### scope {#scope}
+### roles {#roles}
 
-> **scope**: `string`
+> **roles**: `string`
 
-The scope assigned to the user, comma separated.
+The roles assigned to the user, bar separated.
 
 ***
 

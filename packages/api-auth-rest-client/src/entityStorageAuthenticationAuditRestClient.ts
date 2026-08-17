@@ -11,7 +11,7 @@ import type {
 	IAuditUpdateRequest,
 	IAuthenticationAuditComponent,
 	IAuthenticationAuditEntry
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@twin.org/api-auth-models";
 import { BaseRestClient } from "@twin.org/api-core";
 import { HttpHeaderHelper } from "@twin.org/api-models";
 import type {

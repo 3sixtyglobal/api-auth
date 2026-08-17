@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationAdminComponent,
-	IAuthenticationAuditComponent,
 	IAuthenticationUser
 } from "@twin.org/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@twin.org/api-auth-entity-storage-models";
+import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
+import { AuthAuditEvent } from "@twin.org/api-auth-models";
+import { RolesHelper } from "@twin.org/api-models";
 import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
 	ComponentFactory,
@@ -110,8 +111,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 		);
 		Guards.array<string>(
 			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.scope),
-			user.scope
+			nameof(user.roles),
+			user.roles
 		);
 
 		try {
@@ -135,7 +136,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				password: hashedPassword,
 				identity: user.userIdentity,
 				organization: user.organizationIdentity,
-				scope: user.scope.map(s => s.trim().toLocaleLowerCase()).join(","),
+				roles: RolesHelper.toString(user.roles),
 				passwordVersion: 0
 			};
 
@@ -150,7 +151,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: user.userIdentity,
 					organizationIdentity: user.organizationIdentity,
 					tenantId: requestorTenantId,
-					scope: user.scope
+					roles: user.roles
 				}
 			});
 		} catch (error) {
@@ -194,11 +195,11 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				user.organizationIdentity
 			);
 		}
-		if (!Is.empty(user.scope)) {
+		if (!Is.empty(user.roles)) {
 			Guards.array<string>(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
-				nameof(user.scope),
-				user.scope
+				nameof(user.roles),
+				user.roles
 			);
 		}
 
@@ -213,9 +214,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			}
 
 			const updatedFields: string[] = [];
-			const updatedScope = Is.array(user.scope)
-				? user.scope.map(s => s.trim().toLocaleLowerCase()).join(",")
-				: existingUser.scope;
+			const updatedRoles = Is.array(user.roles)
+				? RolesHelper.toString(user.roles)
+				: existingUser.roles;
 
 			if (user.userIdentity !== undefined && user.userIdentity !== existingUser.identity) {
 				updatedFields.push("userIdentity");
@@ -226,13 +227,13 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			) {
 				updatedFields.push("organizationIdentity");
 			}
-			if (Is.array(user.scope) && updatedScope !== existingUser.scope) {
-				updatedFields.push("scope");
+			if (Is.array(user.roles) && updatedRoles !== existingUser.roles) {
+				updatedFields.push("roles");
 			}
 
 			existingUser.identity = user.userIdentity ?? existingUser.identity;
 			existingUser.organization = user.organizationIdentity ?? existingUser.organization;
-			existingUser.scope = Is.array(user.scope) ? updatedScope : existingUser.scope;
+			existingUser.roles = Is.array(user.roles) ? updatedRoles : existingUser.roles;
 
 			await this._userEntityStorage.set(existingUser);
 
@@ -246,7 +247,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: existingUser.identity,
 					organizationIdentity: existingUser.organization,
 					tenantId: requestorTenantId,
-					scope: existingUser.scope.split(",")
+					roles: RolesHelper.toArray(existingUser.roles)
 				}
 			});
 		} catch (error) {
@@ -281,7 +282,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				email: user.email,
 				userIdentity: user.identity,
 				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
+				roles: RolesHelper.toArray(user.roles)
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -319,7 +320,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				email: user.email,
 				userIdentity: user.identity,
 				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
+				roles: RolesHelper.toArray(user.roles)
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -360,7 +361,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: user.identity,
 					organizationIdentity: user.organization,
 					tenantId: requestorTenantId,
-					scope: user.scope.split(",")
+					roles: RolesHelper.toArray(user.roles)
 				}
 			});
 		} catch (error) {

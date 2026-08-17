@@ -4,7 +4,7 @@ import type {
 	AuthAuditEvent,
 	IAuthenticationAuditComponent,
 	IAuthenticationAuditEntry
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@twin.org/api-auth-models";
 import { HttpContextIdKeys } from "@twin.org/api-models";
 import { ContextIdStore, ContextIdKeys } from "@twin.org/context";
 import {

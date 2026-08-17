@@ -3,7 +3,7 @@
 import type {
 	IAuthenticationRateActionConfig,
 	IAuthenticationRateComponent
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@twin.org/api-auth-models";
 import { TooManyRequestsError, type IPlatformComponent } from "@twin.org/api-models";
 import type { ITaskSchedulerComponent } from "@twin.org/background-task-models";
 import { ComponentFactory, Converter, GeneralError, Guards, Is } from "@twin.org/core";

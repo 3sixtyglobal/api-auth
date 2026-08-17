@@ -8,6 +8,18 @@
 	"initial-version": "0.0.1",
 	"versioning": "default",
 	"packages": {
+		"packages/api-auth-models": {
+			"package-name": "api-auth-models",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-service": {
+			"package-name": "api-auth-service",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-rest-client": {
+			"package-name": "api-auth-rest-client",
+			"changelog-path": "docs/changelog.md"
+		},
 		"packages/api-auth-entity-storage-models": {
 			"package-name": "api-auth-entity-storage-models",
 			"changelog-path": "docs/changelog.md"
@@ -27,6 +39,9 @@
 			"type": "linked-versions",
 			"groupName": "repo",
 			"components": [
+				"api-auth-models",
+				"api-auth-service",
+				"api-auth-rest-client",
 				"api-auth-entity-storage-models",
 				"api-auth-entity-storage-service",
 				"api-auth-entity-storage-rest-client"

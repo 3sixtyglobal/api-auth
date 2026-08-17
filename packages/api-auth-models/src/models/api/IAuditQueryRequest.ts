@@ -16,7 +16,7 @@ export interface IAuditQueryRequest {
 		actorId?: string;
 
 		/**
-		 * The organization identifier to filter by.
+		 * The organisation identifier to filter by.
 		 */
 		organizationId?: string;
 

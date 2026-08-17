@@ -32,6 +32,15 @@ import { HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationAdminRoutes";
 
 /**
+ * The default authorization roles for the routes, use to populate authorization rules.
+ */
+const PERMISSIONS_DEFAULT_ROUTE_READER = "user-admin:read";
+const PERMISSIONS_DEFAULT_ROUTE_WRITER = {
+	permission: "user-admin:write",
+	inherits: [PERMISSIONS_DEFAULT_ROUTE_READER]
+};
+
+/**
  * The tag to associate with the routes.
  */
 export const tagsAuthenticationAdmin: ITag[] = [
@@ -71,7 +80,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							password: "MyPassword123!",
 							userIdentity: "did:example:123456789abcdefghi",
 							organizationIdentity: "did:example:123456789abcdefghi",
-							scope: ["scope1", "scope2"]
+							roles: ["role1", "role2"]
 						}
 					}
 				}
@@ -84,7 +93,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const updateUserRoute: IRestRoute<IAdminUserUpdateRequest, INoContentResponse> = {
@@ -108,7 +118,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						body: {
 							userIdentity: "did:example:123456789abcdefghi",
 							organizationIdentity: "did:example:123456789abcdefghi",
-							scope: ["scope1", "scope2"]
+							roles: ["role1", "role2"]
 						}
 					}
 				}
@@ -121,7 +131,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const updateUserPasswordRoute: IRestRoute<IAdminUserUpdatePasswordRequest, INoContentResponse> = {
@@ -156,7 +167,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	const getUserRoute: IRestRoute<IAdminUserGetRequest, IAdminUserGetResponse> = {
@@ -193,7 +205,7 @@ export function generateRestRoutesAuthenticationAdmin(
 								email: "user@example.com",
 								userIdentity: "did:example:123456789abcdefghi",
 								organizationIdentity: "did:example:123456789abcdefghi",
-								scope: ["scope1", "scope2"]
+								roles: ["role1", "role2"]
 							}
 						}
 					}
@@ -202,7 +214,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	const getByIdentityUserRoute: IRestRoute<IAdminUserGetByIdentityRequest, IAdminUserGetResponse> =
@@ -240,7 +253,7 @@ export function generateRestRoutesAuthenticationAdmin(
 									email: "user@example.com",
 									userIdentity: "did:example:123456789abcdefghi",
 									organizationIdentity: "did:example:123456789abcdefghi",
-									scope: ["scope1", "scope2"]
+									roles: ["role1", "role2"]
 								}
 							}
 						}
@@ -249,7 +262,8 @@ export function generateRestRoutesAuthenticationAdmin(
 				{
 					type: nameof<IUnauthorizedResponse>()
 				}
-			]
+			],
+			defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 		};
 
 	const removeUserRoute: IRestRoute<IAdminUserRemoveRequest, INoContentResponse> = {
@@ -281,7 +295,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	return [

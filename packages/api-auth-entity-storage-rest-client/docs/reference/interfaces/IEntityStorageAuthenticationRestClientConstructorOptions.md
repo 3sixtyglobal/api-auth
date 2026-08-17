@@ -82,6 +82,18 @@ Include credentials in the request, defaults to true.
 
 ***
 
+### processorTypes? {#processortypes}
+
+> `optional` **processorTypes?**: `string`[]
+
+The types of the processors to run around each request, resolved from the `RestClientProcessorFactory`.
+
+#### Inherited from
+
+`IBaseRestClientConfig.processorTypes`
+
+***
+
 ### customHeaders? {#customheaders}
 
 > `optional` **customHeaders?**: () => `Promise`\<`IHttpHeaders`\>

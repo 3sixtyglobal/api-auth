@@ -38,10 +38,10 @@ export class AuthenticationUser {
 	public organization!: string;
 
 	/**
-	 * The scope assigned to the user, comma separated.
+	 * The roles assigned to the user, bar separated.
 	 */
 	@property({ type: "string" })
-	public scope!: string;
+	public roles!: string;
 
 	/**
 	 * The password version counter, incremented on every password change to invalidate existing tokens.

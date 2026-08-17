@@ -213,6 +213,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 				contextIds[ContextIdKeys.Organization] = tenantOrganizationId ?? this._nodeOrganizationId;
 				contextIds[ContextIdKeys.User] = user?.identity;
 				contextIds[ContextIdKeys.UserOrganization] = user?.organization;
+				contextIds[HttpContextIdKeys.Roles] = user?.roles;
 
 				// If the tenant has a custom public origin, we set it in the context for downstream processors to use.
 				if (Is.stringValue(tenantPublicOrigin)) {

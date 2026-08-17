@@ -27,6 +27,15 @@ import { HttpStatusCode } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationRoutes";
 
 /**
+ * The default authorization roles for the routes, use to populate authorization rules.
+ */
+const PERMISSIONS_DEFAULT_ROUTE_READER = "user:read";
+const PERMISSIONS_DEFAULT_ROUTE_WRITER = {
+	permission: "user:write",
+	inherits: [PERMISSIONS_DEFAULT_ROUTE_READER]
+};
+
+/**
  * The tag to associate with the routes.
  */
 export const tagsAuthentication: ITag[] = [
@@ -88,7 +97,8 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		skipAuth: true
+		skipAuth: true,
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	const logoutRoute: IRestRoute<ILogoutRequest, INoContentResponse> = {
@@ -117,7 +127,8 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<INoContentResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	const refreshTokenRoute: IRestRoute<IRefreshTokenRequest, IRefreshTokenResponse> = {
@@ -160,7 +171,8 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
 	};
 
 	const updatePasswordRoute: IRestRoute<IUpdatePasswordRequest, INoContentResponse> = {
@@ -193,7 +205,8 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
 	};
 
 	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];

@@ -44,15 +44,15 @@ The users organization.
 
 ***
 
-### scope {#scope}
+### roles {#roles}
 
-> **scope**: `string`[]
+> **roles**: `string`[]
 
-The scope assigned to the user, comma separated.
+The roles assigned to the user.
 
 #### Inherited from
 
-[`IAuthenticationUser`](IAuthenticationUser.md).[`scope`](IAuthenticationUser.md#scope)
+[`IAuthenticationUser`](IAuthenticationUser.md).[`roles`](IAuthenticationUser.md#roles)
 
 ***
 
