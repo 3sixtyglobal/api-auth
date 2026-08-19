@@ -1,6 +1,6 @@
 {
 	"name": "@twin.org/api-auth-models",
-	"version": "0.9.2-next.9",
+	"version": "0.9.2-next.10",
 	"description": "Contracts for authentication audit and rate limiting.",
 	"repository": {
 		"type": "git",
