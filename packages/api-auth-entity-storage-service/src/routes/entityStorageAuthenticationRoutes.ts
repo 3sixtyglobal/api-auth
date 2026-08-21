@@ -27,13 +27,19 @@ import { HttpStatusCode } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationRoutes";
 
 /**
- * The default authorization permissions for the routes, use to populate authorization rules.
+ * The default permissions for the routes, used to seed authorization rules.
  */
-const PERMISSIONS_DEFAULT_ROUTE_READER = "user:read";
-const PERMISSIONS_DEFAULT_ROUTE_WRITER = {
+const DEFAULT_ROUTE_PERMISSIONS_EXECUTE = "user:execute";
+const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
 	permission: "user:write",
-	inherits: [PERMISSIONS_DEFAULT_ROUTE_READER]
+	inherits: ["user:read"]
 };
+
+/**
+ * The default roles for the routes, used to seed authorization rules.
+ */
+const DEFAULT_ROUTE_ROLES_EXECUTE = "user";
+const DEFAULT_ROUTE_ROLES_WRITER = "user";
 
 /**
  * The tag to associate with the routes.
@@ -98,7 +104,8 @@ export function generateRestRoutesAuthentication(
 			}
 		],
 		skipAuth: true,
-		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
+		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
+		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
 	};
 
 	const logoutRoute: IRestRoute<ILogoutRequest, INoContentResponse> = {
@@ -128,7 +135,8 @@ export function generateRestRoutesAuthentication(
 				type: nameof<INoContentResponse>()
 			}
 		],
-		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
+		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
+		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
 	};
 
 	const refreshTokenRoute: IRestRoute<IRefreshTokenRequest, IRefreshTokenResponse> = {
@@ -172,7 +180,8 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_READER]
+		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
+		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
 	};
 
 	const updatePasswordRoute: IRestRoute<IUpdatePasswordRequest, INoContentResponse> = {
@@ -206,7 +215,8 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [PERMISSIONS_DEFAULT_ROUTE_WRITER]
+		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
+		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
 	};
 
 	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];
