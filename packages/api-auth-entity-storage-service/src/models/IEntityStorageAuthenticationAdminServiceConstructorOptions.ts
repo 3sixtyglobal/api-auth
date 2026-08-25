@@ -13,7 +13,7 @@ export interface IEntityStorageAuthenticationAdminServiceConstructorOptions {
 	userEntityStorageType?: string;
 
 	/**
-	 * The audit service.
+	 * The audit component.
 	 * @default authentication-audit
 	 */
 	authenticationAuditServiceType?: string;

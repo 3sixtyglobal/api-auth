@@ -4,8 +4,8 @@ import type {
 	IAuthenticationAdminComponent,
 	IAuthenticationUser
 } from "@twin.org/api-auth-entity-storage-models";
-import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
-import { AuthAuditEvent } from "@twin.org/api-auth-models";
+import { type IAuthenticationAuditComponent, AuthAuditEvent } from "@twin.org/api-auth-models";
+import { HttpContextIdKeys } from "@twin.org/api-models";
 import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
 	ComponentFactory,
@@ -42,7 +42,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	private readonly _userEntityStorage: IEntityStorageConnector<AuthenticationUser>;
 
 	/**
-	 * The audit service.
+	 * The audit component.
 	 * @internal
 	 */
 	private readonly _authenticationAuditService?: IAuthenticationAuditComponent;
@@ -137,13 +137,15 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: user.email,
 				event: AuthAuditEvent.AccountCreated,
 				data: {
 					userIdentity: user.userIdentity,
 					organizationIdentity: user.organizationIdentity,
-					tenantId: requestorTenantId
+					tenantId: requestorTenantId,
+					originalTenantId
 				}
 			});
 		} catch (error) {
@@ -217,6 +219,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: existingUser.email,
 				event: AuthAuditEvent.AccountUpdated,
@@ -224,7 +227,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					updatedFields,
 					userIdentity: existingUser.identity,
 					organizationIdentity: existingUser.organization,
-					tenantId: requestorTenantId
+					tenantId: requestorTenantId,
+					originalTenantId
 				}
 			});
 		} catch (error) {
@@ -329,13 +333,15 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: email,
 				event: AuthAuditEvent.AccountDeleted,
 				data: {
 					userIdentity: user.identity,
 					organizationIdentity: user.organization,
-					tenantId: requestorTenantId
+					tenantId: requestorTenantId,
+					originalTenantId
 				}
 			});
 		} catch (error) {
