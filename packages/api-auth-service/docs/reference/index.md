@@ -4,6 +4,7 @@
 
 - [AuthenticationAuditEntry](classes/AuthenticationAuditEntry.md)
 - [AuthenticationRateEntry](classes/AuthenticationRateEntry.md)
+- [TenantOverrideProcessor](classes/TenantOverrideProcessor.md)
 - [EntityStorageAuthenticationAuditService](classes/EntityStorageAuthenticationAuditService.md)
 - [EntityStorageAuthenticationRateService](classes/EntityStorageAuthenticationRateService.md)
 
@@ -13,6 +14,8 @@
 - [IEntityStorageAuthenticationAuditServiceConstructorOptions](interfaces/IEntityStorageAuthenticationAuditServiceConstructorOptions.md)
 - [IEntityStorageAuthenticationRateServiceConfig](interfaces/IEntityStorageAuthenticationRateServiceConfig.md)
 - [IEntityStorageAuthenticationRateServiceConstructorOptions](interfaces/IEntityStorageAuthenticationRateServiceConstructorOptions.md)
+- [ITenantOverrideProcessorConfig](interfaces/ITenantOverrideProcessorConfig.md)
+- [ITenantOverrideProcessorConstructorOptions](interfaces/ITenantOverrideProcessorConstructorOptions.md)
 
 ## Variables
 

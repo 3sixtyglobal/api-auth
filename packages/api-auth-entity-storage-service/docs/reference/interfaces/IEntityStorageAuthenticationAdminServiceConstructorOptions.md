@@ -22,7 +22,7 @@ authentication-user
 
 > `optional` **authenticationAuditServiceType?**: `string`
 
-The audit service.
+The audit component.
 
 #### Default
 

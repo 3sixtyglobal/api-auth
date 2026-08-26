@@ -44,18 +44,6 @@ The users organization.
 
 ***
 
-### roles {#roles}
-
-> **roles**: `string`[]
-
-The roles assigned to the user.
-
-#### Inherited from
-
-[`IAuthenticationUser`](IAuthenticationUser.md).[`roles`](IAuthenticationUser.md#roles)
-
-***
-
 ### password {#password}
 
 > **password**: `string`

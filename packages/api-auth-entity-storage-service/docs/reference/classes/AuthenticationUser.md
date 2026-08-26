@@ -54,14 +54,6 @@ The users organization.
 
 ***
 
-### roles {#roles}
-
-> **roles**: `string`
-
-The roles assigned to the user, bar separated.
-
-***
-
 ### passwordVersion? {#passwordversion}
 
 > `optional` **passwordVersion?**: `number`

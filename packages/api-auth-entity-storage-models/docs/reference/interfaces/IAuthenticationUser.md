@@ -29,11 +29,3 @@ The user identity.
 > **organizationIdentity**: `string`
 
 The users organization.
-
-***
-
-### roles {#roles}
-
-> **roles**: `string`[]
-
-The roles assigned to the user.
