@@ -14,6 +14,7 @@ import type {
 	INoContentResponse,
 	IRestRoute,
 	IRestRouteResponseOptions,
+	IRouteAuthorization,
 	ITag,
 	IUnauthorizedResponse
 } from "@twin.org/api-models";
@@ -27,12 +28,16 @@ import { HttpStatusCode } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationRoutes";
 
 /**
- * The default permissions for the routes, used to seed authorization rules.
+ * The default authorization for the routes, used to seed authorization rules.
  */
-const DEFAULT_ROUTE_PERMISSIONS_EXECUTE = "user:execute";
-const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
+const DEFAULT_AUTHORIZATION_READER: IRouteAuthorization = {
+	permission: "user:read",
+	role: "user"
+};
+const DEFAULT_AUTHORIZATION_WRITER: IRouteAuthorization = {
 	permission: "user:write",
-	inherits: ["user:read"]
+	role: "user",
+	inherits: [DEFAULT_AUTHORIZATION_READER.permission]
 };
 
 /**
@@ -98,7 +103,7 @@ export function generateRestRoutesAuthentication(
 			}
 		],
 		skipAuth: true,
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	const logoutRoute: IRestRoute<ILogoutRequest, INoContentResponse> = {
@@ -128,7 +133,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<INoContentResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	const refreshTokenRoute: IRestRoute<IRefreshTokenRequest, IRefreshTokenResponse> = {
@@ -172,7 +177,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	const updatePasswordRoute: IRestRoute<IUpdatePasswordRequest, INoContentResponse> = {
@@ -206,7 +211,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];

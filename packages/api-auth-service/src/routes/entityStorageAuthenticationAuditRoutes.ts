@@ -18,6 +18,7 @@ import {
 	type IHttpRequestContext,
 	type INoContentResponse,
 	type IRestRoute,
+	type IRouteAuthorization,
 	type ITag,
 	type IUnauthorizedResponse
 } from "@twin.org/api-models";
@@ -32,12 +33,16 @@ import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationAuditRoutes";
 
 /**
- * The default permissions for the routes, used to seed authorization rules.
+ * The default authorization for the routes, used to seed authorization rules.
  */
-const DEFAULT_ROUTE_PERMISSIONS_READER = "user-audit:read";
-const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
-	permission: "user-audit:write",
-	inherits: [DEFAULT_ROUTE_PERMISSIONS_READER]
+const DEFAULT_AUTHORIZATION_READER: IRouteAuthorization = {
+	permission: "user:read",
+	role: "user-admin"
+};
+const DEFAULT_AUTHORIZATION_WRITER: IRouteAuthorization = {
+	permission: "user:write",
+	role: "user-admin",
+	inherits: [DEFAULT_AUTHORIZATION_READER.permission]
 };
 
 /**
@@ -106,7 +111,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const getRoute: IRestRoute<IAuditGetRequest, IAuditGetResponse> = {
@@ -156,7 +161,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const updateRoute: IRestRoute<IAuditUpdateRequest, INoContentResponse> = {
@@ -194,7 +199,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const removeRoute: IRestRoute<IAuditRemoveRequest, INoContentResponse> = {
@@ -227,7 +232,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const queryRoute: IRestRoute<IAuditQueryRequest, IAuditQueryResponse> = {
@@ -286,7 +291,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_READER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	return [createRoute, getRoute, updateRoute, removeRoute, queryRoute];
