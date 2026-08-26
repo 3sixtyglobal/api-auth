@@ -35,9 +35,7 @@ describe("TenantOverrideProcessor", () => {
 		} as unknown as ITenantAdminComponent;
 
 		mockAuthorizationComponent = {
-			getRolesForSubject: vi
-				.fn()
-				.mockResolvedValue([TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE])
+			hasRoleForSubject: vi.fn().mockResolvedValue(true)
 		} as unknown as IAuthorizationComponent;
 
 		vi.spyOn(ComponentFactory, "get").mockImplementation(type => {
@@ -134,11 +132,11 @@ describe("TenantOverrideProcessor", () => {
 
 		expect(response.statusCode).toBe(HttpStatusCode.forbidden);
 		expect(contextIds[ContextIdKeys.Tenant]).toBe(CALLER_TENANT);
-		expect(mockAuthorizationComponent.getRolesForSubject).not.toHaveBeenCalled();
+		expect(mockAuthorizationComponent.hasRoleForSubject).not.toHaveBeenCalled();
 	});
 
 	it("should return 403 when override-tenant is supplied but caller lacks escalated privilege", async () => {
-		vi.mocked(mockAuthorizationComponent.getRolesForSubject).mockResolvedValue(["user-admin"]);
+		vi.mocked(mockAuthorizationComponent.hasRoleForSubject).mockResolvedValue(false);
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
@@ -219,7 +217,7 @@ describe("TenantOverrideProcessor", () => {
 	});
 
 	it("should respond with 403 body containing the error name", async () => {
-		vi.mocked(mockAuthorizationComponent.getRolesForSubject).mockResolvedValue(["user-admin"]);
+		vi.mocked(mockAuthorizationComponent.hasRoleForSubject).mockResolvedValue(false);
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
@@ -240,7 +238,7 @@ describe("TenantOverrideProcessor", () => {
 	});
 
 	it("should accept a custom escalated privilege role when configured", async () => {
-		vi.mocked(mockAuthorizationComponent.getRolesForSubject).mockResolvedValue(["super-admin"]);
+		vi.mocked(mockAuthorizationComponent.hasRoleForSubject).mockResolvedValue(true);
 
 		const customProcessor = new TenantOverrideProcessor({
 			config: { escalatedPrivilegeRole: "super-admin" }

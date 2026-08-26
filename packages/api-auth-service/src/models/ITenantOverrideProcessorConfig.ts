@@ -14,4 +14,10 @@ export interface ITenantOverrideProcessorConfig {
 	 * The role value that grants escalated privilege for cross-tenant access. Defaults to "global-admin".
 	 */
 	escalatedPrivilegeRole?: string;
+
+	/**
+	 * The authorization model ID to use for REST requests.
+	 * @default rest
+	 */
+	authorizationModelId?: string;
 }

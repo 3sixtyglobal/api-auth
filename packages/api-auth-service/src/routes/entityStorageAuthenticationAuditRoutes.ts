@@ -41,15 +41,6 @@ const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
 };
 
 /**
- * The default roles for the routes, used to seed authorization rules.
- */
-const DEFAULT_ROUTE_ROLES_READER = "user-audit-viewer";
-const DEFAULT_ROUTE_ROLES_WRITER = {
-	role: "user-audit-admin",
-	inherits: [DEFAULT_ROUTE_ROLES_READER]
-};
-
-/**
  * The tag to associate with the routes.
  */
 export const tagsAuthenticationAudit: ITag[] = [
@@ -115,8 +106,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const getRoute: IRestRoute<IAuditGetRequest, IAuditGetResponse> = {
@@ -166,8 +156,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const updateRoute: IRestRoute<IAuditUpdateRequest, INoContentResponse> = {
@@ -205,8 +194,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const removeRoute: IRestRoute<IAuditRemoveRequest, INoContentResponse> = {
@@ -239,8 +227,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const queryRoute: IRestRoute<IAuditQueryRequest, IAuditQueryResponse> = {
@@ -299,8 +286,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_READER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_READER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_READER
 	};
 
 	return [createRoute, getRoute, updateRoute, removeRoute, queryRoute];

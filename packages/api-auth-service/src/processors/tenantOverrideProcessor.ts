@@ -62,6 +62,12 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 	private readonly _escalatedPrivilegeRole: string;
 
 	/**
+	 * The authorization model ID to use for REST requests.
+	 * @internal
+	 */
+	private readonly _authorizationModelId: string;
+
+	/**
 	 * Create a new instance of TenantOverrideProcessor.
 	 * @param options Options for the processor.
 	 */
@@ -76,6 +82,7 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 		this._escalatedPrivilegeRole =
 			options?.config?.escalatedPrivilegeRole ??
 			TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE;
+		this._authorizationModelId = options?.config?.authorizationModelId ?? "rest";
 	}
 
 	/**
@@ -125,10 +132,14 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 				);
 			}
 
-			const authorizationRoles = await this._authorizationComponent.getRolesForSubject(userId);
+			const hasRole = await this._authorizationComponent.hasRoleForSubject(
+				this._authorizationModelId,
+				userId,
+				this._escalatedPrivilegeRole
+			);
 
 			// Caller must hold the escalated privilege role.
-			if (!authorizationRoles.includes(this._escalatedPrivilegeRole)) {
+			if (!hasRole) {
 				throw new ForbiddenError(
 					TenantOverrideProcessor.CLASS_NAME,
 					"insufficientRoleForTenantOverride"

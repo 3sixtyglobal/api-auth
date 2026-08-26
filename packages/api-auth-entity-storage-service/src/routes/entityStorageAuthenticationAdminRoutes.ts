@@ -41,15 +41,6 @@ const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
 };
 
 /**
- * The default roles for the routes, used to seed authorization rules.
- */
-const DEFAULT_ROUTE_ROLES_READER = "user-viewer";
-const DEFAULT_ROUTE_ROLES_WRITER = {
-	role: "user-admin",
-	inherits: [DEFAULT_ROUTE_ROLES_READER]
-};
-
-/**
  * The tag to associate with the routes.
  */
 export const tagsAuthenticationAdmin: ITag[] = [
@@ -102,8 +93,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_READER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_READER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_READER
 	};
 
 	const updateUserRoute: IRestRoute<IAdminUserUpdateRequest, INoContentResponse> = {
@@ -140,8 +130,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const updateUserPasswordRoute: IRestRoute<IAdminUserUpdatePasswordRequest, INoContentResponse> = {
@@ -177,8 +166,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	const getUserRoute: IRestRoute<IAdminUserGetRequest, IAdminUserGetResponse> = {
@@ -224,8 +212,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_READER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_READER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_READER
 	};
 
 	const getByIdentityUserRoute: IRestRoute<IAdminUserGetByIdentityRequest, IAdminUserGetResponse> =
@@ -272,8 +259,7 @@ export function generateRestRoutesAuthenticationAdmin(
 					type: nameof<IUnauthorizedResponse>()
 				}
 			],
-			defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_READER],
-			defaultRoles: [DEFAULT_ROUTE_ROLES_READER]
+			defaultPermission: DEFAULT_ROUTE_PERMISSIONS_READER
 		};
 
 	const removeUserRoute: IRestRoute<IAdminUserRemoveRequest, INoContentResponse> = {
@@ -306,8 +292,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	return [

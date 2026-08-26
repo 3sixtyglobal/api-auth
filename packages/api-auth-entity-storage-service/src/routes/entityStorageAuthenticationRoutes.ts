@@ -36,12 +36,6 @@ const DEFAULT_ROUTE_PERMISSIONS_WRITER = {
 };
 
 /**
- * The default roles for the routes, used to seed authorization rules.
- */
-const DEFAULT_ROUTE_ROLES_EXECUTE = "user";
-const DEFAULT_ROUTE_ROLES_WRITER = "user";
-
-/**
  * The tag to associate with the routes.
  */
 export const tagsAuthentication: ITag[] = [
@@ -104,8 +98,7 @@ export function generateRestRoutesAuthentication(
 			}
 		],
 		skipAuth: true,
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
 	};
 
 	const logoutRoute: IRestRoute<ILogoutRequest, INoContentResponse> = {
@@ -135,8 +128,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<INoContentResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
 	};
 
 	const refreshTokenRoute: IRestRoute<IRefreshTokenRequest, IRefreshTokenResponse> = {
@@ -180,8 +172,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_EXECUTE],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_EXECUTE]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_EXECUTE
 	};
 
 	const updatePasswordRoute: IRestRoute<IUpdatePasswordRequest, INoContentResponse> = {
@@ -215,8 +206,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultPermissions: [DEFAULT_ROUTE_PERMISSIONS_WRITER],
-		defaultRoles: [DEFAULT_ROUTE_ROLES_WRITER]
+		defaultPermission: DEFAULT_ROUTE_PERMISSIONS_WRITER
 	};
 
 	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];
