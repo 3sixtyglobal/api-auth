@@ -1,7 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import { ContextIdStore, type IContextIds } from "@twin.org/context";
-import { SharedStore } from "@twin.org/core";
+import { Is, SharedStore } from "@twin.org/core";
 import {
 	EntitySchemaFactory,
 	EntitySchemaHelper,
@@ -33,12 +33,15 @@ export function initSchema(): void {
 				return;
 			}
 
-			const scopes = entity.scope
-				.split(",")
-				.map(role => role.trim().toLocaleLowerCase())
-				.filter(role => role.length > 0);
-			if (scopes.length === 0) {
-				scopes.push("user");
+			let roles: string[] = [];
+			if (Is.stringValue(entity.scope)) {
+				roles = entity.scope
+					.split(",")
+					.map(role => role.trim().toLocaleLowerCase())
+					.filter(role => role.length > 0);
+			}
+			if (roles.length === 0) {
+				roles.push("user");
 			}
 
 			// We need to store the old roles in here if a migration is performed
@@ -53,7 +56,7 @@ export function initSchema(): void {
 				>("migrationUserRoles") ?? [];
 			migratedRoles.push({
 				identity: entity.identity,
-				roles: scopes,
+				roles,
 				contextIds
 			});
 			SharedStore.set("migrationUserRoles", migratedRoles);
