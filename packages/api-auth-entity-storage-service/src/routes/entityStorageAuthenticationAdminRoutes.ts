@@ -97,7 +97,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const updateUserRoute: IRestRoute<IAdminUserUpdateRequest, INoContentResponse> = {

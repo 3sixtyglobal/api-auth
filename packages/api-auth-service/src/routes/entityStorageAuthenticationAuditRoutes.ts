@@ -161,7 +161,7 @@ export function generateRestRoutesAuthenticationAudit(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	const updateRoute: IRestRoute<IAuditUpdateRequest, INoContentResponse> = {

@@ -28,19 +28,6 @@ import { HttpStatusCode } from "@twin.org/web";
 const ROUTES_SOURCE = "authenticationRoutes";
 
 /**
- * The default authorization for the routes, used to seed authorization rules.
- */
-const DEFAULT_AUTHORIZATION_READER: IRouteAuthorization = {
-	permission: "user:read",
-	role: "user"
-};
-const DEFAULT_AUTHORIZATION_WRITER: IRouteAuthorization = {
-	permission: "user:write",
-	role: "user",
-	inherits: [DEFAULT_AUTHORIZATION_READER.permission]
-};
-
-/**
  * The tag to associate with the routes.
  */
 export const tagsAuthentication: ITag[] = [
@@ -102,8 +89,7 @@ export function generateRestRoutesAuthentication(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		skipAuth: true,
-		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+		skipAuth: true
 	};
 
 	const logoutRoute: IRestRoute<ILogoutRequest, INoContentResponse> = {
@@ -132,8 +118,7 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<INoContentResponse>()
 			}
-		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+		]
 	};
 
 	const refreshTokenRoute: IRestRoute<IRefreshTokenRequest, IRefreshTokenResponse> = {
@@ -176,8 +161,7 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+		]
 	};
 
 	const updatePasswordRoute: IRestRoute<IUpdatePasswordRequest, INoContentResponse> = {
@@ -210,8 +194,7 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+		]
 	};
 
 	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];
