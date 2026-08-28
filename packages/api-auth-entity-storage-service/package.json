@@ -33,13 +33,11 @@
 		"@twin.org/api-auth-models": "0.9.3-next.0",
 		"@twin.org/api-core": "next",
 		"@twin.org/api-models": "next",
-		"@twin.org/background-task-models": "next",
 		"@twin.org/context": "next",
 		"@twin.org/core": "next",
 		"@twin.org/crypto": "next",
 		"@twin.org/entity": "next",
 		"@twin.org/entity-storage-models": "next",
-		"@twin.org/logging-models": "next",
 		"@twin.org/nameof": "next",
 		"@twin.org/vault-models": "next",
 		"@twin.org/web": "next"

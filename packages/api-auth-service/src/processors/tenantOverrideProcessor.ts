@@ -14,6 +14,7 @@ import type { IAuthorizationComponent } from "@twin.org/authorization-models";
 import { ContextIdKeys, type IContextIds } from "@twin.org/context";
 import { BaseError, ComponentFactory, Is, NotFoundError } from "@twin.org/core";
 import { nameof } from "@twin.org/nameof";
+import { HttpStatusCode } from "@twin.org/web";
 import type { ITenantOverrideProcessorConstructorOptions } from "../models/ITenantOverrideProcessorConstructorOptions.js";
 
 /**
@@ -119,7 +120,7 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 		}
 
 		// If a prior processor already set an error response, skip processing.
-		if (Is.notEmpty(response.statusCode)) {
+		if (Is.notEmpty(response.statusCode) && response.statusCode >= HttpStatusCode.badRequest) {
 			return;
 		}
 
@@ -132,6 +133,7 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 				);
 			}
 
+			// Role must be directly assigned to the user, not inherited through a group or other means.
 			const hasRole = await this._authorizationComponent.hasRoleForSubject(
 				this._authorizationModelId,
 				userId,
