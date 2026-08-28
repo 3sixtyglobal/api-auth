@@ -214,6 +214,11 @@ describe("TenantOverrideProcessor", () => {
 		expect(contextIds[ContextIdKeys.Tenant]).toBe(OVERRIDE_TENANT);
 		expect(contextIds[HttpContextIdKeys.OriginalTenant]).toBe(CALLER_TENANT);
 		expect(mockTenantAdminComponent.get).toHaveBeenCalledWith(OVERRIDE_TENANT);
+		expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+			"rest",
+			CALLER_USER,
+			TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE
+		);
 	});
 
 	it("should respond with 403 body containing the error name", async () => {
@@ -258,5 +263,35 @@ describe("TenantOverrideProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe(OVERRIDE_TENANT);
+		expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+			"rest",
+			CALLER_USER,
+			"super-admin"
+		);
+	});
+
+	it("should use a custom authorizationModelId when configured", async () => {
+		const customProcessor = new TenantOverrideProcessor({
+			config: { authorizationModelId: "custom-model" }
+		});
+		const contextIds: IContextIds = {
+			[ContextIdKeys.Tenant]: CALLER_TENANT,
+			[ContextIdKeys.User]: CALLER_USER
+		};
+		const response: IHttpResponse = {};
+		await customProcessor.pre(
+			{ query: { "override-tenant": OVERRIDE_TENANT } } as unknown as IHttpServerRequest,
+			response,
+			{ operationId: "tenantGetById", path: "/" },
+			contextIds,
+			{}
+		);
+
+		expect(response.statusCode).toBeUndefined();
+		expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+			"custom-model",
+			CALLER_USER,
+			TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE
+		);
 	});
 });

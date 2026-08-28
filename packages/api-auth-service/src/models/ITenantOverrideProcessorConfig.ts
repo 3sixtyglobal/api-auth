@@ -11,7 +11,8 @@ export interface ITenantOverrideProcessorConfig {
 	includeErrorStack?: boolean;
 
 	/**
-	 * The role value that grants escalated privilege for cross-tenant access. Defaults to "global-admin".
+	 * The role value that grants escalated privilege for cross-tenant access.
+	 * @default global-admin
 	 */
 	escalatedPrivilegeRole?: string;
 

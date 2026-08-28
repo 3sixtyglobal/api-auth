@@ -14,7 +14,6 @@ import type {
 	INoContentResponse,
 	IRestRoute,
 	IRestRouteResponseOptions,
-	IRouteAuthorization,
 	ITag,
 	IUnauthorizedResponse
 } from "@twin.org/api-models";
