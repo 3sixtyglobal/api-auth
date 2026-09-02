@@ -1,4 +1,4 @@
-// Copyright 2024 IOTA Stiftung.
+// Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import { entity, property } from "@twin.org/entity";
 

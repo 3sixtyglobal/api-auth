@@ -18,7 +18,7 @@ export interface ITenantOverrideProcessorConfig {
 
 	/**
 	 * The authorization model ID to use for REST requests.
-	 * @default rest
+	 * @default system
 	 */
 	authorizationModelId?: string;
 }

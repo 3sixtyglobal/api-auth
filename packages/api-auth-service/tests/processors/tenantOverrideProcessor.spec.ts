@@ -119,6 +119,25 @@ describe("TenantOverrideProcessor", () => {
 		expect(mockTenantAdminComponent.get).not.toHaveBeenCalled();
 	});
 
+	it("should proceed with override when response already has a 2xx status code", async () => {
+		const contextIds: IContextIds = {
+			[ContextIdKeys.Tenant]: CALLER_TENANT,
+			[ContextIdKeys.User]: CALLER_USER
+		};
+		const response: IHttpResponse = { statusCode: HttpStatusCode.ok };
+		await processor.pre(
+			{ query: { "override-tenant": OVERRIDE_TENANT } } as unknown as IHttpServerRequest,
+			response,
+			{ operationId: "tenantGetById", path: "/" },
+			contextIds,
+			{}
+		);
+
+		expect(contextIds[ContextIdKeys.Tenant]).toBe(OVERRIDE_TENANT);
+		expect(contextIds[HttpContextIdKeys.OriginalTenant]).toBe(CALLER_TENANT);
+		expect(mockTenantAdminComponent.get).toHaveBeenCalledWith(OVERRIDE_TENANT);
+	});
+
 	it("should return 403 when caller user ID is not set in context", async () => {
 		const contextIds: IContextIds = { [ContextIdKeys.Tenant]: CALLER_TENANT };
 		const response: IHttpResponse = {};
@@ -215,7 +234,7 @@ describe("TenantOverrideProcessor", () => {
 		expect(contextIds[HttpContextIdKeys.OriginalTenant]).toBe(CALLER_TENANT);
 		expect(mockTenantAdminComponent.get).toHaveBeenCalledWith(OVERRIDE_TENANT);
 		expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
-			"rest",
+			"system",
 			CALLER_USER,
 			TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE
 		);
@@ -264,7 +283,7 @@ describe("TenantOverrideProcessor", () => {
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe(OVERRIDE_TENANT);
 		expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
-			"rest",
+			"system",
 			CALLER_USER,
 			"super-admin"
 		);

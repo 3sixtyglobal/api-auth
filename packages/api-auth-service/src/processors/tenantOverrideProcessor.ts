@@ -29,6 +29,11 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 	public static readonly OVERRIDE_TENANT_PARAM: string = "override-tenant";
 
 	/**
+	 * The model identifier that is reserved for system-only use.
+	 */
+	public static readonly DEFAULT_AUTHORIZATION_MODEL_ID: string = "system";
+
+	/**
 	 * The role string required to perform a tenant override.
 	 */
 	public static readonly DEFAULT_ESCALATED_PRIVILEGE_ROLE: string = "global-admin";
@@ -83,7 +88,9 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 		this._escalatedPrivilegeRole =
 			options?.config?.escalatedPrivilegeRole ??
 			TenantOverrideProcessor.DEFAULT_ESCALATED_PRIVILEGE_ROLE;
-		this._authorizationModelId = options?.config?.authorizationModelId ?? "rest";
+		this._authorizationModelId =
+			options?.config?.authorizationModelId ??
+			TenantOverrideProcessor.DEFAULT_AUTHORIZATION_MODEL_ID;
 	}
 
 	/**
