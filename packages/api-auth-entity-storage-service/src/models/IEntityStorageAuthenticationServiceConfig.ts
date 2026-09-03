@@ -20,9 +20,15 @@ export interface IEntityStorageAuthenticationServiceConfig {
 
 	/**
 	 * The minimum password length for new password validation.
-	 * @default 8
+	 * @default 15
 	 */
 	minPasswordLength?: number;
+
+	/**
+	 * The maximum password length for new password validation.
+	 * @default 128
+	 */
+	maxPasswordLength?: number;
 
 	/**
 	 * Optional override for login failure rate limit.

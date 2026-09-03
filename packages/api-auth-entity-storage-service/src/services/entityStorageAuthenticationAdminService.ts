@@ -54,6 +54,12 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	private readonly _minPasswordLength?: number;
 
 	/**
+	 * The maximum password length.
+	 * @internal
+	 */
+	private readonly _maxPasswordLength?: number;
+
+	/**
 	 * Create a new instance of EntityStorageAuthentication.
 	 * @param options The dependencies for the identity connector.
 	 */
@@ -67,6 +73,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 		);
 
 		this._minPasswordLength = options?.config?.minPasswordLength;
+		this._maxPasswordLength = options?.config?.maxPasswordLength;
 	}
 
 	/**
@@ -111,7 +118,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
-				minLength: this._minPasswordLength
+				minLength: this._minPasswordLength,
+				maxLength: this._maxPasswordLength
 			});
 
 			const existingUser = await this._userEntityStorage.get(user.email);
@@ -389,7 +397,10 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				user,
 				newPassword,
 				currentPassword,
-				this._minPasswordLength
+				{
+					minPasswordLength: this._minPasswordLength,
+					maxPasswordLength: this._maxPasswordLength
+				}
 			);
 		} catch (error) {
 			throw new GeneralError(

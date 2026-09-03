@@ -5,12 +5,14 @@ import type {
 	ILoginRequest,
 	ILoginResponse,
 	ILogoutRequest,
+	IPasswordPolicyResponse,
+	IPasswordOptions,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IUpdatePasswordRequest
 } from "@twin.org/api-auth-entity-storage-models";
 import { BaseRestClient } from "@twin.org/api-core";
-import type { INoContentResponse } from "@twin.org/api-models";
+import type { INoContentRequest, INoContentResponse } from "@twin.org/api-models";
 import { Guards } from "@twin.org/core";
 import { nameof } from "@twin.org/nameof";
 import { CookieHelper, HeaderTypes } from "@twin.org/web";
@@ -159,5 +161,15 @@ export class EntityStorageAuthenticationRestClient
 				newPassword
 			}
 		});
+	}
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	public async passwordPolicy(): Promise<IPasswordOptions> {
+		const response = await this.fetch<INoContentRequest, IPasswordPolicyResponse>("/policy", "GET");
+
+		return response.body;
 	}
 }

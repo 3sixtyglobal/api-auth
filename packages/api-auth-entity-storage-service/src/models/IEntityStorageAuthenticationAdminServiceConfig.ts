@@ -7,7 +7,13 @@
 export interface IEntityStorageAuthenticationAdminServiceConfig {
 	/**
 	 * The minimum password length.
-	 * @default 8
+	 * @default 15
 	 */
 	minPasswordLength?: number;
+
+	/**
+	 * The maximum password length.
+	 * @default 128
+	 */
+	maxPasswordLength?: number;
 }

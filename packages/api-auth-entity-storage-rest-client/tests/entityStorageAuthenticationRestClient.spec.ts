@@ -189,4 +189,28 @@ describe("EntityStorageAuthenticationRestClient", () => {
 			).resolves.toBeUndefined();
 		});
 	});
+
+	describe("passwordPolicy", () => {
+		test("sends GET to /policy", async () => {
+			fetchMock.mockResolvedValueOnce(
+				jsonResponse({ minPasswordLength: 15, maxPasswordLength: 128 })
+			);
+
+			await client.passwordPolicy();
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/policy`);
+			expect(options.method).toBe(HttpMethod.GET);
+		});
+
+		test("returns the policy from the response body", async () => {
+			fetchMock.mockResolvedValueOnce(
+				jsonResponse({ minPasswordLength: 15, maxPasswordLength: 128 })
+			);
+
+			const result = await client.passwordPolicy();
+
+			expect(result).toEqual({ minPasswordLength: 15, maxPasswordLength: 128 });
+		});
+	});
 });

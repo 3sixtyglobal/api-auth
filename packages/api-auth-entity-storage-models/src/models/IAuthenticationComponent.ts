@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IComponent } from "@twin.org/core";
+import type { IPasswordOptions } from "./IPasswordOptions.js";
 
 /**
  * Contract definition for authentication component.
@@ -44,4 +45,10 @@ export interface IAuthenticationComponent extends IComponent {
 	 * @returns A promise that resolves when the password has been updated.
 	 */
 	updatePassword(currentPassword: string, newPassword: string): Promise<void>;
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	passwordPolicy(): Promise<IPasswordOptions>;
 }

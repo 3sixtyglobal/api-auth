@@ -530,7 +530,7 @@ describe("EntityStorageAuthenticationService", () => {
 			expect.objectContaining({ email: "user@example.com", identity: "did:user:123" }),
 			"new-password",
 			"current-password",
-			undefined
+			{ minPasswordLength: undefined, maxPasswordLength: undefined }
 		);
 		expect(mockAuthenticationRateService.clear).toHaveBeenCalledWith(
 			"password-change",
@@ -718,7 +718,7 @@ describe("EntityStorageAuthenticationService", () => {
 						expect.objectContaining({ email: "user@example.com", identity: "did:user:123" }),
 						"new-password",
 						"current-password",
-						undefined
+						{ minPasswordLength: undefined, maxPasswordLength: undefined }
 					);
 				}
 			);

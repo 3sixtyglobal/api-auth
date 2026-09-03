@@ -1,5 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
+import type { IPasswordOptions } from "@twin.org/api-auth-entity-storage-models";
 import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
 import { AuthAuditEvent } from "@twin.org/api-auth-models";
 import { Converter, GeneralError, Is, RandomHelper } from "@twin.org/core";
@@ -25,7 +26,9 @@ export class PasswordHelper {
 	 * @param user The user whose password is being updated.
 	 * @param newPassword The new password to set.
 	 * @param currentPassword The current password to verify against, if supplied.
-	 * @param minPasswordLength Optional minimum password length for validation.
+	 * @param options Optional password length validation options.
+	 * @param options.minPasswordLength Optional minimum password length for validation.
+	 * @param options.maxPasswordLength Optional maximum password length for validation.
 	 * @returns A promise that resolves when the new password has been stored and the audit entry recorded.
 	 */
 	public static async updatePassword(
@@ -34,10 +37,11 @@ export class PasswordHelper {
 		user: AuthenticationUser,
 		newPassword: string,
 		currentPassword?: string,
-		minPasswordLength?: number
+		options?: IPasswordOptions
 	): Promise<void> {
 		PasswordValidator.validatePassword(newPassword, {
-			minLength: minPasswordLength
+			minLength: options?.minPasswordLength,
+			maxLength: options?.maxPasswordLength
 		});
 
 		if (Is.stringValue(currentPassword)) {

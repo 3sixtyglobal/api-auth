@@ -1,6 +1,9 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationComponent } from "@twin.org/api-auth-entity-storage-models";
+import type {
+	IAuthenticationComponent,
+	IPasswordOptions
+} from "@twin.org/api-auth-entity-storage-models";
 import type {
 	IAuthenticationRateActionConfig,
 	IAuthenticationRateComponent,
@@ -125,6 +128,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _minPasswordLength?: number;
 
 	/**
+	 * The maximum password length for validation.
+	 * @internal
+	 */
+	private readonly _maxPasswordLength?: number;
+
+	/**
 	 * Rate limit configuration for login failures.
 	 * @internal
 	 */
@@ -181,6 +190,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._defaultTtlMinutes =
 			options?.config?.defaultTtlMinutes ?? EntityStorageAuthenticationService._DEFAULT_TTL_MINUTES;
 		this._minPasswordLength = options?.config?.minPasswordLength;
+		this._maxPasswordLength = options?.config?.maxPasswordLength;
 		this._loginRateLimit = {
 			maxAttempts:
 				options?.config?.loginRateLimit?.maxAttempts ??
@@ -468,9 +478,23 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			user,
 			newPassword,
 			currentPassword,
-			this._minPasswordLength
+			{
+				minPasswordLength: this._minPasswordLength,
+				maxPasswordLength: this._maxPasswordLength
+			}
 		);
 
 		await this._authenticationRateService.clear("password-change", userIdentity);
+	}
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	public async passwordPolicy(): Promise<IPasswordOptions> {
+		return {
+			minPasswordLength: this._minPasswordLength,
+			maxPasswordLength: this._maxPasswordLength
+		};
 	}
 }
