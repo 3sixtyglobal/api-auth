@@ -13,3 +13,7 @@ Alongside the core API building blocks, the repository also includes entity stor
 ## Contributing
 
 To contribute to this package see the guidelines for building and publishing in [CONTRIBUTING](./CONTRIBUTING.md)
+
+## Origin
+
+This repository is derived from the original [iotaledger/twin-api-auth](https://github.com/iotaledger/twin-api-auth) repository.

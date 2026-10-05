@@ -4,7 +4,7 @@
 	"description": "Authentication service implementation and REST routes backed by entity storage.",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/iotaledger/twin-api-auth.git",
+		"url": "git+https://github.com/3sixtyglobal/twin-api-auth.git",
 		"directory": "packages/api-auth-entity-storage-service"
 	},
 	"author": "martyn.janes@iota.org",
@@ -92,7 +92,7 @@
 		"business-logic"
 	],
 	"bugs": {
-		"url": "git+https://github.com/iotaledger/twin-api-auth/issues"
+		"url": "git+https://github.com/3sixtyglobal/twin-api-auth/issues"
 	},
 	"homepage": "https://twindev.org"
 }

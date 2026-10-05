@@ -19,3 +19,7 @@ Detailed reference documentation for the API can be found in [docs/reference/ind
 ## Changelog
 
 The changes between each version can be found in [docs/changelog.md](docs/changelog.md)
+
+## Origin
+
+This package is derived from the original [iotaledger/twin-api-auth](https://github.com/iotaledger/twin-api-auth/tree/next/packages/api-auth-entity-storage-models) repository.

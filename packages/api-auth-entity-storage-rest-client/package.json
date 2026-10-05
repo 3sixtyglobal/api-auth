@@ -4,7 +4,7 @@
 	"description": "REST clients for authentication and admin operations against entity storage endpoints.",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/iotaledger/twin-api-auth.git",
+		"url": "git+https://github.com/3sixtyglobal/twin-api-auth.git",
 		"directory": "packages/api-auth-entity-storage-rest-client"
 	},
 	"author": "martyn.janes@iota.org",
@@ -79,7 +79,7 @@
 		"database"
 	],
 	"bugs": {
-		"url": "git+https://github.com/iotaledger/twin-api-auth/issues"
+		"url": "git+https://github.com/3sixtyglobal/twin-api-auth/issues"
 	},
 	"homepage": "https://twindev.org"
 }
