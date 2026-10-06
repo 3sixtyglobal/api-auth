@@ -10,7 +10,7 @@ export class AuthenticationUser {
 	/**
 	 * The user e-mail address.
 	 */
-	@property({ type: "string", isPrimary: true })
+	@property({ type: "string", format: "email", isPrimary: true })
 	public email!: string;
 
 	/**
@@ -28,13 +28,13 @@ export class AuthenticationUser {
 	/**
 	 * The user identity.
 	 */
-	@property({ type: "string", isSecondary: true })
+	@property({ type: "string", maxLength: 255, isSecondary: true })
 	public identity!: string;
 
 	/**
 	 * The users organization.
 	 */
-	@property({ type: "string" })
+	@property({ type: "string", maxLength: 255 })
 	public organization!: string;
 
 	/**

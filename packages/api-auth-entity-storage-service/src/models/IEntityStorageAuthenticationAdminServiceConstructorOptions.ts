@@ -19,6 +19,12 @@ export interface IEntityStorageAuthenticationAdminServiceConstructorOptions {
 	authenticationAuditServiceType?: string;
 
 	/**
+	 * The authorization component used to guard accounts with escalated privilege.
+	 * @default authorization
+	 */
+	authorizationComponentType?: string;
+
+	/**
 	 * The configuration for the authentication.
 	 */
 	config?: IEntityStorageAuthenticationAdminServiceConfig;

@@ -13,7 +13,8 @@
 			"updateUserFailed": "Updating the user failed",
 			"removeUserFailed": "Removing the user failed",
 			"updatePasswordFailed": "Updating the user's password failed",
-			"userNotFound": "The user with the specified e-mail could not be found \"{notFoundId}\""
+			"userNotFound": "The user with the specified e-mail could not be found \"{notFoundId}\"",
+			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege."
 		},
 		"authHeaderProcessor": {
 			"nodeIdNotSet": "The node ID has not been set"

@@ -5,9 +5,11 @@ import type {
 	IAuthenticationUser
 } from "@twin.org/api-auth-entity-storage-models";
 import { type IAuthenticationAuditComponent, AuthAuditEvent } from "@twin.org/api-auth-models";
-import { HttpContextIdKeys } from "@twin.org/api-models";
+import { ForbiddenError, HttpContextIdKeys } from "@twin.org/api-models";
+import type { IAuthorizationComponent } from "@twin.org/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import {
+	BaseError,
 	ComponentFactory,
 	Converter,
 	GeneralError,
@@ -36,6 +38,16 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	public static readonly CLASS_NAME: string = nameof<EntityStorageAuthenticationAdminService>();
 
 	/**
+	 * The default role that grants escalated privilege.
+	 */
+	public static readonly DEFAULT_ESCALATED_PRIVILEGE_ROLE: string = "global-admin";
+
+	/**
+	 * The default authorization model ID used to look up roles.
+	 */
+	public static readonly DEFAULT_AUTHORIZATION_MODEL_ID: string = "system";
+
+	/**
 	 * The entity storage for users.
 	 * @internal
 	 */
@@ -46,6 +58,24 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	 * @internal
 	 */
 	private readonly _authenticationAuditService?: IAuthenticationAuditComponent;
+
+	/**
+	 * The authorization component used to guard accounts with escalated privilege.
+	 * @internal
+	 */
+	private readonly _authorizationComponent?: IAuthorizationComponent;
+
+	/**
+	 * The role that grants escalated privilege.
+	 * @internal
+	 */
+	private readonly _escalatedPrivilegeRole: string;
+
+	/**
+	 * The authorization model ID used to look up roles.
+	 * @internal
+	 */
+	private readonly _authorizationModelId: string;
 
 	/**
 	 * The minimum password length.
@@ -72,8 +102,18 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			options?.authenticationAuditServiceType ?? "authentication-audit"
 		);
 
+		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+			options?.authorizationComponentType ?? "authorization"
+		);
+
 		this._minPasswordLength = options?.config?.minPasswordLength;
 		this._maxPasswordLength = options?.config?.maxPasswordLength;
+		this._escalatedPrivilegeRole =
+			options?.config?.escalatedPrivilegeRole ??
+			EntityStorageAuthenticationAdminService.DEFAULT_ESCALATED_PRIVILEGE_ROLE;
+		this._authorizationModelId =
+			options?.config?.authorizationModelId ??
+			EntityStorageAuthenticationAdminService.DEFAULT_AUTHORIZATION_MODEL_ID;
 	}
 
 	/**
@@ -127,6 +167,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "userExists");
 			}
 
+			// Roles belong to the identity, so a login mapped to an escalated identity inherits them.
+			await this.guardEscalatedPrivilegeTarget(user.userIdentity);
+
 			const saltBytes = RandomHelper.generate(16);
 			const passwordBytes = Converter.utf8ToBytes(user.password);
 
@@ -157,6 +200,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"createUserFailed",
@@ -208,6 +254,11 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(existingUser.identity);
+			if (Is.stringValue(user.userIdentity) && user.userIdentity !== existingUser.identity) {
+				await this.guardEscalatedPrivilegeTarget(user.userIdentity);
+			}
+
 			const updatedFields: string[] = [];
 
 			if (user.userIdentity !== undefined && user.userIdentity !== existingUser.identity) {
@@ -240,6 +291,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"updateUserFailed",
@@ -337,6 +391,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(user.identity);
+
 			await this._userEntityStorage.remove(email);
 
 			const contextIds = await ContextIdStore.getContextIds();
@@ -353,6 +409,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"removeUserFailed",
@@ -391,6 +450,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(user.identity);
+
 			await PasswordHelper.updatePassword(
 				this._userEntityStorage,
 				this._authenticationAuditService,
@@ -403,11 +464,53 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				}
 			);
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"updatePasswordFailed",
 				undefined,
 				error
+			);
+		}
+	}
+
+	/**
+	 * Ensure the caller holds escalated privilege when the target identity holds it.
+	 * @param targetIdentity The identity of the account being modified.
+	 * @throws ForbiddenError if the target holds escalated privilege and the caller does not.
+	 * @internal
+	 */
+	private async guardEscalatedPrivilegeTarget(targetIdentity: string): Promise<void> {
+		if (Is.empty(this._authorizationComponent)) {
+			return;
+		}
+
+		const targetIsEscalated = await this._authorizationComponent.hasRoleForSubject(
+			this._authorizationModelId,
+			targetIdentity,
+			this._escalatedPrivilegeRole
+		);
+		if (!targetIsEscalated) {
+			return;
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		const callerIdentity = contextIds?.[ContextIdKeys.User];
+		const callerIsEscalated =
+			Is.stringValue(callerIdentity) &&
+			(await this._authorizationComponent.hasRoleForSubject(
+				this._authorizationModelId,
+				callerIdentity,
+				this._escalatedPrivilegeRole
+			));
+
+		if (!callerIsEscalated) {
+			throw new ForbiddenError(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				"insufficientRoleForEscalatedTarget",
+				{ roleName: this._escalatedPrivilegeRole }
 			);
 		}
 	}

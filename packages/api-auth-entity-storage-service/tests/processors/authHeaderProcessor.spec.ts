@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { HttpErrorHelper, type IHttpResponse } from "@twin.org/api-models";
 import { ContextIdKeys, ContextIdStore, type IContextIds } from "@twin.org/context";
-import { ComponentFactory, type IError, UnauthorizedError } from "@twin.org/core";
+import {
+	ComponentFactory,
+	Converter,
+	type IError,
+	LfuCache,
+	UnauthorizedError
+} from "@twin.org/core";
+import { Blake2b } from "@twin.org/crypto";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
@@ -605,6 +612,242 @@ describe("AuthHeaderProcessor", () => {
 			);
 
 			expect(response.headers).toBeUndefined();
+		});
+	});
+
+	describe("token cache", () => {
+		const USER: AuthenticationUser = {
+			email: "user@example.com",
+			identity: "did:user:123",
+			organization: "did:org:456",
+			password: "hashed",
+			salt: "salt",
+			passwordVersion: 0
+		};
+
+		/**
+		 * Stand in for a real verification, resolving the token through the supplied verifyUser
+		 * callback so the tenant and user lookups behind it actually run.
+		 * @param expSeconds The expiry claim to report for the token, if any.
+		 */
+		function mockVerify(expSeconds?: number): void {
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, key, token, verifyUser) => {
+					await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+					return {
+						header: { alg: "EdDSA" },
+						payload: { sub: "did:user:123", org: "did:org:456", exp: expSeconds }
+					};
+				}
+			);
+		}
+
+		/**
+		 * Drive one request through the processor.
+		 * @param authProcessor The processor under test.
+		 * @returns The response and the context ids the processor populated.
+		 */
+		async function runRequest(
+			authProcessor: AuthHeaderProcessor
+		): Promise<{ response: IHttpResponse; contextIds: IContextIds }> {
+			const response: IHttpResponse = {};
+			const contextIds: IContextIds = {};
+			await authProcessor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
+			return { response, contextIds };
+		}
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		beforeEach(() => {
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.Node]: "node-1",
+				[ContextIdKeys.Organization]: "did:org:456"
+			});
+			vi.mocked(mockUserEntityStorage.get).mockResolvedValue(USER);
+			vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
+				token: "jwt",
+				location: "authorization"
+			});
+		});
+
+		it("verifies and looks the user up only once for a repeated token", async () => {
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			for (let i = 0; i < 3; i++) {
+				const { response, contextIds } = await runRequest(authProcessor);
+				expect(response.statusCode).toBeUndefined();
+				expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
+				expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
+			}
+
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
+			expect(mockUserEntityStorage.get).toHaveBeenCalledTimes(1);
+
+			await authProcessor.stop();
+		});
+
+		it("collapses concurrent requests with the same token into one verification", async () => {
+			let inFlight = 0;
+			let maxInFlight = 0;
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, key, token, verifyUser) => {
+					inFlight++;
+					maxInFlight = Math.max(maxInFlight, inFlight);
+					await new Promise(resolve => setTimeout(resolve, 20));
+					await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+					inFlight--;
+					return {
+						header: { alg: "EdDSA" },
+						payload: { sub: "did:user:123", org: "did:org:456" }
+					};
+				}
+			);
+
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			const responses = await Promise.all([0, 1, 2, 3].map(async () => runRequest(authProcessor)));
+
+			for (const { response } of responses) {
+				expect(response.statusCode).toBeUndefined();
+			}
+			expect(maxInFlight).toBe(1);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
+			expect(mockUserEntityStorage.get).toHaveBeenCalledTimes(1);
+
+			await authProcessor.stop();
+		});
+
+		it("keys the cache by a hash of the token, never the token itself", async () => {
+			mockVerify();
+			const getOrSet = vi.spyOn(LfuCache.prototype, "getOrSet");
+
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			const { response } = await runRequest(authProcessor);
+			expect(response.statusCode).toBeUndefined();
+
+			const cacheKey = getOrSet.mock.calls[0][0];
+			expect(cacheKey).not.toBe("jwt");
+			expect(cacheKey).toBe(Converter.bytesToHex(Blake2b.sum256(Converter.utf8ToBytes("jwt"))));
+
+			await authProcessor.stop();
+		});
+
+		it("never holds a token beyond its own expiry", async () => {
+			// Only the clock is faked; the cache and its mutex rely on real timers.
+			vi.useFakeTimers({ toFake: ["Date"] });
+			const start = Date.now();
+			mockVerify(Math.trunc(start / 1000) + 60);
+
+			// The cache lifetime is far longer than the token, so only the expiry claim can be
+			// what ends the entry.
+			const authProcessor = new AuthHeaderProcessor({ config: { tokenCacheTtlMs: 600000 } });
+			await authProcessor.start();
+
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
+
+			// Past the expiry claim the entry is dropped, so the token is verified afresh and the
+			// rejection comes from the normal verification path.
+			vi.setSystemTime(start + 61000);
+
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("expires a cached token a fixed time after it was verified, however busy the caller", async () => {
+			// Only the clock is faked; the cache and its mutex rely on real timers.
+			vi.useFakeTimers({ toFake: ["Date"] });
+			const start = Date.now();
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor({ config: { tokenCacheTtlMs: 60000 } });
+			await authProcessor.start();
+
+			await runRequest(authProcessor);
+
+			// Steady traffic inside the lifetime keeps hitting the same entry.
+			vi.setSystemTime(start + 30000);
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
+
+			// Those hits must not extend it; once the lifetime is up the token is verified afresh.
+			vi.setSystemTime(start + 70000);
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("verifies every request when caching is disabled", async () => {
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor({ config: { tokenCacheTtlMs: 0 } });
+			await authProcessor.start();
+
+			for (let i = 0; i < 3; i++) {
+				await runRequest(authProcessor);
+			}
+
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(3);
+			expect(mockUserEntityStorage.get).toHaveBeenCalledTimes(3);
+
+			await authProcessor.stop();
+		});
+
+		it("keeps distinct tokens apart", async () => {
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			await runRequest(authProcessor);
+
+			vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
+				token: "other-jwt",
+				location: "authorization"
+			});
+			await runRequest(authProcessor);
+
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("does not cache a failed verification", async () => {
+			vi.spyOn(TokenHelper, "verify").mockRejectedValue(
+				new UnauthorizedError("tokenHelper", "invalidSignature")
+			);
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			const first = await runRequest(authProcessor);
+			const second = await runRequest(authProcessor);
+
+			expect(first.response.statusCode).toBe(HttpStatusCode.unauthorized);
+			expect(second.response.statusCode).toBe(HttpStatusCode.unauthorized);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("releases the cache on stop", async () => {
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+			await runRequest(authProcessor);
+
+			await authProcessor.stop();
+
+			// A destroyed cache holds nothing, so the next request verifies again.
+			await runRequest(authProcessor);
+
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
 		});
 	});
 });

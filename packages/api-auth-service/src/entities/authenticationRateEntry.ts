@@ -10,7 +10,7 @@ export class AuthenticationRateEntry {
 	/**
 	 * The id for the rate entry.
 	 */
-	@property({ type: "string", isPrimary: true })
+	@property({ type: "string", isPrimary: true, maxLength: 255 })
 	public id!: string;
 
 	/**
@@ -22,6 +22,6 @@ export class AuthenticationRateEntry {
 	/**
 	 * Last modification time in ISO date format.
 	 */
-	@property({ type: "string" })
+	@property({ type: "string", format: "date-time" })
 	public dateModified!: string;
 }

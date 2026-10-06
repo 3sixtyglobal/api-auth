@@ -16,4 +16,16 @@ export interface IEntityStorageAuthenticationAdminServiceConfig {
 	 * @default 128
 	 */
 	maxPasswordLength?: number;
+
+	/**
+	 * The role that grants escalated privilege, only callers holding it can modify accounts that hold it.
+	 * @default global-admin
+	 */
+	escalatedPrivilegeRole?: string;
+
+	/**
+	 * The authorization model ID used to look up roles.
+	 * @default system
+	 */
+	authorizationModelId?: string;
 }

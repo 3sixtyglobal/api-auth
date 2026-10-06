@@ -12,14 +12,17 @@ on:
         required: true
         type: choice
         options:
-          - '🚧 prerelease (next branch)' # For prereleases (e.g., 0.1.0-next.1)
-          - '🚀 production (main branch)' # For production releases (e.g., 1.0.0, 1.1.0, 1.1.1)
+          - '🌱 prerelease (next branch)' # For prereleases (e.g., 0.1.0-next.1)
+          - '🌳 production (main branch)' # For production releases (e.g., 1.0.0, 1.1.0, 1.1.1)
+
+env:
+  TWIN_GPG_EMAIL: ${{ secrets.TWIN_GPG_EMAIL }}
+  TWIN_GPG_NAME: ${{ secrets.TWIN_GPG_NAME }}
 
 jobs:
   deploy:
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     permissions:
       contents: write # Needed for creating/updating branches for deployment updates
       pull-requests: write # Needed for creating the PR
@@ -63,8 +66,8 @@ jobs:
       # Set git config once for all subsequent steps
       - name: Configure Git
         run: |
-          git config --global user.email "github@twindev.org"
-          git config --global user.name "TWIN GitHub Bot"
+          git config --global user.email "$TWIN_GPG_EMAIL"
+          git config --global user.name "$TWIN_GPG_NAME"
           git config --global user.signingkey "$TWIN_GPG_KEY_ID"
           git config --global commit.gpgsign true
           git config --global tag.gpgsign true
@@ -75,6 +78,10 @@ jobs:
         with:
           node-version: 24
 
+      # Setup pnpm after node, the runners have no system node for its installer to use.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
       # Create a new branch for the deployment
       - name: Create Deployment Update Branch
         id: create-branch
@@ -84,16 +91,16 @@ jobs:
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-      # Install dependencies with retry
+      # Install dependencies with retry to handle transient registry failures.
       - name: Install dependencies
         run: |
           for i in {1..5}; do
-            npm ci --no-audit --no-fund && break || {
+            pnpm install --frozen-lockfile && break || {
               if [ $i -eq 5 ]; then
-                echo "npm ci failed after 5 attempts"
+                echo "pnpm install failed after 5 attempts"
                 exit 1
               fi
-              echo "npm ci failed, retrying in 30 seconds (attempt $i/3)..."
+              echo "pnpm install failed, retrying in 30 seconds (attempt $i/5)..."
               sleep 30
             }
           done

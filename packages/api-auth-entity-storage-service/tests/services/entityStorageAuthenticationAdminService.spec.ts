@@ -1,6 +1,8 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-models";
+import { ForbiddenError } from "@twin.org/api-models";
+import type { IAuthorizationComponent } from "@twin.org/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
 import { ComponentFactory, GeneralError, RandomHelper } from "@twin.org/core";
 import { PasswordGenerator, PasswordValidator } from "@twin.org/crypto";
@@ -559,6 +561,182 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password"
 				});
 			});
+		});
+	});
+
+	describe("escalated privilege", () => {
+		const ESCALATED_IDENTITY = "did:user:admin";
+		const PLAIN_IDENTITY = "did:user:plain";
+		const CALLER_IDENTITY = "did:user:caller";
+
+		let mockAuthorizationComponent: IAuthorizationComponent;
+		let escalatedIdentities: string[];
+		let guardedService: EntityStorageAuthenticationAdminService;
+
+		/**
+		 * Set the identity of the caller in the request context.
+		 * @param identity The caller identity, if any.
+		 */
+		function setCaller(identity?: string): void {
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.User]: identity
+			});
+		}
+
+		beforeEach(async () => {
+			escalatedIdentities = [ESCALATED_IDENTITY];
+
+			mockAuthorizationComponent = {
+				hasRoleForSubject: vi.fn(
+					async (modelId: string, subject: string, role: string) =>
+						role === "global-admin" && escalatedIdentities.includes(subject)
+				)
+			} as unknown as IAuthorizationComponent;
+
+			vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
+				if (componentName === "authentication-audit") {
+					return mockAuthenticationAuditService;
+				}
+				if (componentName === "authorization") {
+					return mockAuthorizationComponent;
+				}
+				return undefined;
+			});
+			vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+
+			guardedService = new EntityStorageAuthenticationAdminService({
+				config: { minPasswordLength: 10 }
+			});
+
+			await userEntityStorage.set({
+				email: "admin@example.com",
+				password: "stored-password",
+				salt: "AQIDBA==",
+				identity: ESCALATED_IDENTITY,
+				organization: "did:org:456"
+			});
+			await userEntityStorage.set({
+				email: "plain@example.com",
+				password: "stored-password",
+				salt: "AQIDBA==",
+				identity: PLAIN_IDENTITY,
+				organization: "did:org:456"
+			});
+		});
+
+		it("should forbid removing an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(guardedService.remove("admin@example.com")).rejects.toMatchObject({
+				name: ForbiddenError.CLASS_NAME,
+				message: "entityStorageAuthenticationAdminService.insufficientRoleForEscalatedTarget"
+			});
+			expect(await userEntityStorage.get("admin@example.com")).toBeDefined();
+		});
+
+		it("should allow removing an escalated account when the caller is escalated", async () => {
+			escalatedIdentities.push(CALLER_IDENTITY);
+			setCaller(CALLER_IDENTITY);
+
+			await guardedService.remove("admin@example.com");
+
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+		});
+
+		it("should allow removing a plain account without checking the caller", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await guardedService.remove("plain@example.com");
+
+			expect(await userEntityStorage.get("plain@example.com")).toBeUndefined();
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledTimes(1);
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+				"system",
+				PLAIN_IDENTITY,
+				"global-admin"
+			);
+		});
+
+		it("should forbid modifying an escalated account when there is no caller", async () => {
+			setCaller(undefined);
+
+			await expect(guardedService.remove("admin@example.com")).rejects.toMatchObject({
+				name: ForbiddenError.CLASS_NAME
+			});
+		});
+
+		it("should forbid resetting the password of an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.updatePassword("admin@example.com", "new-password-123")
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("admin@example.com")).toMatchObject({
+				password: "stored-password"
+			});
+		});
+
+		it("should forbid updating an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.update({ email: "admin@example.com", organizationIdentity: "did:org:789" })
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("admin@example.com")).toMatchObject({
+				organization: "did:org:456"
+			});
+		});
+
+		it("should forbid pointing an account at an escalated identity when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.update({ email: "plain@example.com", userIdentity: ESCALATED_IDENTITY })
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("plain@example.com")).toMatchObject({
+				identity: PLAIN_IDENTITY
+			});
+		});
+
+		it("should forbid creating an account for an escalated identity when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.create({
+					email: "new@example.com",
+					password: "correct-horse-battery",
+					userIdentity: ESCALATED_IDENTITY,
+					organizationIdentity: "did:org:456"
+				})
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("new@example.com")).toBeUndefined();
+		});
+
+		it("should use the configured role and authorization model", async () => {
+			setCaller(CALLER_IDENTITY);
+			const customService = new EntityStorageAuthenticationAdminService({
+				config: { escalatedPrivilegeRole: "super-admin", authorizationModelId: "custom-model" }
+			});
+
+			await customService.remove("admin@example.com");
+
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+				"custom-model",
+				ESCALATED_IDENTITY,
+				"super-admin"
+			);
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+		});
+
+		it("should skip the guard when no authorization component is registered", async () => {
+			vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
+			setCaller(CALLER_IDENTITY);
+			const unguardedService = new EntityStorageAuthenticationAdminService();
+
+			await unguardedService.remove("admin@example.com");
+
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+			expect(mockAuthorizationComponent.hasRoleForSubject).not.toHaveBeenCalled();
 		});
 	});
 });

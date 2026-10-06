@@ -63,6 +63,10 @@ concurrency:
   group: production-release
   cancel-in-progress: false
 
+env:
+  TWIN_GPG_EMAIL: ${{ secrets.TWIN_GPG_EMAIL }}
+  TWIN_GPG_NAME: ${{ secrets.TWIN_GPG_NAME }}
+
 jobs:
   # When customVersion is provided, validates it against the current production
   # and prerelease manifests before any PRs are created. Checks:
@@ -73,9 +77,8 @@ jobs:
   validate-custom-version:
     name: 'Guard: Validate custom version'
     if: github.event_name == 'workflow_dispatch' && inputs.customVersion != ''
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 5
     permissions:
       contents: read
@@ -114,9 +117,8 @@ jobs:
       (needs.validate-custom-version.result == 'success' || needs.validate-custom-version.result == 'skipped')
     env:
       SOURCE_BRANCH: ${{ inputs.hotfixBranch || 'next' }}
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 15
     permissions:
       contents: write
@@ -185,8 +187,8 @@ jobs:
       - name: Configure Git
         if: ${{ steps.check-diff.outputs.has_changes == 'true' }}
         run: |
-          git config --global user.email "github@twindev.org"
-          git config --global user.name "TWIN GitHub Bot"
+          git config --global user.email "$TWIN_GPG_EMAIL"
+          git config --global user.name "$TWIN_GPG_NAME"
           git config --global user.signingkey "$TWIN_GPG_KEY_ID"
           git config --global commit.gpgsign true
 
@@ -256,9 +258,8 @@ jobs:
       !cancelled() &&
       needs.merge-next-to-main.result == 'success' &&
       needs.merge-next-to-main.outputs.has_changes == 'true'
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 360
     permissions:
       contents: read
@@ -291,9 +292,8 @@ jobs:
       (needs.validate-custom-version.result == 'success' || needs.validate-custom-version.result == 'skipped') &&
       (needs.merge-next-to-main.result == 'success' || needs.merge-next-to-main.result == 'skipped') &&
       (needs.gate-next-to-main.result == 'success' || needs.gate-next-to-main.result == 'skipped')
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 90
     permissions:
       contents: write
@@ -369,9 +369,8 @@ jobs:
       !cancelled() &&
       needs.prepare-main.result == 'success' &&
       needs.prepare-main.outputs.has_changes == 'true'
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 360
     permissions:
       contents: read
@@ -416,9 +415,8 @@ jobs:
       (needs.gate-next-to-main.result == 'success' || needs.gate-next-to-main.result == 'skipped') &&
       (needs.prepare-main.result == 'success' || needs.prepare-main.result == 'skipped') &&
       (needs.gate-main-alignment.result == 'success' || needs.gate-main-alignment.result == 'skipped')
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 60
     permissions:
       checks: read
@@ -497,9 +495,8 @@ jobs:
       !cancelled() &&
       needs.prepare-release.result == 'success' &&
       needs.prepare-release.outputs.pr_number != ''
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 360
     permissions:
       contents: read
@@ -534,9 +531,8 @@ jobs:
     name: 'Production release handoff complete'
     needs: [merge-next-to-main, prepare-main, prepare-release, gate-release-pr]
     if: github.event_name == 'workflow_dispatch' && always() && !cancelled() && needs.gate-release-pr.result == 'success'
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     permissions:
       actions: read
 
@@ -614,9 +610,8 @@ jobs:
     if: >-
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     permissions:
       contents: read
     outputs:
@@ -635,22 +630,42 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Extract workspaces from package.json
+      # Setup pnpm after node, the runners have no system node for its installer to use.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # Install so pnpm can resolve the workspace graph. Scripts are skipped because
+      # only the project list is needed here, nothing is built in this job. Retried
+      # to handle transient registry failures.
+      - name: Install dependencies
+        run: |
+          for i in {1..5}; do
+            pnpm install --frozen-lockfile --ignore-scripts && break || {
+              if [ $i -eq 5 ]; then
+                echo "pnpm install failed after 5 attempts"
+                exit 1
+              fi
+              echo "pnpm install failed, retrying in 30 seconds (attempt $i/5)..."
+              sleep 30
+            }
+          done
+
+      # pnpm walks the workspace in dependency order, so each package is listed after
+      # the packages it depends on. The publish matrix runs one package at a time and
+      # each installs its dependencies from the registry, so a dependency published
+      # after its dependent would fail to resolve.
+      - name: Resolve workspace publish order
         id: read-workspaces
         run: |
-          PACKAGES=$(node -e '
-            const pkg = JSON.parse(require("fs").readFileSync("./package.json", "utf8"));
-            console.log(JSON.stringify(pkg.workspaces));
-          ')
+          PACKAGES=$(node --input-type=module -e 'import { loadWorkspaceDirs } from "./scripts/common.mjs"; console.log(JSON.stringify(await loadWorkspaceDirs()));')
           echo "Found packages: $PACKAGES"
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
 
   # Only runs on the pull_request path; 'later phase only' is the fallback name shown on workflow_dispatch where this job is skipped.
   publish-packages:
     name: Publish Package (${{ matrix.package || 'later phase only' }})
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     permissions:
       contents: read
       id-token: write
@@ -684,6 +699,10 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
+      # Setup pnpm after node, the runners have no system node for its installer to use.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
       - name: Setup Test Environment
         uses: ./.github/workflows/setup-test-env
         with:
@@ -692,20 +711,25 @@ jobs:
 
       - name: Remove Mono-Repo Node Modules
         run: |
-          # Root package.json declares workspace paths that conflict with per-package npm install.
-          rm package.json
-          rm package-lock.json
+          # Copy the workspace settings into the package directory so it becomes its own
+          # workspace root, with the package globs commented out, then remove the workspace
+          # files so pnpm installs dependencies from the registry as it would for a package
+          # consumer. Leaving a workspace file at the repository root instead makes pnpm
+          # treat the package as a non-member and skip the install entirely.
+          sed '/^packages:/,/^$/ s/^/# /' pnpm-workspace.yaml > "${{ matrix.package }}/pnpm-workspace.yaml"
+          rm -f package.json pnpm-lock.yaml pnpm-workspace.yaml
 
+      # Retried to handle transient registry failures.
       - name: Install dependencies
         run: |
           cd ${{ matrix.package }}
           for i in {1..5}; do
-            npm install --no-audit --no-fund && break || {
+            pnpm install --no-frozen-lockfile && break || {
               if [ $i -eq 5 ]; then
-                echo "npm install failed after 5 attempts"
+                echo "pnpm install failed after 5 attempts"
                 exit 1
               fi
-              echo "npm install failed, retrying in 30 seconds (attempt $i/5)..."
+              echo "pnpm install failed, retrying in 30 seconds (attempt $i/5)..."
               sleep 30
             }
           done
@@ -713,11 +737,13 @@ jobs:
       - name: Run Dist
         run: |
           cd ${{ matrix.package }}
-          npm run dist
+          pnpm run dist
 
       - name: Cleanup package.json properties
         run: |
           cd ${{ matrix.package }}
+          # The build approvals are only needed for install and dist.
+          rm -f pnpm-workspace.yaml
           # Strip dev-only fields so they are absent from the published tarball.
           npm pkg delete scripts
           npm pkg delete devDependencies
@@ -783,9 +809,8 @@ jobs:
   # Creates GitHub releases from the production manifest after all packages are on npm.
   publish-gh-releases:
     name: Publish GitHub Releases
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     permissions:
       contents: read
     needs: [process-workspaces, publish-packages]
@@ -804,9 +829,13 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
+      # Setup pnpm after node, the runners have no system node for its installer to use.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
       - name: Release Please
         run: |
-          npx --yes release-please github-release \
+          pnpm dlx release-please github-release \
             --config-file=release/release-please-config.prod.json \
             --manifest-file=release/release-please-manifest.prod.json \
             --repo-url=${{ github.repository }} \
@@ -816,9 +845,8 @@ jobs:
   # Triggers twin-workspace to update its submodule pointer to the new main SHA.
   notify-workspace:
     name: Notify Workspace
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     needs: [process-workspaces, publish-gh-releases]
 
     steps:
@@ -826,7 +854,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TWIN_GHA_RELEASE_TOKEN }}
         run: |
-          gh api repos/iotaledger/twin-workspace/dispatches \
+          gh api repos/3sixtyglobal/twin-workspace/dispatches \
             --method POST \
             --input - <<EOF
           {
@@ -846,9 +874,8 @@ jobs:
   # in-flight development).
   realign-next:
     name: Realign Next Branch
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     needs: [process-workspaces, notify-workspace]
     permissions:
       contents: write
@@ -892,9 +919,8 @@ jobs:
     name: 'Gate: Merge next alignment PR'
     needs: realign-next
     if: ${{ needs.realign-next.outputs.has_changes == 'true' }}
-    runs-on:
-      labels: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
-      group: ${{ github.event.repository.private && 'twin' || 'default' }}
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"twin","labels":"self-hosted"}') || 'ubuntu-latest' }}
+
     timeout-minutes: 360
     permissions:
       contents: read
