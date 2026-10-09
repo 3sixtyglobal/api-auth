@@ -5,7 +5,7 @@ Use these snippets to integrate sign-in and user administration flows from brows
 ## EntityStorageAuthenticationAdminRestClient
 
 ```typescript
-import { EntityStorageAuthenticationAdminRestClient } from '@twin.org/api-auth-entity-storage-rest-client';
+import { EntityStorageAuthenticationAdminRestClient } from '@3sixty/api-auth-entity-storage-rest-client';
 
 const adminClient = new EntityStorageAuthenticationAdminRestClient({
   endpoint: 'https://api.example.org',
@@ -34,7 +34,7 @@ console.log(adminUser.email); // ops@example.org
 ```
 
 ```typescript
-import { EntityStorageAuthenticationAdminRestClient } from '@twin.org/api-auth-entity-storage-rest-client';
+import { EntityStorageAuthenticationAdminRestClient } from '@3sixty/api-auth-entity-storage-rest-client';
 
 const adminClient = new EntityStorageAuthenticationAdminRestClient({
   endpoint: 'https://api.example.org',
@@ -52,7 +52,7 @@ console.log(byIdentity.userIdentity); // did:example:ops:team
 ## EntityStorageAuthenticationRestClient
 
 ```typescript
-import { EntityStorageAuthenticationRestClient } from '@twin.org/api-auth-entity-storage-rest-client';
+import { EntityStorageAuthenticationRestClient } from '@3sixty/api-auth-entity-storage-rest-client';
 
 const authClient = new EntityStorageAuthenticationRestClient({
   endpoint: 'https://api.example.org',
@@ -75,7 +75,7 @@ console.log(refreshResponse.expiry > 0); // true
 ## EntityStorageAuthenticationAuditRestClient
 
 ```typescript
-import { EntityStorageAuthenticationAuditRestClient } from '@twin.org/api-auth-entity-storage-rest-client';
+import { EntityStorageAuthenticationAuditRestClient } from '@3sixty/api-auth-entity-storage-rest-client';
 
 const auditClient = new EntityStorageAuthenticationAuditRestClient({
   endpoint: 'https://api.example.org',

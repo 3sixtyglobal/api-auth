@@ -1,17 +1,17 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { TooManyRequestsError, type IPlatformComponent } from "@twin.org/api-models";
-import type { ITaskSchedulerComponent } from "@twin.org/background-task-models";
-import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
-import { BaseError, ComponentFactory, Converter, GeneralError } from "@twin.org/core";
-import { Sha256 } from "@twin.org/crypto";
-import { ComparisonOperator } from "@twin.org/entity";
-import { MemoryEntityStorageConnector } from "@twin.org/entity-storage-connector-memory";
+import { TooManyRequestsError, type IPlatformComponent } from "@3sixty/api-models";
+import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
+import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
+import { BaseError, ComponentFactory, Converter, GeneralError } from "@3sixty/core";
+import { Sha256 } from "@3sixty/crypto";
+import { ComparisonOperator } from "@3sixty/entity";
+import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
-import { nameof } from "@twin.org/nameof";
+} from "@3sixty/entity-storage-models";
+import { nameof } from "@3sixty/nameof";
 import type { AuthenticationRateEntry } from "../../src/entities/authenticationRateEntry.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationRateService } from "../../src/services/entityStorageAuthenticationRateService.js";

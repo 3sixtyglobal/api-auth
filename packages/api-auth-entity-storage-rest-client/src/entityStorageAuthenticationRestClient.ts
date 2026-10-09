@@ -8,12 +8,12 @@ import type {
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IUpdatePasswordRequest
-} from "@twin.org/api-auth-entity-storage-models";
-import { BaseRestClient } from "@twin.org/api-core";
-import type { INoContentResponse } from "@twin.org/api-models";
-import { Guards } from "@twin.org/core";
-import { nameof } from "@twin.org/nameof";
-import { CookieHelper, HeaderTypes } from "@twin.org/web";
+} from "@3sixty/api-auth-entity-storage-models";
+import { BaseRestClient } from "@3sixty/api-core";
+import type { INoContentResponse } from "@3sixty/api-models";
+import { Guards } from "@3sixty/core";
+import { nameof } from "@3sixty/nameof";
+import { CookieHelper, HeaderTypes } from "@3sixty/web";
 import type { IEntityStorageAuthenticationRestClientConstructorOptions } from "./models/entityStorageAuthenticationRestClientConstructorOptions.js";
 
 /**

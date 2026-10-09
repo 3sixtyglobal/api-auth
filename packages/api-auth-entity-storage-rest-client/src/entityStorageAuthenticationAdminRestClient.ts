@@ -10,12 +10,12 @@ import type {
 	IAdminUserUpdateRequest,
 	IAuthenticationAdminComponent,
 	IAuthenticationUser
-} from "@twin.org/api-auth-entity-storage-models";
-import { BaseRestClient } from "@twin.org/api-core";
-import type { IBaseRestClientConfig, INoContentResponse } from "@twin.org/api-models";
-import { Guards } from "@twin.org/core";
-import { nameof } from "@twin.org/nameof";
-import { HttpMethod } from "@twin.org/web";
+} from "@3sixty/api-auth-entity-storage-models";
+import { BaseRestClient } from "@3sixty/api-core";
+import type { IBaseRestClientConfig, INoContentResponse } from "@3sixty/api-models";
+import { Guards } from "@3sixty/core";
+import { nameof } from "@3sixty/nameof";
+import { HttpMethod } from "@3sixty/web";
 
 /**
  * The client to connect to the authentication admin service.

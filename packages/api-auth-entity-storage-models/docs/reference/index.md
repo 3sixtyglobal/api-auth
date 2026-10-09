@@ -1,4 +1,4 @@
-# @twin.org/api-auth-entity-storage-models
+# @3sixty/api-auth-entity-storage-models
 
 ## Interfaces
 

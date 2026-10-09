@@ -9,7 +9,7 @@ import type {
   ILoginRequest,
   IRefreshTokenRequest,
   IUpdatePasswordRequest
-} from '@twin.org/api-auth-entity-storage-models';
+} from '@3sixty/api-auth-entity-storage-models';
 
 const loginRequest: ILoginRequest = {
   body: {
@@ -40,7 +40,7 @@ console.log(loginRequest.body.email); // alice@example.org
 import type {
   IAdminUserCreateRequest,
   IAdminUserUpdateRequest
-} from '@twin.org/api-auth-entity-storage-models';
+} from '@3sixty/api-auth-entity-storage-models';
 
 const createRequest: IAdminUserCreateRequest = {
   body: {
@@ -68,7 +68,7 @@ console.log(createRequest.body.scope.length); // 2
 ## Authentication Responses
 
 ```typescript
-import type { ILoginResponse } from '@twin.org/api-auth-entity-storage-models';
+import type { ILoginResponse } from '@3sixty/api-auth-entity-storage-models';
 
 const loginResponse: ILoginResponse = {
   body: {

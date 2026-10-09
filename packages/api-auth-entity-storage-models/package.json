@@ -1,10 +1,10 @@
 {
-	"name": "@twin.org/api-auth-entity-storage-models",
-	"version": "0.9.2-next.7",
+	"name": "@3sixty/api-auth-entity-storage-models",
+	"version": "0.20.0-next.0",
 	"description": "Contracts for authentication flows and admin user management with entity storage.",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/3sixtyglobal/twin-api-auth.git",
+		"url": "git+https://github.com/3sixtyglobal/api-auth.git",
 		"directory": "packages/api-auth-entity-storage-models"
 	},
 	"author": "martyn.janes@iota.org",
@@ -28,14 +28,14 @@
 		"dist:no-test": "pnpm run clean && concurrently -g -n build,locales,types \"pnpm run build\" \"pnpm run validate-locales\" \"pnpm run test:build\""
 	},
 	"dependencies": {
-		"@twin.org/core": "next",
-		"@twin.org/nameof": "next",
-		"@twin.org/web": "next"
+		"@3sixty/core": "next",
+		"@3sixty/nameof": "next",
+		"@3sixty/web": "next"
 	},
 	"devDependencies": {
-		"@twin.org/nameof-transformer": "next",
-		"@twin.org/nameof-vitest-plugin": "next",
-		"@twin.org/validate-locales": "next",
+		"@3sixty/nameof-transformer": "next",
+		"@3sixty/nameof-vitest-plugin": "next",
+		"@3sixty/validate-locales": "next",
 		"@types/node": "26.6.2",
 		"@vitest/coverage-v8": "5.0.1",
 		"concurrently": "10.0.5",
@@ -79,7 +79,7 @@
 		"schemas"
 	],
 	"bugs": {
-		"url": "git+https://github.com/3sixtyglobal/twin-api-auth/issues"
+		"url": "git+https://github.com/3sixtyglobal/api-auth/issues"
 	},
-	"homepage": "https://twindev.org"
+	"homepage": "https://3sixty.global"
 }

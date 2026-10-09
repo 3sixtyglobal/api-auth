@@ -3,17 +3,17 @@
 import type {
 	IAuthenticationRateActionConfig,
 	IAuthenticationRateComponent
-} from "@twin.org/api-auth-entity-storage-models";
-import { TooManyRequestsError, type IPlatformComponent } from "@twin.org/api-models";
-import type { ITaskSchedulerComponent } from "@twin.org/background-task-models";
-import { ComponentFactory, Converter, GeneralError, Guards, Is } from "@twin.org/core";
-import { Sha256 } from "@twin.org/crypto";
-import { ComparisonOperator } from "@twin.org/entity";
+} from "@3sixty/api-auth-entity-storage-models";
+import { TooManyRequestsError, type IPlatformComponent } from "@3sixty/api-models";
+import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
+import { ComponentFactory, Converter, GeneralError, Guards, Is } from "@3sixty/core";
+import { Sha256 } from "@3sixty/crypto";
+import { ComparisonOperator } from "@3sixty/entity";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
-import { nameof } from "@twin.org/nameof";
+} from "@3sixty/entity-storage-models";
+import { nameof } from "@3sixty/nameof";
 import type { AuthenticationRateEntry } from "../entities/authenticationRateEntry.js";
 import type { IEntityStorageAuthenticationRateServiceConstructorOptions } from "../models/IEntityStorageAuthenticationRateServiceConstructorOptions.js";
 

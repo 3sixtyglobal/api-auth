@@ -1,11 +1,11 @@
-# TWIN API Auth Entity Storage Models
+# 3Sixty API Auth Entity Storage Models
 
 This package provides contracts for authentication flows and admin user management with entity storage.
 
 ## Installation
 
 ```shell
-npm install @twin.org/api-auth-entity-storage-models
+npm install @3sixty/api-auth-entity-storage-models
 ```
 
 ## Examples

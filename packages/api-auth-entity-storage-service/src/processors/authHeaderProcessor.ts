@@ -8,21 +8,16 @@ import {
 	type IHttpResponse,
 	type IHttpServerRequest,
 	type ITenantAdminComponent
-} from "@twin.org/api-models";
-import {
-	ContextIdHelper,
-	ContextIdKeys,
-	ContextIdStore,
-	type IContextIds
-} from "@twin.org/context";
-import { BaseError, ComponentFactory, GeneralError, Is } from "@twin.org/core";
+} from "@3sixty/api-models";
+import { ContextIdHelper, ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context";
+import { BaseError, ComponentFactory, GeneralError, Is } from "@3sixty/core";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
-import { nameof } from "@twin.org/nameof";
-import { VaultConnectorFactory, type IVaultConnector } from "@twin.org/vault-models";
-import { CookieHelper, HeaderTypes, HttpStatusCode } from "@twin.org/web";
+} from "@3sixty/entity-storage-models";
+import { nameof } from "@3sixty/nameof";
+import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
+import { CookieHelper, HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IAuthHeaderProcessorConstructorOptions } from "../models/IAuthHeaderProcessorConstructorOptions.js";
 import { TokenHelper } from "../utils/tokenHelper.js";

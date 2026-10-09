@@ -1,6 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationRateActionConfig } from "@twin.org/api-auth-entity-storage-models";
+import type { IAuthenticationRateActionConfig } from "@3sixty/api-auth-entity-storage-models";
 
 /**
  * Configuration for the entity storage authentication service.

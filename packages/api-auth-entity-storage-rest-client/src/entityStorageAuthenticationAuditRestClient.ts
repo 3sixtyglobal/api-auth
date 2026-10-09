@@ -11,17 +11,17 @@ import type {
 	IAuditUpdateRequest,
 	IAuthenticationAuditComponent,
 	IAuthenticationAuditEntry
-} from "@twin.org/api-auth-entity-storage-models";
-import { BaseRestClient } from "@twin.org/api-core";
-import { HttpHeaderHelper } from "@twin.org/api-models";
+} from "@3sixty/api-auth-entity-storage-models";
+import { BaseRestClient } from "@3sixty/api-core";
+import { HttpHeaderHelper } from "@3sixty/api-models";
 import type {
 	IBaseRestClientConfig,
 	ICreatedResponse,
 	INoContentResponse
-} from "@twin.org/api-models";
-import { Coerce, Guards } from "@twin.org/core";
-import { nameof } from "@twin.org/nameof";
-import { HttpMethod } from "@twin.org/web";
+} from "@3sixty/api-models";
+import { Coerce, Guards } from "@3sixty/core";
+import { nameof } from "@3sixty/nameof";
+import { HttpMethod } from "@3sixty/web";
 
 /**
  * The client to connect to the authentication audit service.

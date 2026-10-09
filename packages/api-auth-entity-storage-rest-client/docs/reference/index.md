@@ -1,4 +1,4 @@
-# @twin.org/api-auth-entity-storage-rest-client
+# @3sixty/api-auth-entity-storage-rest-client
 
 ## Classes
 

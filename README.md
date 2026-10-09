@@ -1,4 +1,4 @@
-# TWIN API
+# 3Sixty API
 
 This repository provides a modular API stack for defining contracts, implementing services, exposing server endpoints, and consuming those endpoints from client applications. The packages are designed to work together so teams can compose reliable API capabilities without duplicating cross-cutting concerns such as routing, request processing, authentication, and tenant context handling.
 

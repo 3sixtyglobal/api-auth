@@ -1,12 +1,12 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationAuditComponent } from "@twin.org/api-auth-entity-storage-models";
-import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
-import { ComponentFactory, GeneralError, RandomHelper } from "@twin.org/core";
-import { PasswordGenerator, PasswordValidator } from "@twin.org/crypto";
-import { MemoryEntityStorageConnector } from "@twin.org/entity-storage-connector-memory";
-import { EntityStorageConnectorFactory } from "@twin.org/entity-storage-models";
-import { nameof } from "@twin.org/nameof";
+import type { IAuthenticationAuditComponent } from "@3sixty/api-auth-entity-storage-models";
+import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
+import { ComponentFactory, GeneralError, RandomHelper } from "@3sixty/core";
+import { PasswordGenerator, PasswordValidator } from "@3sixty/crypto";
+import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
+import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
+import { nameof } from "@3sixty/nameof";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationAdminService } from "../../src/services/entityStorageAuthenticationAdminService.js";

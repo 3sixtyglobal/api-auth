@@ -9,7 +9,7 @@ import type {
 	IAuditRemoveRequest,
 	IAuditUpdateRequest,
 	IAuthenticationAuditComponent
-} from "@twin.org/api-auth-entity-storage-models";
+} from "@3sixty/api-auth-entity-storage-models";
 import {
 	HttpContextIdKeys,
 	HttpHeaderHelper,
@@ -20,11 +20,11 @@ import {
 	type IRestRoute,
 	type ITag,
 	type IUnauthorizedResponse
-} from "@twin.org/api-models";
-import { ContextIdStore } from "@twin.org/context";
-import { Coerce, ComponentFactory, Guards } from "@twin.org/core";
-import { nameof } from "@twin.org/nameof";
-import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@twin.org/web";
+} from "@3sixty/api-models";
+import { ContextIdStore } from "@3sixty/context";
+import { Coerce, ComponentFactory, Guards } from "@3sixty/core";
+import { nameof } from "@3sixty/nameof";
+import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@3sixty/web";
 
 /**
  * The source used when communicating about these routes.

@@ -5,7 +5,7 @@ These snippets show how to wire authentication services into your component cont
 ## EntityStorageAuthenticationAdminService
 
 ```typescript
-import { EntityStorageAuthenticationAdminService } from '@twin.org/api-auth-entity-storage-service';
+import { EntityStorageAuthenticationAdminService } from '@3sixty/api-auth-entity-storage-service';
 
 const adminService = new EntityStorageAuthenticationAdminService();
 
@@ -31,7 +31,7 @@ console.log(fromIdentity.scope.length); // 2
 ```
 
 ```typescript
-import { EntityStorageAuthenticationAdminService } from '@twin.org/api-auth-entity-storage-service';
+import { EntityStorageAuthenticationAdminService } from '@3sixty/api-auth-entity-storage-service';
 
 const adminService = new EntityStorageAuthenticationAdminService();
 const user = await adminService.get('owner@example.org');
@@ -43,7 +43,7 @@ console.log(user.email); // owner@example.org
 ## EntityStorageAuthenticationService
 
 ```typescript
-import { EntityStorageAuthenticationService } from '@twin.org/api-auth-entity-storage-service';
+import { EntityStorageAuthenticationService } from '@3sixty/api-auth-entity-storage-service';
 
 const authService = new EntityStorageAuthenticationService();
 
@@ -63,9 +63,9 @@ console.log(refreshResult.expiry > 0); // true
 ## EntityStorageAuthenticationRateService
 
 ```typescript
-import { EntityStorageAuthenticationRateService } from '@twin.org/api-auth-entity-storage-service';
-import { BaseError, GeneralError } from '@twin.org/core';
-import { TooManyRequestsError } from '@twin.org/api-models';
+import { EntityStorageAuthenticationRateService } from '@3sixty/api-auth-entity-storage-service';
+import { BaseError, GeneralError } from '@3sixty/core';
+import { TooManyRequestsError } from '@3sixty/api-models';
 
 const rateService = new EntityStorageAuthenticationRateService({
   config: {
@@ -113,7 +113,7 @@ await rateService.stop('default');
 ## EntityStorageAuthenticationAuditService
 
 ```typescript
-import { EntityStorageAuthenticationAuditService } from '@twin.org/api-auth-entity-storage-service';
+import { EntityStorageAuthenticationAuditService } from '@3sixty/api-auth-entity-storage-service';
 
 const auditService = new EntityStorageAuthenticationAuditService({
   config: {
@@ -153,7 +153,7 @@ console.log(auditPage.cursor); // eyJpZCI6IjAxOGYyZjY3YmI5ZDRhMGNhYWQ4Mzg2ZjU2ZG
 ## AuthHeaderProcessor
 
 ```typescript
-import { AuthHeaderProcessor } from '@twin.org/api-auth-entity-storage-service';
+import { AuthHeaderProcessor } from '@3sixty/api-auth-entity-storage-service';
 
 const processor = new AuthHeaderProcessor();
 

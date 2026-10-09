@@ -5,10 +5,10 @@ import type {
 	IAuthenticationRateComponent,
 	IAuthenticationAuditComponent,
 	IAuthenticationComponent
-} from "@twin.org/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@twin.org/api-auth-entity-storage-models";
-import type { ITenantAdminComponent } from "@twin.org/api-models";
-import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@twin.org/context";
+} from "@3sixty/api-auth-entity-storage-models";
+import { AuthAuditEvent } from "@3sixty/api-auth-entity-storage-models";
+import type { ITenantAdminComponent } from "@3sixty/api-models";
+import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
 	Coerce,
 	ComponentFactory,
@@ -18,14 +18,14 @@ import {
 	Is,
 	NotFoundError,
 	UnauthorizedError
-} from "@twin.org/core";
-import { PasswordGenerator, PasswordValidator } from "@twin.org/crypto";
+} from "@3sixty/core";
+import { PasswordGenerator, PasswordValidator } from "@3sixty/crypto";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
-import { nameof } from "@twin.org/nameof";
-import { VaultConnectorFactory, type IVaultConnector } from "@twin.org/vault-models";
+} from "@3sixty/entity-storage-models";
+import { nameof } from "@3sixty/nameof";
+import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../models/IEntityStorageAuthenticationServiceConstructorOptions.js";
 import { PasswordHelper } from "../utils/passwordHelper.js";

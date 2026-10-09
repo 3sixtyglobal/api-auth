@@ -1,6 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { HeaderTypes } from "@twin.org/web";
+import type { HeaderTypes } from "@3sixty/web";
 
 /**
  * Response from a refresh on the auth token.
