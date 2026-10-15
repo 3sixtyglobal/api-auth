@@ -128,6 +128,32 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		});
 	});
 
+	it("should reject a second account that would share the derived identity", async () => {
+		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+		vi.spyOn(RandomHelper, "generate").mockReturnValue(new Uint8Array([1, 2, 3, 4]));
+		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("hashed-password");
+
+		await ContextIdStore.run({ [ContextIdKeys.Organization]: "did:org:node" }, async () => {
+			await service.create({
+				email: "User@Example.com",
+				password: "correct-horse-battery",
+				scope: []
+			});
+			await expect(
+				service.create({
+					email: "user@example.com",
+					password: "correct-horse-battery",
+					scope: []
+				})
+			).rejects.toThrow();
+		});
+
+		expect(await userEntityStorage.get("user@example.com")).toBeUndefined();
+		expect(await userEntityStorage.get("User@Example.com")).toMatchObject({
+			identity: "user@example.com"
+		});
+	});
+
 	it("should reject a blank identity and write no user", async () => {
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 

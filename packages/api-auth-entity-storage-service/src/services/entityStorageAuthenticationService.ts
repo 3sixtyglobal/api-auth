@@ -85,6 +85,18 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private static readonly _DEFAULT_TOKEN_REFRESH_RATE_WINDOW_MINUTES: number = 60;
 
 	/**
+	 * Default maximum identity adoption attempts in a rate window.
+	 * @internal
+	 */
+	private static readonly _DEFAULT_IDENTITY_ADOPT_RATE_MAX_ATTEMPTS: number = 5;
+
+	/**
+	 * Default identity adoption rate window in minutes.
+	 * @internal
+	 */
+	private static readonly _DEFAULT_IDENTITY_ADOPT_RATE_WINDOW_MINUTES: number = 15;
+
+	/**
 	 * The audit service.
 	 * @internal
 	 */
@@ -145,6 +157,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _tokenRefreshRateLimit: IAuthenticationRateActionConfig;
 
 	/**
+	 * Rate limit configuration for identity adoption.
+	 * @internal
+	 */
+	private readonly _identityAdoptRateLimit: IAuthenticationRateActionConfig;
+
+	/**
 	 * The component to retrieve tenant information.
 	 * @internal
 	 */
@@ -186,7 +204,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		);
 
 		this._identityComponent = ComponentFactory.getIfExists<IIdentityAdoption>(
-			options?.identityComponentType ?? "identity"
+			options?.identityComponentType ?? "identity-service"
 		);
 
 		this._signingKeyName = options?.config?.signingKeyName ?? "auth-signing";
@@ -217,6 +235,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				options?.config?.tokenRefreshRateLimit?.windowMinutes ??
 				EntityStorageAuthenticationService._DEFAULT_TOKEN_REFRESH_RATE_WINDOW_MINUTES
 		};
+		this._identityAdoptRateLimit = {
+			maxAttempts:
+				options?.config?.identityAdoptRateLimit?.maxAttempts ??
+				EntityStorageAuthenticationService._DEFAULT_IDENTITY_ADOPT_RATE_MAX_ATTEMPTS,
+			windowMinutes:
+				options?.config?.identityAdoptRateLimit?.windowMinutes ??
+				EntityStorageAuthenticationService._DEFAULT_IDENTITY_ADOPT_RATE_WINDOW_MINUTES
+		};
 	}
 
 	/**
@@ -246,6 +272,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			"token-refresh",
 			this._tokenRefreshRateLimit
 		);
+		await this._authenticationRateService.registerAction(
+			"identity-adopt",
+			this._identityAdoptRateLimit
+		);
 	}
 
 	/**
@@ -257,6 +287,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await this._authenticationRateService.unregisterAction("login");
 		await this._authenticationRateService.unregisterAction("password-change");
 		await this._authenticationRateService.unregisterAction("token-refresh");
+		await this._authenticationRateService.unregisterAction("identity-adopt");
 	}
 
 	/**
@@ -349,9 +380,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
-	 * @returns The new token and its expiry. The route places the token on the response cookie.
-	 * @throws UnauthorizedError When no signed-in user can be loaded.
+	 * Replace an e-mail subject with a DID and issue a new token.
+	 * @returns The new token and its expiry.
+	 * @throws NotFoundError When the signed-in user cannot be loaded.
 	 * @throws ConflictError When the user already has a DID.
 	 * @throws GeneralError When the node or the identity component is not available, or the new document id is not a DID.
 	 */
@@ -364,17 +395,16 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		}
 
 		const contextIds = await ContextIdStore.getContextIds();
-		const subject = contextIds?.[ContextIdKeys.User];
-		if (!Is.stringValue(subject)) {
-			throw new UnauthorizedError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"notAuthenticated"
-			);
-		}
+		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
+		const subject = contextIds[ContextIdKeys.User];
 
 		const user = await this._userEntityStorage.get(subject, "identity");
 		if (!Is.object<AuthenticationUser>(user) || user.identity !== subject) {
-			throw new UnauthorizedError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
+			throw new NotFoundError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"userNotFound",
+				subject
+			);
 		}
 
 		if (user.identity.startsWith("did:")) {
@@ -383,6 +413,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				"identityAlreadyAssigned"
 			);
 		}
+
+		await this._authenticationRateService.check("identity-adopt", subject);
 
 		const identityComponent = this._identityComponent;
 		if (!Is.object<IIdentityAdoption>(identityComponent)) {
@@ -395,10 +427,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		const created = await identityComponent.identityCreateSelf();
 		const documentId = created.id;
 		if (!Is.stringValue(documentId) || !documentId.startsWith("did:")) {
-			throw new GeneralError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"identityCreateFailed"
-			);
+			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "identityCreateFailed");
 		}
 
 		try {
@@ -407,9 +436,19 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				identity: documentId
 			});
 		} catch (error) {
-			await identityComponent.identityRemove(documentId, undefined, documentId);
+			await identityComponent.identityRemove(documentId, { removeKeys: true }, documentId);
 			throw error;
 		}
+
+		await this._authenticationAuditService?.create({
+			actorId: documentId,
+			event: AuthAuditEvent.AccountUpdated,
+			data: {
+				previousIdentity: subject,
+				userIdentity: documentId,
+				organizationIdentity: user.organization
+			}
+		});
 
 		return TokenHelper.createToken(
 			this._vaultConnector,

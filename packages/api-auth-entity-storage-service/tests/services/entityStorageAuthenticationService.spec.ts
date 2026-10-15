@@ -220,6 +220,10 @@ describe("EntityStorageAuthenticationService", () => {
 			maxAttempts: 30,
 			windowMinutes: 60
 		});
+		expect(mockAuthenticationRateService.registerAction).toHaveBeenCalledWith("identity-adopt", {
+			maxAttempts: 5,
+			windowMinutes: 15
+		});
 	});
 
 	it("should register login rate action on start when configured", async () => {
@@ -249,6 +253,7 @@ describe("EntityStorageAuthenticationService", () => {
 		expect(mockAuthenticationRateService.unregisterAction).toHaveBeenCalledWith("login");
 		expect(mockAuthenticationRateService.unregisterAction).toHaveBeenCalledWith("password-change");
 		expect(mockAuthenticationRateService.unregisterAction).toHaveBeenCalledWith("token-refresh");
+		expect(mockAuthenticationRateService.unregisterAction).toHaveBeenCalledWith("identity-adopt");
 	});
 
 	it("should wrap rate limit check failures during login", async () => {
@@ -958,6 +963,7 @@ describe("EntityStorageAuthenticationService", () => {
 		const mnemonic = "abandon abandon abandon abandon abandon abandon";
 		const documentId = "did:iota:tst:abc";
 		let identity: {
+			className: ReturnType<typeof vi.fn>;
 			identityCreateSelf: ReturnType<typeof vi.fn>;
 			identityRemove: ReturnType<typeof vi.fn>;
 		};
@@ -965,6 +971,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 		beforeEach(async () => {
 			identity = {
+				className: vi.fn().mockReturnValue("IdentityService"),
 				identityCreateSelf: vi.fn().mockResolvedValue({ id: documentId, mnemonic }),
 				identityRemove: vi.fn().mockResolvedValue(undefined)
 			};
@@ -981,7 +988,7 @@ describe("EntityStorageAuthenticationService", () => {
 				if (componentName === "authentication-audit") {
 					return mockAuthenticationAuditService;
 				}
-				if (componentName === "identity") {
+				if (componentName === "identity-service") {
 					return identity;
 				}
 				return undefined;
@@ -1026,6 +1033,19 @@ describe("EntityStorageAuthenticationService", () => {
 				0
 			);
 			expect(result).toEqual({ token: "new-jwt-token", expiry: 1722514341067 });
+			expect(mockAuthenticationRateService.check).toHaveBeenCalledWith(
+				"identity-adopt",
+				"user@example.com"
+			);
+			expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
+				actorId: documentId,
+				event: "account-updated",
+				data: {
+					previousIdentity: "user@example.com",
+					userIdentity: documentId,
+					organizationIdentity: "did:org:node"
+				}
+			});
 			expect(JSON.stringify(result)).not.toContain(mnemonic);
 			expect(JSON.stringify(vi.mocked(TokenHelper.createToken).mock.calls)).not.toContain(mnemonic);
 		});
@@ -1057,7 +1077,11 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.mocked(mockUserEntityStorage.set).mockRejectedValue(new Error("save failed"));
 
 			await expect(service.adoptIdentity()).rejects.toThrow("save failed");
-			expect(identity.identityRemove).toHaveBeenCalledWith(documentId, undefined, documentId);
+			expect(identity.identityRemove).toHaveBeenCalledWith(
+				documentId,
+				{ removeKeys: true },
+				documentId
+			);
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
 			expect(user.identity).toBe("user@example.com");
 		});

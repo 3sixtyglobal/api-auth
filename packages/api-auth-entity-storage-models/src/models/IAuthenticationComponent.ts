@@ -21,8 +21,8 @@ export interface IAuthenticationComponent extends IComponent {
 	}>;
 
 	/**
-	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
-	 * @returns The new token and its expiry. The route places the token on the response cookie.
+	 * Replace an e-mail subject with a DID and issue a new token.
+	 * @returns The new token and its expiry.
 	 */
 	adoptIdentity(): Promise<{
 		token?: string;

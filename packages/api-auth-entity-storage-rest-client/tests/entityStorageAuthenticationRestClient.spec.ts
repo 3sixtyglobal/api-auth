@@ -154,6 +154,35 @@ describe("EntityStorageAuthenticationRestClient", () => {
 		});
 	});
 
+	describe("adoptIdentity", () => {
+		test("sends POST to /identity with no body", async () => {
+			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
+
+			await client.adoptIdentity();
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/identity`);
+			expect(options.method).toBe(HttpMethod.POST);
+			expect(options.body).toBeUndefined();
+		});
+
+		test("returns expiry from the response body", async () => {
+			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
+
+			const result = await client.adoptIdentity();
+
+			expect(result.expiry).toBe(1722514341067);
+		});
+
+		test("returns token as undefined when no Set-Cookie header is present", async () => {
+			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
+
+			const result = await client.adoptIdentity();
+
+			expect(result.token).toBeUndefined();
+		});
+	});
+
 	describe("updatePassword", () => {
 		test("throws when currentPassword is empty", async () => {
 			await expect(client.updatePassword("", "MyNewPassword123!")).rejects.toMatchObject({

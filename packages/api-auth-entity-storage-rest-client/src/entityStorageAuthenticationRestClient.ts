@@ -10,7 +10,7 @@ import type {
 	IUpdatePasswordRequest
 } from "@3sixty/api-auth-entity-storage-models";
 import { BaseRestClient } from "@3sixty/api-core";
-import type { INoContentResponse } from "@3sixty/api-models";
+import type { INoContentRequest, INoContentResponse } from "@3sixty/api-models";
 import { Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { CookieHelper, HeaderTypes } from "@3sixty/web";
@@ -95,14 +95,14 @@ export class EntityStorageAuthenticationRestClient
 	}
 
 	/**
-	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
+	 * Replace an e-mail subject with a DID and issue a new token.
 	 * @returns The new token and its expiry. The token is read from the response cookie.
 	 */
 	public async adoptIdentity(): Promise<{
 		token?: string;
 		expiry: number;
 	}> {
-		const response = await this.fetch<ILoginRequest, ILoginResponse>("/identity", "POST");
+		const response = await this.fetch<INoContentRequest, ILoginResponse>("/identity", "POST");
 
 		return {
 			token: CookieHelper.getCookieFromHeaders(

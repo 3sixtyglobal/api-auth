@@ -11,8 +11,8 @@ import type {
 } from "@3sixty/api-auth-entity-storage-models";
 import type {
 	IConflictResponse,
-	IHttpRequest,
 	IHttpRequestContext,
+	INoContentRequest,
 	INoContentResponse,
 	IRestRoute,
 	IRestRouteResponseOptions,
@@ -198,7 +198,7 @@ export function generateRestRoutesAuthentication(
 		]
 	};
 
-	const adoptIdentityRoute: IRestRoute<IHttpRequest, ILoginResponse> = {
+	const adoptIdentityRoute: IRestRoute<INoContentRequest, ILoginResponse> = {
 		operationId: "authenticationAdoptIdentity",
 		summary: "Adopt a DID for the signed-in user",
 		tag: tagsAuthentication[0].name,
@@ -212,7 +212,7 @@ export function generateRestRoutesAuthentication(
 				examples: [
 					{
 						id: "adoptIdentityResponseExample",
-						description: "The new session expiry. The token is set as a cookie.",
+						description: "The new session expiry. The token is placed the same way as login.",
 						response: {
 							body: {
 								expiry: 1722514341067
@@ -264,7 +264,7 @@ export async function authenticationLogin(
 }
 
 /**
- * Adopt a DID for the signed-in user and reissue the session cookie.
+ * Adopt a DID for the signed-in user and reissue the session.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
  * @returns The response object with the new expiry. The token is not included in the body.
@@ -278,7 +278,6 @@ export async function authenticationAdoptIdentity(
 
 	httpRequestContext.processorState.authOperation = "login";
 	httpRequestContext.processorState.authToken = result.token;
-	httpRequestContext.processorState.authTokenLocation = "cookie";
 
 	return {
 		body: {

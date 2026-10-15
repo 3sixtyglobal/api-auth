@@ -1,7 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IComponent } from "@3sixty/core";
-import type { IAuthenticationUserCreate } from "./api/IAuthenticationUserCreate.js";
+import type { IAuthenticationUserCreate } from "./IAuthenticationUserCreate.js";
 import type { IAuthenticationUser } from "./IAuthenticationUser.js";
 
 /**

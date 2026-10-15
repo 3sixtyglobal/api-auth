@@ -37,8 +37,8 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	tenantAdminComponentType?: string;
 
 	/**
-	 * The identity component used to create a self-controlled DID.
-	 * @default identity
+	 * The identity component used to create a DID.
+	 * @default identity-service
 	 */
 	identityComponentType?: string;
 

@@ -41,4 +41,10 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	 * @default { maxAttempts: 30, windowMinutes: 60 }
 	 */
 	tokenRefreshRateLimit?: IAuthenticationRateActionConfig;
+
+	/**
+	 * Optional override for identity adoption rate limit.
+	 * @default { maxAttempts: 5, windowMinutes: 15 }
+	 */
+	identityAdoptRateLimit?: IAuthenticationRateActionConfig;
 }

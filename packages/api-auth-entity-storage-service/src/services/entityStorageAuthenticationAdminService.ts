@@ -12,7 +12,6 @@ import {
 	ComponentFactory,
 	Converter,
 	GeneralError,
-	GuardError,
 	Guards,
 	Is,
 	NotFoundError,
@@ -107,30 +106,21 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			user.scope
 		);
 
-		const userIdentity =
-			user.userIdentity === undefined ? user.email.trim().toLowerCase() : user.userIdentity;
-		if (!Is.stringValue(userIdentity)) {
-			throw new GuardError(
-				EntityStorageAuthenticationAdminService.CLASS_NAME,
-				"guard.stringEmpty",
-				nameof(user.userIdentity),
-				user.userIdentity
-			);
-		}
+		const userIdentity = user.userIdentity ?? user.email.trim().toLowerCase();
+		Guards.stringValue(
+			EntityStorageAuthenticationAdminService.CLASS_NAME,
+			nameof(user.userIdentity),
+			userIdentity.trim()
+		);
 
 		const contextIds = await ContextIdStore.getContextIds();
 		const organizationIdentity =
-			user.organizationIdentity === undefined
-				? contextIds?.[ContextIdKeys.Organization]
-				: user.organizationIdentity;
-		if (!Is.stringValue(organizationIdentity)) {
-			throw new GuardError(
-				EntityStorageAuthenticationAdminService.CLASS_NAME,
-				"guard.stringEmpty",
-				nameof(user.organizationIdentity),
-				user.organizationIdentity
-			);
-		}
+			user.organizationIdentity ?? contextIds?.[ContextIdKeys.Organization] ?? "";
+		Guards.stringValue(
+			EntityStorageAuthenticationAdminService.CLASS_NAME,
+			nameof(user.organizationIdentity),
+			organizationIdentity.trim()
+		);
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
@@ -140,6 +130,14 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			const existingUser = await this._userEntityStorage.get(user.email);
 			if (Is.object<AuthenticationUser>(existingUser)) {
 				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "userExists");
+			}
+
+			const existingIdentity = await this._userEntityStorage.get(userIdentity, "identity");
+			if (Is.object<AuthenticationUser>(existingIdentity)) {
+				throw new GeneralError(
+					EntityStorageAuthenticationAdminService.CLASS_NAME,
+					"identityInUse"
+				);
 			}
 
 			const saltBytes = RandomHelper.generate(16);
