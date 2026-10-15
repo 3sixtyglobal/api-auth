@@ -12,6 +12,7 @@ import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@3sixty/context"
 import {
 	Coerce,
 	ComponentFactory,
+	ConflictError,
 	Converter,
 	GeneralError,
 	Guards,
@@ -28,6 +29,7 @@ import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../models/IEntityStorageAuthenticationServiceConstructorOptions.js";
+import type { IIdentityAdoption } from "../models/IIdentityAdoption.js";
 import { PasswordHelper } from "../utils/passwordHelper.js";
 import { TokenHelper } from "../utils/tokenHelper.js";
 
@@ -149,6 +151,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _tenantAdminComponent?: ITenantAdminComponent;
 
 	/**
+	 * The identity component used to create a self-controlled DID.
+	 * @internal
+	 */
+	private readonly _identityComponent?: IIdentityAdoption;
+
+	/**
 	 * The node identity.
 	 * @internal
 	 */
@@ -175,6 +183,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 		this._tenantAdminComponent = ComponentFactory.getIfExists<ITenantAdminComponent>(
 			options?.tenantAdminComponentType ?? "tenant-admin"
+		);
+
+		this._identityComponent = ComponentFactory.getIfExists<IIdentityAdoption>(
+			options?.identityComponentType ?? "identity"
 		);
 
 		this._signingKeyName = options?.config?.signingKeyName ?? "auth-signing";
@@ -334,6 +346,82 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		});
 
 		return tokenAndExpiry;
+	}
+
+	/**
+	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
+	 * @returns The new token and its expiry. The route places the token on the response cookie.
+	 * @throws UnauthorizedError When no signed-in user can be loaded.
+	 * @throws ConflictError When the user already has a DID.
+	 * @throws GeneralError When the node or the identity component is not available, or the new document id is not a DID.
+	 */
+	public async adoptIdentity(): Promise<{
+		token?: string;
+		expiry: number;
+	}> {
+		if (!Is.stringValue(this._nodeId)) {
+			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		const subject = contextIds?.[ContextIdKeys.User];
+		if (!Is.stringValue(subject)) {
+			throw new UnauthorizedError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"notAuthenticated"
+			);
+		}
+
+		const user = await this._userEntityStorage.get(subject, "identity");
+		if (!Is.object<AuthenticationUser>(user) || user.identity !== subject) {
+			throw new UnauthorizedError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
+		}
+
+		if (user.identity.startsWith("did:")) {
+			throw new ConflictError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"identityAlreadyAssigned"
+			);
+		}
+
+		const identityComponent = this._identityComponent;
+		if (!Is.object<IIdentityAdoption>(identityComponent)) {
+			throw new GeneralError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"identityComponentMissing"
+			);
+		}
+
+		const created = await identityComponent.identityCreateSelf();
+		const documentId = created.id;
+		if (!Is.stringValue(documentId) || !documentId.startsWith("did:")) {
+			throw new GeneralError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"identityCreateFailed"
+			);
+		}
+
+		try {
+			await this._userEntityStorage.set({
+				...user,
+				identity: documentId
+			});
+		} catch (error) {
+			await identityComponent.identityRemove(documentId, undefined, documentId);
+			throw error;
+		}
+
+		return TokenHelper.createToken(
+			this._vaultConnector,
+			this._nodeId,
+			this._signingKeyName,
+			documentId,
+			user.organization,
+			contextIds?.[ContextIdKeys.Tenant],
+			this._defaultTtlMinutes,
+			user.scope,
+			user.passwordVersion ?? 0
+		);
 	}
 
 	/**

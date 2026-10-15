@@ -21,6 +21,15 @@ export interface IAuthenticationComponent extends IComponent {
 	}>;
 
 	/**
+	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
+	 * @returns The new token and its expiry. The route places the token on the response cookie.
+	 */
+	adoptIdentity(): Promise<{
+		token?: string;
+		expiry: number;
+	}>;
+
+	/**
 	 * Logout the current user.
 	 * @param token The token to logout, if it uses a mechanism with public access.
 	 * @returns A promise that resolves when the logout has been completed.

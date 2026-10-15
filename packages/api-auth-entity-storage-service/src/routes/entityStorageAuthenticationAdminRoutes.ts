@@ -74,6 +74,18 @@ export function generateRestRoutesAuthenticationAdmin(
 							scope: ["scope1", "scope2"]
 						}
 					}
+				},
+				{
+					id: "createUserWithoutIdentityRequestExample",
+					description:
+						"The request to create a user before a DID exists. The service stores the e-mail as the subject and the context organisation as the organisation.",
+					request: {
+						body: {
+							email: "user@example.com",
+							password: "MyPassword123!",
+							scope: []
+						}
+					}
 				}
 			]
 		},

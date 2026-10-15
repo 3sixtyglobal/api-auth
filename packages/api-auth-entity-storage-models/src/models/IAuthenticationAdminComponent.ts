@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IComponent } from "@3sixty/core";
+import type { IAuthenticationUserCreate } from "./api/IAuthenticationUserCreate.js";
 import type { IAuthenticationUser } from "./IAuthenticationUser.js";
 
 /**
@@ -12,7 +13,7 @@ export interface IAuthenticationAdminComponent extends IComponent {
 	 * @param user The user to create.
 	 * @returns A promise that resolves when the user account has been created.
 	 */
-	create(user: IAuthenticationUser & { password: string }): Promise<void>;
+	create(user: IAuthenticationUserCreate): Promise<void>;
 
 	/**
 	 * Update a login for the user.

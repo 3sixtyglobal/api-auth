@@ -94,6 +94,82 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		});
 	});
 
+	it("should store the email and the context organisation when identities are omitted", async () => {
+		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+		vi.spyOn(RandomHelper, "generate").mockReturnValue(new Uint8Array([1, 2, 3, 4]));
+		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("hashed-password");
+
+		await ContextIdStore.run({ [ContextIdKeys.Organization]: "did:org:node" }, async () => {
+			await service.create({
+				email: "User@Example.com",
+				password: "correct-horse-battery",
+				scope: []
+			});
+		});
+
+		expect(await userEntityStorage.get("User@Example.com")).toEqual({
+			email: "User@Example.com",
+			salt: "AQIDBA==",
+			password: "hashed-password",
+			identity: "user@example.com",
+			organization: "did:org:node",
+			scope: "",
+			passwordVersion: 0
+		});
+		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
+			actorId: "User@Example.com",
+			event: "account-created",
+			data: {
+				userIdentity: "user@example.com",
+				organizationIdentity: "did:org:node",
+				tenantId: undefined,
+				scope: []
+			}
+		});
+	});
+
+	it("should reject a blank identity and write no user", async () => {
+		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+
+		await expect(
+			service.create({
+				email: "user@example.com",
+				password: "correct-horse-battery",
+				userIdentity: "",
+				organizationIdentity: "did:org:456",
+				scope: []
+			})
+		).rejects.toThrow();
+		expect(await userEntityStorage.get("user@example.com")).toBeUndefined();
+		expect(mockAuthenticationAuditService.create).not.toHaveBeenCalled();
+	});
+
+	it("should reject create when no organisation is available and write no user", async () => {
+		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+
+		await expect(
+			ContextIdStore.run({}, async () => {
+				await service.create({
+					email: "user@example.com",
+					password: "correct-horse-battery",
+					scope: []
+				});
+			})
+		).rejects.toThrow();
+		expect(await userEntityStorage.get("user@example.com")).toBeUndefined();
+		const rejection = await service
+			.create({
+				email: "user@example.com",
+				password: "correct-horse-battery",
+				scope: []
+			})
+			.then(
+				() => "",
+				(error: Error) => error.message
+			);
+		expect(rejection).not.toContain("correct-horse-battery");
+	});
+
 	it("should wrap create failures when the user already exists", async () => {
 		await userEntityStorage.set({
 			email: "user@example.com",

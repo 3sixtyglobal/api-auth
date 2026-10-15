@@ -6,7 +6,7 @@ import type {
 } from "@3sixty/api-auth-entity-storage-models";
 import { TooManyRequestsError } from "@3sixty/api-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { ComponentFactory, NotFoundError, UnauthorizedError } from "@3sixty/core";
+import { ComponentFactory, ConflictError, NotFoundError, UnauthorizedError } from "@3sixty/core";
 import { PasswordGenerator, PasswordValidator } from "@3sixty/crypto";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import {
@@ -952,5 +952,126 @@ describe("EntityStorageAuthenticationService", () => {
 			"read,write",
 			0
 		);
+	});
+
+	describe("adoptIdentity", () => {
+		const mnemonic = "abandon abandon abandon abandon abandon abandon";
+		const documentId = "did:iota:tst:abc";
+		let identity: {
+			identityCreateSelf: ReturnType<typeof vi.fn>;
+			identityRemove: ReturnType<typeof vi.fn>;
+		};
+		let user: AuthenticationUser;
+
+		beforeEach(async () => {
+			identity = {
+				identityCreateSelf: vi.fn().mockResolvedValue({ id: documentId, mnemonic }),
+				identityRemove: vi.fn().mockResolvedValue(undefined)
+			};
+			user = {
+				email: "User@Example.com",
+				identity: "user@example.com",
+				organization: "did:org:node",
+				password: "stored-password-hash",
+				salt: "c2FsdA==",
+				scope: "",
+				passwordVersion: 0
+			};
+			vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
+				if (componentName === "authentication-audit") {
+					return mockAuthenticationAuditService;
+				}
+				if (componentName === "identity") {
+					return identity;
+				}
+				return undefined;
+			});
+			service = new EntityStorageAuthenticationService();
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.Node]: "node-1",
+				[ContextIdKeys.Tenant]: "tenant-1",
+				[ContextIdKeys.User]: "user@example.com"
+			});
+			vi.mocked(mockUserEntityStorage.get).mockResolvedValue(user);
+			vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
+				token: "new-jwt-token",
+				expiry: 1722514341067
+			});
+			await service.start();
+		});
+
+		it("should replace an email subject with the new DID and issue a token for it", async () => {
+			const result = await service.adoptIdentity();
+
+			expect(identity.identityCreateSelf).toHaveBeenCalledTimes(1);
+			expect(mockUserEntityStorage.set).toHaveBeenCalledWith(
+				expect.objectContaining({
+					email: "User@Example.com",
+					identity: documentId,
+					organization: "did:org:node",
+					scope: "",
+					passwordVersion: 0
+				})
+			);
+			expect(user.identity).toBe("user@example.com");
+			expect(TokenHelper.createToken).toHaveBeenCalledWith(
+				mockVaultConnector,
+				"node-1",
+				"auth-signing",
+				documentId,
+				"did:org:node",
+				"tenant-1",
+				60,
+				"",
+				0
+			);
+			expect(result).toEqual({ token: "new-jwt-token", expiry: 1722514341067 });
+			expect(JSON.stringify(result)).not.toContain(mnemonic);
+			expect(JSON.stringify(vi.mocked(TokenHelper.createToken).mock.calls)).not.toContain(mnemonic);
+		});
+
+		it("should reject when the user already has a DID and leave the row unchanged", async () => {
+			user.identity = "did:iota:tst:existing";
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.Node]: "node-1",
+				[ContextIdKeys.User]: "did:iota:tst:existing"
+			});
+
+			await expect(service.adoptIdentity()).rejects.toBeInstanceOf(ConflictError);
+			expect(identity.identityCreateSelf).not.toHaveBeenCalled();
+			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
+			expect(user.identity).toBe("did:iota:tst:existing");
+		});
+
+		it("should leave the stored identity unchanged when identity create throws", async () => {
+			identity.identityCreateSelf.mockRejectedValue(new Error("publish failed"));
+
+			await expect(service.adoptIdentity()).rejects.toThrow("publish failed");
+			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
+			expect(TokenHelper.createToken).not.toHaveBeenCalled();
+			expect(user.identity).toBe("user@example.com");
+			expect(JSON.stringify(identity.identityCreateSelf.mock.results)).not.toContain("token");
+		});
+
+		it("should remove the new DID with itself as controller when the save throws", async () => {
+			vi.mocked(mockUserEntityStorage.set).mockRejectedValue(new Error("save failed"));
+
+			await expect(service.adoptIdentity()).rejects.toThrow("save failed");
+			expect(identity.identityRemove).toHaveBeenCalledWith(documentId, undefined, documentId);
+			expect(TokenHelper.createToken).not.toHaveBeenCalled();
+			expect(user.identity).toBe("user@example.com");
+		});
+
+		it("should keep a recorded mnemonic out of the failure", async () => {
+			identity.identityCreateSelf.mockResolvedValue({ id: "not-a-did", mnemonic });
+
+			const rejection = await service.adoptIdentity().then(
+				() => "",
+				(error: Error) => `${error.message} ${JSON.stringify(error)}`
+			);
+			expect(rejection).toContain("identityCreateFailed");
+			expect(rejection).not.toContain(mnemonic);
+			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
+		});
 	});
 });

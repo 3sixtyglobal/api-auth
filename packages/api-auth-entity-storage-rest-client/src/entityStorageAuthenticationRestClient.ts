@@ -95,6 +95,25 @@ export class EntityStorageAuthenticationRestClient
 	}
 
 	/**
+	 * Replace an e-mail subject with a self-controlled DID and issue a new token.
+	 * @returns The new token and its expiry. The token is read from the response cookie.
+	 */
+	public async adoptIdentity(): Promise<{
+		token?: string;
+		expiry: number;
+	}> {
+		const response = await this.fetch<ILoginRequest, ILoginResponse>("/identity", "POST");
+
+		return {
+			token: CookieHelper.getCookieFromHeaders(
+				response?.headers?.[HeaderTypes.SetCookie],
+				this._cookieName
+			),
+			expiry: response.body.expiry
+		};
+	}
+
+	/**
 	 * Logout the current user.
 	 * @param token The token to logout, if it uses a mechanism with public access.
 	 * @returns A promise that resolves when the logout request has completed.

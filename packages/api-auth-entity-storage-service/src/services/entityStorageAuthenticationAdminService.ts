@@ -3,7 +3,8 @@
 import type {
 	IAuthenticationAdminComponent,
 	IAuthenticationAuditComponent,
-	IAuthenticationUser
+	IAuthenticationUser,
+	IAuthenticationUserCreate
 } from "@3sixty/api-auth-entity-storage-models";
 import { AuthAuditEvent } from "@3sixty/api-auth-entity-storage-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
@@ -11,6 +12,7 @@ import {
 	ComponentFactory,
 	Converter,
 	GeneralError,
+	GuardError,
 	Guards,
 	Is,
 	NotFoundError,
@@ -79,11 +81,12 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 	/**
 	 * Create a login for the user.
+	 * A missing identity is stored as the lowercased e-mail. A missing organisation is taken from the request context.
 	 * @param user The user to create.
 	 * @returns A promise that resolves when the user account has been created and the audit entry recorded.
 	 */
-	public async create(user: IAuthenticationUser & { password: string }): Promise<void> {
-		Guards.object<IAuthenticationUser>(
+	public async create(user: IAuthenticationUserCreate): Promise<void> {
+		Guards.object<IAuthenticationUserCreate>(
 			EntityStorageAuthenticationAdminService.CLASS_NAME,
 			nameof(user),
 			user
@@ -98,21 +101,36 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			nameof(user.password),
 			user.password
 		);
-		Guards.stringValue(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.userIdentity),
-			user.userIdentity
-		);
-		Guards.stringValue(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.organizationIdentity),
-			user.organizationIdentity
-		);
 		Guards.array<string>(
 			EntityStorageAuthenticationAdminService.CLASS_NAME,
 			nameof(user.scope),
 			user.scope
 		);
+
+		const userIdentity =
+			user.userIdentity === undefined ? user.email.trim().toLowerCase() : user.userIdentity;
+		if (!Is.stringValue(userIdentity)) {
+			throw new GuardError(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				"guard.stringEmpty",
+				nameof(user.userIdentity),
+				user.userIdentity
+			);
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		const organizationIdentity =
+			user.organizationIdentity === undefined
+				? contextIds?.[ContextIdKeys.Organization]
+				: user.organizationIdentity;
+		if (!Is.stringValue(organizationIdentity)) {
+			throw new GuardError(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				"guard.stringEmpty",
+				nameof(user.organizationIdentity),
+				user.organizationIdentity
+			);
+		}
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
@@ -133,22 +151,21 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				email: user.email,
 				salt: Converter.bytesToBase64(saltBytes),
 				password: hashedPassword,
-				identity: user.userIdentity,
-				organization: user.organizationIdentity,
+				identity: userIdentity,
+				organization: organizationIdentity,
 				scope: user.scope.map(s => s.trim().toLocaleLowerCase()).join(","),
 				passwordVersion: 0
 			};
 
 			await this._userEntityStorage.set(newUser);
 
-			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
 			await this._authenticationAuditService?.create({
 				actorId: user.email,
 				event: AuthAuditEvent.AccountCreated,
 				data: {
-					userIdentity: user.userIdentity,
-					organizationIdentity: user.organizationIdentity,
+					userIdentity,
+					organizationIdentity,
 					tenantId: requestorTenantId,
 					scope: user.scope
 				}

@@ -10,6 +10,8 @@ import type {
 	IUpdatePasswordRequest
 } from "@3sixty/api-auth-entity-storage-models";
 import type {
+	IConflictResponse,
+	IHttpRequest,
 	IHttpRequestContext,
 	INoContentResponse,
 	IRestRoute,
@@ -196,7 +198,39 @@ export function generateRestRoutesAuthentication(
 		]
 	};
 
-	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute];
+	const adoptIdentityRoute: IRestRoute<IHttpRequest, ILoginResponse> = {
+		operationId: "authenticationAdoptIdentity",
+		summary: "Adopt a DID for the signed-in user",
+		tag: tagsAuthentication[0].name,
+		method: "POST",
+		path: `${baseRouteName}/identity`,
+		handler: async httpRequestContext =>
+			authenticationAdoptIdentity(httpRequestContext, componentName),
+		responseType: [
+			{
+				type: nameof<ILoginResponse>(),
+				examples: [
+					{
+						id: "adoptIdentityResponseExample",
+						description: "The new session expiry. The token is set as a cookie.",
+						response: {
+							body: {
+								expiry: 1722514341067
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IConflictResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		]
+	};
+
+	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute, adoptIdentityRoute];
 }
 
 /**
@@ -221,6 +255,30 @@ export async function authenticationLogin(
 	// in case they need to manipulate the response
 	httpRequestContext.processorState.authOperation = "login";
 	httpRequestContext.processorState.authToken = result.token;
+
+	return {
+		body: {
+			expiry: result.expiry
+		}
+	};
+}
+
+/**
+ * Adopt a DID for the signed-in user and reissue the session cookie.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @returns The response object with the new expiry. The token is not included in the body.
+ */
+export async function authenticationAdoptIdentity(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string
+): Promise<ILoginResponse & IRestRouteResponseOptions> {
+	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+	const result = await component.adoptIdentity();
+
+	httpRequestContext.processorState.authOperation = "login";
+	httpRequestContext.processorState.authToken = result.token;
+	httpRequestContext.processorState.authTokenLocation = "cookie";
 
 	return {
 		body: {

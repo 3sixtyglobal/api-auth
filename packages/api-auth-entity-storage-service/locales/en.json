@@ -3,6 +3,10 @@
 		"entityStorageAuthenticationService": {
 			"loginFailed": "Login failed",
 			"userNotFound": "The user with the specified e-mail could not be found",
+			"notAuthenticated": "The request has no signed-in user",
+			"identityAlreadyAssigned": "The user already has a DID",
+			"identityComponentMissing": "The identity component is not available",
+			"identityCreateFailed": "Creating the DID failed",
 			"passwordMismatch": "The password does not match the user's password",
 			"nodeIdNotSet": "The node ID has not been set"
 		},

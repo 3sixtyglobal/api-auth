@@ -9,7 +9,8 @@ import type {
 	IAdminUserUpdatePasswordRequest,
 	IAdminUserUpdateRequest,
 	IAuthenticationAdminComponent,
-	IAuthenticationUser
+	IAuthenticationUser,
+	IAuthenticationUserCreate
 } from "@3sixty/api-auth-entity-storage-models";
 import { BaseRestClient } from "@3sixty/api-core";
 import type { IBaseRestClientConfig, INoContentResponse } from "@3sixty/api-models";
@@ -50,7 +51,7 @@ export class EntityStorageAuthenticationAdminRestClient
 	 * @param user The user to create.
 	 * @returns Nothing.
 	 */
-	public async create(user: IAuthenticationUser & { password: string }): Promise<void> {
+	public async create(user: IAuthenticationUserCreate): Promise<void> {
 		Guards.object(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(user), user);
 		Guards.stringValue(
 			EntityStorageAuthenticationAdminRestClient.CLASS_NAME,
