@@ -134,10 +134,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const existingIdentity = await this._userEntityStorage.get(userIdentity, "identity");
 			if (Is.object<AuthenticationUser>(existingIdentity)) {
-				throw new GeneralError(
-					EntityStorageAuthenticationAdminService.CLASS_NAME,
-					"identityInUse"
-				);
+				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "identityInUse");
 			}
 
 			const saltBytes = RandomHelper.generate(16);

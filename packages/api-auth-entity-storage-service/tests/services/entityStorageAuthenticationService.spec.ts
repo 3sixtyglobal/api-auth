@@ -16,6 +16,7 @@ import {
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
+import type { IIdentityAdoption } from "../../src/models/IIdentityAdoption.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
 import { PasswordHelper } from "../../src/utils/passwordHelper.js";
@@ -962,11 +963,7 @@ describe("EntityStorageAuthenticationService", () => {
 	describe("adoptIdentity", () => {
 		const mnemonic = "abandon abandon abandon abandon abandon abandon";
 		const documentId = "did:iota:tst:abc";
-		let identity: {
-			className: ReturnType<typeof vi.fn>;
-			identityCreateSelf: ReturnType<typeof vi.fn>;
-			identityRemove: ReturnType<typeof vi.fn>;
-		};
+		let identity: IIdentityAdoption;
 		let user: AuthenticationUser;
 
 		beforeEach(async () => {
@@ -1010,7 +1007,7 @@ describe("EntityStorageAuthenticationService", () => {
 		it("should replace an email subject with the new DID and issue a token for it", async () => {
 			const result = await service.adoptIdentity();
 
-			expect(identity.identityCreateSelf).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(identity.identityCreateSelf)).toHaveBeenCalledTimes(1);
 			expect(mockUserEntityStorage.set).toHaveBeenCalledWith(
 				expect.objectContaining({
 					email: "User@Example.com",
@@ -1058,26 +1055,28 @@ describe("EntityStorageAuthenticationService", () => {
 			});
 
 			await expect(service.adoptIdentity()).rejects.toBeInstanceOf(ConflictError);
-			expect(identity.identityCreateSelf).not.toHaveBeenCalled();
+			expect(vi.mocked(identity.identityCreateSelf)).not.toHaveBeenCalled();
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
 			expect(user.identity).toBe("did:iota:tst:existing");
 		});
 
 		it("should leave the stored identity unchanged when identity create throws", async () => {
-			identity.identityCreateSelf.mockRejectedValue(new Error("publish failed"));
+			vi.mocked(identity.identityCreateSelf).mockRejectedValue(new Error("publish failed"));
 
 			await expect(service.adoptIdentity()).rejects.toThrow("publish failed");
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
 			expect(user.identity).toBe("user@example.com");
-			expect(JSON.stringify(identity.identityCreateSelf.mock.results)).not.toContain("token");
+			expect(JSON.stringify(vi.mocked(identity.identityCreateSelf).mock.results)).not.toContain(
+				"token"
+			);
 		});
 
 		it("should remove the new DID with itself as controller when the save throws", async () => {
 			vi.mocked(mockUserEntityStorage.set).mockRejectedValue(new Error("save failed"));
 
 			await expect(service.adoptIdentity()).rejects.toThrow("save failed");
-			expect(identity.identityRemove).toHaveBeenCalledWith(
+			expect(vi.mocked(identity.identityRemove)).toHaveBeenCalledWith(
 				documentId,
 				{ removeKeys: true },
 				documentId
@@ -1087,7 +1086,8 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 
 		it("should keep a recorded mnemonic out of the failure", async () => {
-			identity.identityCreateSelf.mockResolvedValue({ id: "not-a-did", mnemonic });
+			const created = { id: "not-a-did", mnemonic };
+			vi.mocked(identity.identityCreateSelf).mockResolvedValue(created);
 
 			const rejection = await service.adoptIdentity().then(
 				() => "",

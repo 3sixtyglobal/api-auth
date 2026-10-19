@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0.
 import type { IHttpRequestContext, IHttpResponse } from "@3sixty/api-models";
 import { ComponentFactory } from "@3sixty/core";
-import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
-import { VaultConnectorFactory } from "@3sixty/vault-models";
+import {
+	EntityStorageConnectorFactory,
+	type IEntityStorageConnector
+} from "@3sixty/entity-storage-models";
+import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import { HeaderTypes } from "@3sixty/web";
 import { AuthHeaderProcessor } from "../../src/processors/authHeaderProcessor.js";
 import { authenticationAdoptIdentity } from "../../src/routes/entityStorageAuthenticationRoutes.js";
@@ -11,19 +14,22 @@ import { authenticationAdoptIdentity } from "../../src/routes/entityStorageAuthe
 describe("authenticationAdoptIdentity", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
-		vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue({});
-		vi.spyOn(VaultConnectorFactory, "get").mockReturnValue({});
+		const entityStorage = {} as unknown as IEntityStorageConnector;
+		const vault = {} as unknown as IVaultConnector;
+		vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(entityStorage);
+		vi.spyOn(VaultConnectorFactory, "get").mockReturnValue(vault);
 		vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
 	});
 
 	it("should leave the token out of the body and out of the cookie for a bearer caller", async () => {
-		vi.spyOn(ComponentFactory, "get").mockReturnValue({
+		const authentication = {
 			className: () => "authentication",
 			adoptIdentity: vi.fn().mockResolvedValue({
 				token: "new-jwt-token",
 				expiry: 1722514341067
 			})
-		} as unknown as ReturnType<typeof ComponentFactory.get>);
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(authentication);
 		const httpRequestContext = {
 			serverRequest: { headers: {} },
 			processorState: {
@@ -54,13 +60,14 @@ describe("authenticationAdoptIdentity", () => {
 	});
 
 	it("should set the new token as a cookie when the caller did not use a bearer token", async () => {
-		vi.spyOn(ComponentFactory, "get").mockReturnValue({
+		const authentication = {
 			className: () => "authentication",
 			adoptIdentity: vi.fn().mockResolvedValue({
 				token: "new-jwt-token",
 				expiry: 1722514341067
 			})
-		} as unknown as ReturnType<typeof ComponentFactory.get>);
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(authentication);
 		const httpRequestContext = {
 			serverRequest: { headers: {} },
 			processorState: {}
