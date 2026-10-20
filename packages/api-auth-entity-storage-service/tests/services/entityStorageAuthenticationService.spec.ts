@@ -97,6 +97,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -119,7 +120,7 @@ describe("EntityStorageAuthenticationService", () => {
 			mockVaultConnector,
 			"node-1",
 			"auth-signing",
-			"did:user:123",
+			"user-1",
 			"did:org:456",
 			"tenant-1",
 			60,
@@ -131,6 +132,7 @@ describe("EntityStorageAuthenticationService", () => {
 			actorId: "user@example.com",
 			event: "login-success",
 			data: {
+				userId: "user-1",
 				userIdentity: "did:user:123",
 				organizationIdentity: "did:org:456",
 				tenantId: "tenant-1",
@@ -139,12 +141,48 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 	});
 
+	it("should login with the account id when the account has no DID", async () => {
+		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+			[ContextIdKeys.Node]: "node-1"
+		});
+		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
+			email: "user@example.com",
+			userId: "user-1",
+			organization: "did:org:456",
+			password: "stored-password-hash",
+			salt: "c2FsdA==",
+			scope: "read"
+		});
+		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("generated-password-hash");
+		vi.spyOn(PasswordValidator, "comparePasswordHashes").mockReturnValue(true);
+		vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
+			token: "jwt-token",
+			expiry: 123456789
+		});
+
+		await service.start();
+		await service.login("user@example.com", "correct-password");
+
+		expect(TokenHelper.createToken).toHaveBeenCalledWith(
+			mockVaultConnector,
+			"node-1",
+			"auth-signing",
+			"user-1",
+			"did:org:456",
+			undefined,
+			60,
+			"read",
+			0
+		);
+	});
+
 	it("should throw UnauthorizedError when login password does not match", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
 			[ContextIdKeys.Node]: "node-1"
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -186,6 +224,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -272,6 +311,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -308,6 +348,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -316,12 +357,12 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
 				expect(verified).toEqual(["user", "organization"]);
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456",
 						scope: "read,write"
 					}
@@ -337,25 +378,22 @@ describe("EntityStorageAuthenticationService", () => {
 		const result = await service.refresh("existing-token");
 
 		expect(result).toEqual({ token: "refreshed-token", expiry: 987654321 });
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("did:user:123", "identity");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 		expect(TokenHelper.createToken).toHaveBeenCalledWith(
 			mockVaultConnector,
 			"node-1",
 			"auth-signing",
-			"did:user:123",
+			"user-1",
 			"did:org:456",
 			undefined,
 			60,
 			"read,write",
 			0
 		);
-		expect(mockAuthenticationRateService.check).toHaveBeenCalledWith(
-			"token-refresh",
-			"did:user:123"
-		);
+		expect(mockAuthenticationRateService.check).toHaveBeenCalledWith("token-refresh", "user-1");
 		expect(mockAuthenticationRateService.clear).not.toHaveBeenCalled();
 		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-			actorId: "did:user:123",
+			actorId: "user-1",
 			event: "token-refreshed",
 			data: {
 				organizationIdentity: "did:org:456",
@@ -372,11 +410,11 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				await verifyUser?.("did:user:123", "did:org:456", undefined, undefined);
+				await verifyUser?.("user-1", "did:org:456", undefined, undefined);
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456",
 						tid: "tenant-1",
 						scope: "read,write"
@@ -422,6 +460,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:other",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -431,7 +470,7 @@ describe("EntityStorageAuthenticationService", () => {
 		const createTokenSpy = vi.spyOn(TokenHelper, "createToken");
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+				const verified = await verifyUser?.("user-other", "did:org:456", undefined, 0);
 				if (!verified?.includes("user")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
 				}
@@ -439,7 +478,7 @@ describe("EntityStorageAuthenticationService", () => {
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-other",
 						org: "did:org:456"
 					}
 				};
@@ -449,7 +488,7 @@ describe("EntityStorageAuthenticationService", () => {
 		await service.start();
 
 		await expect(service.refresh("existing-token")).rejects.toThrow(UnauthorizedError);
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("did:user:123", "identity");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-other", "userId");
 		expect(createTokenSpy).not.toHaveBeenCalled();
 	});
 
@@ -459,6 +498,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:other",
 			password: "stored-password-hash",
@@ -468,7 +508,7 @@ describe("EntityStorageAuthenticationService", () => {
 		const createTokenSpy = vi.spyOn(TokenHelper, "createToken");
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
 				if (!verified?.includes("organization")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "organizationNotVerified");
 				}
@@ -476,7 +516,7 @@ describe("EntityStorageAuthenticationService", () => {
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456"
 					}
 				};
@@ -486,7 +526,7 @@ describe("EntityStorageAuthenticationService", () => {
 		await service.start();
 
 		await expect(service.refresh("existing-token")).rejects.toThrow(UnauthorizedError);
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("did:user:123", "identity");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 		expect(createTokenSpy).not.toHaveBeenCalled();
 	});
 
@@ -496,6 +536,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -507,13 +548,13 @@ describe("EntityStorageAuthenticationService", () => {
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
 				// pver=1 in token but user has passwordVersion=2 - simulate stale token
-				const verified = await verifyUser?.("did:user:123", "did:org:456", undefined, 1);
+				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 1);
 				if (!verified?.includes("user")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
 				}
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "did:user:123", org: "did:org:456" }
+					payload: { sub: "user-1", org: "did:org:456" }
 				};
 			}
 		);
@@ -521,16 +562,17 @@ describe("EntityStorageAuthenticationService", () => {
 		await service.start();
 
 		await expect(service.refresh("existing-token")).rejects.toThrow(UnauthorizedError);
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("did:user:123", "identity");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 		expect(createTokenSpy).not.toHaveBeenCalled();
 	});
 
 	it("should update the password for the current user", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "did:user:123"
+			[ContextIdKeys.User]: "user-1"
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -541,11 +583,8 @@ describe("EntityStorageAuthenticationService", () => {
 
 		await service.updatePassword("current-password", "new-password");
 
-		expect(mockAuthenticationRateService.check).toHaveBeenCalledWith(
-			"password-change",
-			"did:user:123"
-		);
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("did:user:123", "identity");
+		expect(mockAuthenticationRateService.check).toHaveBeenCalledWith("password-change", "user-1");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 		expect(PasswordHelper.updatePassword).toHaveBeenCalledWith(
 			mockUserEntityStorage,
 			mockAuthenticationAuditService,
@@ -554,15 +593,12 @@ describe("EntityStorageAuthenticationService", () => {
 			"current-password",
 			undefined
 		);
-		expect(mockAuthenticationRateService.clear).toHaveBeenCalledWith(
-			"password-change",
-			"did:user:123"
-		);
+		expect(mockAuthenticationRateService.clear).toHaveBeenCalledWith("password-change", "user-1");
 	});
 
 	it("should throw TooManyRequestsError when password change rate limit is exceeded", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "did:user:123"
+			[ContextIdKeys.User]: "user-1"
 		});
 		vi.mocked(mockAuthenticationRateService.check).mockRejectedValue(
 			new TooManyRequestsError(
@@ -594,12 +630,12 @@ describe("EntityStorageAuthenticationService", () => {
 
 	it("should logout without throwing", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "did:user:123"
+			[ContextIdKeys.User]: "user-1"
 		});
 
 		await expect(service.logout("token")).resolves.toBeUndefined();
 		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-			actorId: "did:user:123",
+			actorId: "user-1",
 			event: "logout"
 		});
 	});
@@ -638,6 +674,7 @@ describe("EntityStorageAuthenticationService", () => {
 				async () => {
 					await userEntityStorage.set({
 						email: "user@example.com",
+						userId: "user-1",
 						identity: "did:user:123",
 						organization: "did:org:456",
 						password: "stored-password-hash",
@@ -655,6 +692,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_A }, async () => {
 				await userEntityStorage.set({
 					email: "user@example.com",
+					userId: "user-1",
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
@@ -683,6 +721,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_A }, async () => {
 				await userEntityStorage.set({
 					email: "user@example.com",
+					userId: "user-1",
 					identity: "did:user:tenant-a",
 					organization: "did:org:456",
 					password: "stored-password-hash",
@@ -694,6 +733,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_B }, async () => {
 				await userEntityStorage.set({
 					email: "user@example.com",
+					userId: "user-b",
 					identity: "did:user:tenant-b",
 					organization: "did:org:456",
 					password: "stored-password-hash",
@@ -726,10 +766,11 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.spyOn(PasswordHelper, "updatePassword").mockResolvedValue(undefined);
 
 			await ContextIdStore.run(
-				{ [ContextIdKeys.Tenant]: TENANT_A, [ContextIdKeys.User]: "did:user:123" },
+				{ [ContextIdKeys.Tenant]: TENANT_A, [ContextIdKeys.User]: "user-1" },
 				async () => {
 					await userEntityStorage.set({
 						email: "user@example.com",
+						userId: "user-1",
 						identity: "did:user:123",
 						organization: "did:org:456",
 						password: "stored-password-hash",
@@ -755,6 +796,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_A }, async () => {
 				await userEntityStorage.set({
 					email: "user@example.com",
+					userId: "user-1",
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
@@ -764,7 +806,7 @@ describe("EntityStorageAuthenticationService", () => {
 			});
 
 			await ContextIdStore.run(
-				{ [ContextIdKeys.Tenant]: TENANT_B, [ContextIdKeys.User]: "did:user:123" },
+				{ [ContextIdKeys.Tenant]: TENANT_B, [ContextIdKeys.User]: "user-1" },
 				async () => {
 					await expect(service.updatePassword("current-password", "new-password")).rejects.toThrow(
 						NotFoundError
@@ -777,6 +819,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_A }, async () => {
 				await userEntityStorage.set({
 					email: "user@example.com",
+					userId: "user-1",
 					identity: "did:user:123",
 					organization: "did:org:456",
 					password: "stored-password-hash",
@@ -787,13 +830,13 @@ describe("EntityStorageAuthenticationService", () => {
 
 			vi.spyOn(TokenHelper, "verify").mockImplementation(
 				async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-					const verified = await verifyUser?.("did:user:123", "did:org:456", undefined, 0);
+					const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
 					if (!verified?.includes("user")) {
 						throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
 					}
 					return {
 						header: { alg: "EdDSA" },
-						payload: { sub: "did:user:123", org: "did:org:456", tid: TENANT_B, scope: "read" }
+						payload: { sub: "user-1", org: "did:org:456", tid: TENANT_B, scope: "read" }
 					};
 				}
 			);
@@ -813,6 +856,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -821,14 +865,14 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", "tenant-a", 0);
+				const verified = await verifyUser?.("user-1", "did:org:456", "tenant-a", 0);
 				if (!verified?.includes("tenant")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "tenantNotVerified");
 				}
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456",
 						tid: "tenant-a",
 						scope: "read,write"
@@ -848,6 +892,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -873,14 +918,14 @@ describe("EntityStorageAuthenticationService", () => {
 
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", "tenant-a", 0);
+				const verified = await verifyUser?.("user-1", "did:org:456", "tenant-a", 0);
 				if (!verified?.includes("tenant")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "tenantNotVerified");
 				}
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456",
 						tid: "tenant-a",
 						scope: "read,write"
@@ -901,6 +946,7 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
+			userId: "user-1",
 			identity: "did:user:123",
 			organization: "did:org:456",
 			password: "stored-password-hash",
@@ -925,12 +971,12 @@ describe("EntityStorageAuthenticationService", () => {
 
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
-				const verified = await verifyUser?.("did:user:123", "did:org:456", "tenant-a", 0);
+				const verified = await verifyUser?.("user-1", "did:org:456", "tenant-a", 0);
 				expect(verified).toContain("tenant");
 				return {
 					header: { alg: "EdDSA" },
 					payload: {
-						sub: "did:user:123",
+						sub: "user-1",
 						org: "did:org:456",
 						tid: "tenant-a",
 						scope: "read,write"
@@ -952,7 +998,7 @@ describe("EntityStorageAuthenticationService", () => {
 			mockVaultConnector,
 			"node-1",
 			"auth-signing",
-			"did:user:123",
+			"user-1",
 			"did:org:456",
 			"tenant-a",
 			60,
@@ -975,7 +1021,7 @@ describe("EntityStorageAuthenticationService", () => {
 			};
 			user = {
 				email: "User@Example.com",
-				identity: "user@example.com",
+				userId: "user-1",
 				organization: "did:org:node",
 				password: "stored-password-hash",
 				salt: "c2FsdA==",
@@ -995,7 +1041,7 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
 				[ContextIdKeys.Node]: "node-1",
 				[ContextIdKeys.Tenant]: "tenant-1",
-				[ContextIdKeys.User]: "user@example.com"
+				[ContextIdKeys.User]: "user-1"
 			});
 			vi.mocked(mockUserEntityStorage.get).mockResolvedValue(user);
 			vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
@@ -1005,54 +1051,43 @@ describe("EntityStorageAuthenticationService", () => {
 			await service.start();
 		});
 
-		it("should replace an email subject with the new DID and issue a token for it", async () => {
+		it("should store the DID on the account and leave the token subject unchanged", async () => {
 			const result = await service.adoptIdentity();
 
 			expect(vi.mocked(identity.identityCreateSelf)).toHaveBeenCalledTimes(1);
+			expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 			expect(mockUserEntityStorage.set).toHaveBeenCalledWith(
 				expect.objectContaining({
 					email: "User@Example.com",
+					userId: "user-1",
 					identity: documentId,
 					organization: "did:org:node",
 					scope: "",
 					passwordVersion: 0
 				})
 			);
-			expect(user.identity).toBe("user@example.com");
-			expect(TokenHelper.createToken).toHaveBeenCalledWith(
-				mockVaultConnector,
-				"node-1",
-				"auth-signing",
-				documentId,
-				"did:org:node",
-				"tenant-1",
-				60,
-				"",
-				0
-			);
-			expect(result).toEqual({ token: "new-jwt-token", expiry: 1722514341067 });
-			expect(mockAuthenticationRateService.check).toHaveBeenCalledWith(
-				"identity-adopt",
-				"user@example.com"
-			);
+			expect(user.identity).toBeUndefined();
+			expect(TokenHelper.createToken).not.toHaveBeenCalled();
+			expect(result).toBeUndefined();
+			expect(mockAuthenticationRateService.check).toHaveBeenCalledWith("identity-adopt", "user-1");
 			expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-				actorId: documentId,
+				actorId: "user-1",
 				event: "account-updated",
 				data: {
-					previousIdentity: "user@example.com",
 					userIdentity: documentId,
 					organizationIdentity: "did:org:node"
 				}
 			});
-			expect(JSON.stringify(result)).not.toContain(mnemonic);
-			expect(JSON.stringify(vi.mocked(TokenHelper.createToken).mock.calls)).not.toContain(mnemonic);
+			expect(
+				JSON.stringify(vi.mocked(mockAuthenticationAuditService.create).mock.calls)
+			).not.toContain(mnemonic);
 		});
 
 		it("should reject when the user already has a DID and leave the row unchanged", async () => {
 			user.identity = "did:iota:tst:existing";
 			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
 				[ContextIdKeys.Node]: "node-1",
-				[ContextIdKeys.User]: "did:iota:tst:existing"
+				[ContextIdKeys.User]: "user-1"
 			});
 
 			await expect(service.adoptIdentity()).rejects.toBeInstanceOf(ConflictError);
@@ -1067,7 +1102,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await expect(service.adoptIdentity()).rejects.toThrow("publish failed");
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
-			expect(user.identity).toBe("user@example.com");
+			expect(user.identity).toBeUndefined();
 			expect(JSON.stringify(vi.mocked(identity.identityCreateSelf).mock.results)).not.toContain(
 				"token"
 			);
@@ -1083,7 +1118,7 @@ describe("EntityStorageAuthenticationService", () => {
 				documentId
 			);
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
-			expect(user.identity).toBe("user@example.com");
+			expect(user.identity).toBeUndefined();
 		});
 
 		it("should keep a recorded mnemonic out of the failure", async () => {
@@ -1097,6 +1132,44 @@ describe("EntityStorageAuthenticationService", () => {
 			expect(rejection).toContain("identityCreateFailed");
 			expect(rejection).not.toContain(mnemonic);
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
+		});
+
+		it("should refresh with the same account id after a DID is stored", async () => {
+			user.identity = documentId;
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, signingKeyName, token, verifyUser) => {
+					const verified = await verifyUser?.("user-1", "did:org:node", "tenant-1", 0);
+					expect(verified).toContain("user");
+					return {
+						header: { alg: "EdDSA" },
+						payload: {
+							sub: "user-1",
+							org: "did:org:node",
+							tid: "tenant-1",
+							scope: ""
+						}
+					};
+				}
+			);
+			vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
+				token: "refreshed-token",
+				expiry: 987654321
+			});
+
+			await service.refresh("existing-token");
+
+			expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
+			expect(TokenHelper.createToken).toHaveBeenCalledWith(
+				mockVaultConnector,
+				"node-1",
+				"auth-signing",
+				"user-1",
+				"did:org:node",
+				"tenant-1",
+				60,
+				"",
+				0
+			);
 		});
 	});
 });

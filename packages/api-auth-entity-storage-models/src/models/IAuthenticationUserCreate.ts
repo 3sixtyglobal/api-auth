@@ -3,7 +3,7 @@
 
 /**
  * Fields accepted when an admin creates a user.
- * The identity and the organisation may be omitted. The service fills them.
+ * The DID and the organisation may be omitted. The service allocates the account id and fills the organisation.
  */
 export interface IAuthenticationUserCreate {
 	/**
@@ -22,7 +22,7 @@ export interface IAuthenticationUserCreate {
 	scope: string[];
 
 	/**
-	 * Identity subject. When omitted, the service stores the e-mail address until a DID exists.
+	 * DID to store on the account. When omitted, the account is created without one.
 	 */
 	userIdentity?: string;
 

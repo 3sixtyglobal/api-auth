@@ -21,13 +21,10 @@ describe("authenticationAdoptIdentity", () => {
 		vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
 	});
 
-	it("should leave the token out of the body and out of the cookie for a bearer caller", async () => {
+	it("should leave the session untouched for a bearer caller", async () => {
 		const authentication = {
 			className: () => "authentication",
-			adoptIdentity: vi.fn().mockResolvedValue({
-				token: "new-jwt-token",
-				expiry: 1722514341067
-			})
+			adoptIdentity: vi.fn().mockResolvedValue(undefined)
 		};
 		vi.spyOn(ComponentFactory, "get").mockReturnValue(authentication);
 		const httpRequestContext = {
@@ -38,9 +35,7 @@ describe("authenticationAdoptIdentity", () => {
 		} as unknown as IHttpRequestContext;
 
 		const result = await authenticationAdoptIdentity(httpRequestContext, "authentication");
-		const response: IHttpResponse = {
-			body: result.body
-		};
+		const response: IHttpResponse = {};
 		const processor = new AuthHeaderProcessor();
 		await processor.post(
 			{ headers: {} } as never,
@@ -50,22 +45,16 @@ describe("authenticationAdoptIdentity", () => {
 			httpRequestContext.processorState
 		);
 
-		expect(result.body).toEqual({ expiry: 1722514341067 });
-		expect(result.body).not.toHaveProperty("token");
-		expect(JSON.stringify(result.body)).not.toContain("new-jwt-token");
-		expect(httpRequestContext.processorState.authOperation).toBe("login");
-		expect(httpRequestContext.processorState.authToken).toBe("new-jwt-token");
-		expect(httpRequestContext.processorState.authTokenLocation).toBe("authorization");
+		expect(result.statusCode).toBe(204);
+		expect(httpRequestContext.processorState.authOperation).toBeUndefined();
+		expect(httpRequestContext.processorState.authToken).toBeUndefined();
 		expect(response.headers?.[HeaderTypes.SetCookie]).toBeUndefined();
 	});
 
-	it("should set the new token as a cookie when the caller did not use a bearer token", async () => {
+	it("should leave the session cookie untouched when the caller did not use a bearer token", async () => {
 		const authentication = {
 			className: () => "authentication",
-			adoptIdentity: vi.fn().mockResolvedValue({
-				token: "new-jwt-token",
-				expiry: 1722514341067
-			})
+			adoptIdentity: vi.fn().mockResolvedValue(undefined)
 		};
 		vi.spyOn(ComponentFactory, "get").mockReturnValue(authentication);
 		const httpRequestContext = {
@@ -74,9 +63,7 @@ describe("authenticationAdoptIdentity", () => {
 		} as unknown as IHttpRequestContext;
 
 		const result = await authenticationAdoptIdentity(httpRequestContext, "authentication");
-		const response: IHttpResponse = {
-			body: result.body
-		};
+		const response: IHttpResponse = {};
 		const processor = new AuthHeaderProcessor();
 		await processor.post(
 			{ headers: {} } as never,
@@ -86,6 +73,7 @@ describe("authenticationAdoptIdentity", () => {
 			httpRequestContext.processorState
 		);
 
-		expect(response.headers?.[HeaderTypes.SetCookie]).toContain("new-jwt-token");
+		expect(result.statusCode).toBe(204);
+		expect(response.headers?.[HeaderTypes.SetCookie]).toBeUndefined();
 	});
 });

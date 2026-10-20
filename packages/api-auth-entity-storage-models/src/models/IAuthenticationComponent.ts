@@ -22,13 +22,10 @@ export interface IAuthenticationComponent extends IComponent {
 	}>;
 
 	/**
-	 * Replace an e-mail subject with a DID and issue a new token.
-	 * @returns The new token and its expiry.
+	 * Attach a DID to the signed-in account. The token subject stays the account id.
+	 * @returns A promise that resolves when the DID has been stored.
 	 */
-	adoptIdentity(): Promise<{
-		token?: string;
-		expiry: number;
-	}>;
+	adoptIdentity(): Promise<void>;
 
 	/**
 	 * Logout the current user.

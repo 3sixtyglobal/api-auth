@@ -79,7 +79,7 @@ export function generateRestRoutesAuthenticationAdmin(
 				{
 					id: "createUserWithoutIdentityRequestExample",
 					description:
-						"The request to create a user before a DID exists. The service stores the e-mail as the subject and the context organisation as the organisation.",
+						"The request to create a user before a DID exists. The service allocates an account id and stores the context organisation as the organisation.",
 					request: {
 						body: {
 							email: "user@example.com",
@@ -204,6 +204,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						response: {
 							body: {
 								email: "user@example.com",
+								userId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
 								userIdentity: "did:example:123456789abcdefghi",
 								organizationIdentity: "did:example:123456789abcdefghi",
 								scope: ["scope1", "scope2"]
@@ -251,6 +252,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							response: {
 								body: {
 									email: "user@example.com",
+									userId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
 									userIdentity: "did:example:123456789abcdefghi",
 									organizationIdentity: "did:example:123456789abcdefghi",
 									scope: ["scope1", "scope2"]

@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 
 /**
@@ -11,9 +12,14 @@ export interface IAuthenticationUser {
 	email: string;
 
 	/**
-	 * The user identity.
+	 * Stable identifier of the account. This is the token subject.
 	 */
-	userIdentity: string;
+	userId: string;
+
+	/**
+	 * The DID attached to the account, once one has been adopted.
+	 */
+	userIdentity?: string;
 
 	/**
 	 * The users organization.

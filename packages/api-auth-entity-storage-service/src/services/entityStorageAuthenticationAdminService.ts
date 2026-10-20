@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { randomUUID } from "node:crypto";
 import type {
 	IAuthenticationAdminComponent,
 	IAuthenticationAuditComponent,
@@ -72,6 +73,22 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	}
 
 	/**
+	 * Map a stored account to the admin response.
+	 * @param user The stored account.
+	 * @returns The account fields returned to callers. The DID is included only when one is stored.
+	 * @internal
+	 */
+	private static toAuthenticationUser(user: AuthenticationUser): IAuthenticationUser {
+		return {
+			email: user.email,
+			userId: user.userId,
+			...(Is.stringValue(user.identity) ? { userIdentity: user.identity } : {}),
+			organizationIdentity: user.organization,
+			scope: user.scope.split(",")
+		};
+	}
+
+	/**
 	 * Returns the class name of the component.
 	 * @returns The class name of the component.
 	 */
@@ -81,7 +98,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 	/**
 	 * Create a login for the user.
-	 * A missing identity is stored as the lowercased e-mail. A missing organisation is taken from the request context.
+	 * The service allocates the account id. A DID is stored only when one is provided. A missing organisation is taken from the request context.
 	 * @param user The user to create.
 	 * @returns A promise that resolves when the user account has been created and the audit entry recorded.
 	 */
@@ -107,12 +124,15 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			user.scope
 		);
 
-		const userIdentity = user.userIdentity ?? user.email.trim().toLowerCase();
-		Guards.stringValue(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.userIdentity),
-			userIdentity.trim()
-		);
+		let userIdentity: string | undefined;
+		if (user.userIdentity !== undefined) {
+			userIdentity = user.userIdentity.trim();
+			Guards.stringValue(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				nameof(user.userIdentity),
+				userIdentity
+			);
+		}
 
 		const contextIds = await ContextIdStore.getContextIds();
 		const organizationIdentity =
@@ -122,6 +142,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			nameof(user.organizationIdentity),
 			organizationIdentity.trim()
 		);
+
+		const userId = randomUUID();
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
@@ -133,9 +155,14 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "userExists");
 			}
 
-			const existingIdentity = await this._userEntityStorage.get(userIdentity, "identity");
-			if (Is.object<AuthenticationUser>(existingIdentity)) {
-				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "identityInUse");
+			if (userIdentity !== undefined) {
+				const existingIdentity = await this._userEntityStorage.get(userIdentity, "identity");
+				if (Is.object<AuthenticationUser>(existingIdentity)) {
+					throw new GeneralError(
+						EntityStorageAuthenticationAdminService.CLASS_NAME,
+						"identityInUse"
+					);
+				}
 			}
 
 			const saltBytes = RandomHelper.generate(16);
@@ -147,11 +174,14 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				email: user.email,
 				salt: Converter.bytesToBase64(saltBytes),
 				password: hashedPassword,
-				identity: userIdentity,
+				userId,
 				organization: organizationIdentity,
 				scope: user.scope.map(s => s.trim().toLocaleLowerCase()).join(","),
 				passwordVersion: 0
 			};
+			if (userIdentity !== undefined) {
+				newUser.identity = userIdentity;
+			}
 
 			await this._userEntityStorage.set(newUser);
 
@@ -160,7 +190,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				actorId: user.email,
 				event: AuthAuditEvent.AccountCreated,
 				data: {
-					userIdentity,
+					userId,
+					...(userIdentity !== undefined ? { userIdentity } : {}),
 					organizationIdentity,
 					tenantId: requestorTenantId,
 					scope: user.scope
@@ -256,7 +287,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				event: AuthAuditEvent.AccountUpdated,
 				data: {
 					updatedFields,
-					userIdentity: existingUser.identity,
+					userId: existingUser.userId,
+					...(Is.stringValue(existingUser.identity) ? { userIdentity: existingUser.identity } : {}),
 					organizationIdentity: existingUser.organization,
 					tenantId: requestorTenantId,
 					scope: existingUser.scope.split(",")
@@ -290,12 +322,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
-			return {
-				email: user.email,
-				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
-			};
+			return EntityStorageAuthenticationAdminService.toAuthenticationUser(user);
 		} catch (error) {
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
@@ -328,12 +355,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
-			return {
-				email: user.email,
-				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
-			};
+			return EntityStorageAuthenticationAdminService.toAuthenticationUser(user);
 		} catch (error) {
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
@@ -370,7 +392,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				actorId: email,
 				event: AuthAuditEvent.AccountDeleted,
 				data: {
-					userIdentity: user.identity,
+					userId: user.userId,
+					...(Is.stringValue(user.identity) ? { userIdentity: user.identity } : {}),
 					organizationIdentity: user.organization,
 					tenantId: requestorTenantId,
 					scope: user.scope.split(",")

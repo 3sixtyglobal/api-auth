@@ -199,7 +199,7 @@ export function generateRestRoutesAuthentication(
 		]
 	};
 
-	const adoptIdentityRoute: IRestRoute<INoContentRequest, ILoginResponse> = {
+	const adoptIdentityRoute: IRestRoute<INoContentRequest, INoContentResponse> = {
 		operationId: "authenticationAdoptIdentity",
 		summary: "Adopt a DID for the signed-in user",
 		tag: tagsAuthentication[0].name,
@@ -209,18 +209,7 @@ export function generateRestRoutesAuthentication(
 			authenticationAdoptIdentity(httpRequestContext, componentName),
 		responseType: [
 			{
-				type: nameof<ILoginResponse>(),
-				examples: [
-					{
-						id: "adoptIdentityResponseExample",
-						description: "The new session expiry. The token is placed the same way as login.",
-						response: {
-							body: {
-								expiry: 1722514341067
-							}
-						}
-					}
-				]
+				type: nameof<INoContentResponse>()
 			},
 			{
 				type: nameof<IConflictResponse>()
@@ -265,25 +254,20 @@ export async function authenticationLogin(
 }
 
 /**
- * Adopt a DID for the signed-in user and reissue the session.
+ * Attach a DID to the signed-in account. The current session is left in place.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
- * @returns The response object with the new expiry. The token is not included in the body.
+ * @returns An empty response once the DID has been stored.
  */
 export async function authenticationAdoptIdentity(
 	httpRequestContext: IHttpRequestContext,
 	componentName: string
-): Promise<ILoginResponse & IRestRouteResponseOptions> {
+): Promise<INoContentResponse & IRestRouteResponseOptions> {
 	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
-	const result = await component.adoptIdentity();
-
-	httpRequestContext.processorState.authOperation = "login";
-	httpRequestContext.processorState.authToken = result.token;
+	await component.adoptIdentity();
 
 	return {
-		body: {
-			expiry: result.expiry
-		}
+		statusCode: HttpStatusCode.noContent
 	};
 }
 

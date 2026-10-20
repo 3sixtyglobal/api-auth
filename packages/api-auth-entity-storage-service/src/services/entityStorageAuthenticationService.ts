@@ -342,7 +342,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				this._vaultConnector,
 				this._nodeId,
 				this._signingKeyName,
-				user.identity,
+				user.userId,
 				user.organization,
 				loginTenantId,
 				this._defaultTtlMinutes,
@@ -370,7 +370,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			actorId: email,
 			event: AuthAuditEvent.LoginSuccess,
 			data: {
-				userIdentity: loginUser.identity,
+				userId: loginUser.userId,
+				...(Is.stringValue(loginUser.identity) ? { userIdentity: loginUser.identity } : {}),
 				organizationIdentity: loginUser.organization,
 				tenantId: loginTenantId,
 				scope: loginUser.scope.split(",")
@@ -381,16 +382,13 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Replace an e-mail subject with a DID and issue a new token.
-	 * @returns The new token and its expiry.
+	 * Attach a DID to the signed-in account. The token subject stays the account id.
+	 * @returns A promise that resolves when the DID has been stored.
 	 * @throws NotFoundError When the signed-in user cannot be loaded.
 	 * @throws ConflictError When the user already has a DID.
 	 * @throws GeneralError When the node or the identity component is not available, or the new document id is not a DID.
 	 */
-	public async adoptIdentity(): Promise<{
-		token?: string;
-		expiry: number;
-	}> {
+	public async adoptIdentity(): Promise<void> {
 		if (!Is.stringValue(this._nodeId)) {
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
 		}
@@ -399,8 +397,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
 		const subject = contextIds[ContextIdKeys.User];
 
-		const user = await this._userEntityStorage.get(subject, "identity");
-		if (!Is.object<AuthenticationUser>(user) || user.identity !== subject) {
+		const user = await this._userEntityStorage.get(subject, "userId");
+		if (!Is.object<AuthenticationUser>(user) || user.userId !== subject) {
 			throw new NotFoundError(
 				EntityStorageAuthenticationService.CLASS_NAME,
 				"userNotFound",
@@ -408,7 +406,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			);
 		}
 
-		if (user.identity.startsWith("did:")) {
+		if (user.identity?.startsWith("did:")) {
 			throw new ConflictError(
 				EntityStorageAuthenticationService.CLASS_NAME,
 				"identityAlreadyAssigned"
@@ -442,26 +440,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		}
 
 		await this._authenticationAuditService?.create({
-			actorId: documentId,
+			actorId: user.userId,
 			event: AuthAuditEvent.AccountUpdated,
 			data: {
-				previousIdentity: subject,
+				...(Is.stringValue(user.identity) ? { previousIdentity: user.identity } : {}),
 				userIdentity: documentId,
 				organizationIdentity: user.organization
 			}
 		});
-
-		return TokenHelper.createToken(
-			this._vaultConnector,
-			this._nodeId,
-			this._signingKeyName,
-			documentId,
-			user.organization,
-			contextIds?.[ContextIdKeys.Tenant],
-			this._defaultTtlMinutes,
-			user.scope,
-			user.passwordVersion ?? 0
-		);
 	}
 
 	/**
@@ -526,11 +512,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 				// Wrap the user lookup in the request context so partitioned storage uses the correct tenant.
 				const user = await ContextIdStore.run(contextIdsForUserLookup, async () =>
-					this._userEntityStorage.get(sub, "identity")
+					this._userEntityStorage.get(sub, "userId")
 				);
 
 				refreshPasswordVersion = user?.passwordVersion;
-				if (user?.identity === sub && (passwordVersion ?? 0) === (refreshPasswordVersion ?? 0)) {
+				if (user?.userId === sub && (passwordVersion ?? 0) === (refreshPasswordVersion ?? 0)) {
 					validParts.push("user");
 				}
 				if (user?.organization === org) {
@@ -582,15 +568,15 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		const contextIds = await ContextIdStore.getContextIds();
 		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
 
-		const userIdentity = contextIds[ContextIdKeys.User];
-		await this._authenticationRateService.check("password-change", userIdentity);
+		const userId = contextIds[ContextIdKeys.User];
+		await this._authenticationRateService.check("password-change", userId);
 
-		const user = await this._userEntityStorage.get(userIdentity, "identity");
-		if (!Is.object<AuthenticationUser>(user)) {
+		const user = await this._userEntityStorage.get(userId, "userId");
+		if (!Is.object<AuthenticationUser>(user) || user.userId !== userId) {
 			throw new NotFoundError(
 				EntityStorageAuthenticationService.CLASS_NAME,
 				"userNotFound",
-				userIdentity
+				userId
 			);
 		}
 
@@ -603,6 +589,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			this._minPasswordLength
 		);
 
-		await this._authenticationRateService.clear("password-change", userIdentity);
+		await this._authenticationRateService.clear("password-change", userId);
 	}
 }

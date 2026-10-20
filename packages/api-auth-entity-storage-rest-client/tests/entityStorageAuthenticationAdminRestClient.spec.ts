@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { GuardError } from "@3sixty/core";
 import { HttpMethod } from "@3sixty/web";
@@ -70,6 +71,21 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 
 			const [, options] = fetchMock.mock.calls[0];
 			expect(JSON.parse(options.body)).toEqual(createUser);
+		});
+
+		test("sends a create body without a DID when userIdentity is omitted", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
+
+			const { userIdentity, ...withoutDid } = TEST_USER;
+			await client.create({ ...withoutDid, password: "MyPassword123!" });
+
+			const [, options] = fetchMock.mock.calls[0];
+			const body = JSON.parse(options.body);
+			expect(body.email).toBe(TEST_USER.email);
+			expect(body.password).toBe("MyPassword123!");
+			expect(body.scope).toEqual(TEST_USER.scope);
+			expect(body.userIdentity).toBeUndefined();
+			expect(userIdentity).toBe(TEST_USER.userIdentity);
 		});
 
 		test("resolves without a return value", async () => {

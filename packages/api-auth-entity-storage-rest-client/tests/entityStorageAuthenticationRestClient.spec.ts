@@ -157,7 +157,7 @@ describe("EntityStorageAuthenticationRestClient", () => {
 
 	describe("adoptIdentity", () => {
 		test("sends POST to /identity with no body", async () => {
-			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
+			fetchMock.mockResolvedValueOnce(noContentResponse());
 
 			await client.adoptIdentity();
 
@@ -167,20 +167,10 @@ describe("EntityStorageAuthenticationRestClient", () => {
 			expect(options.body).toBeUndefined();
 		});
 
-		test("returns expiry from the response body", async () => {
-			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
+		test("resolves without a return value", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
 
-			const result = await client.adoptIdentity();
-
-			expect(result.expiry).toBe(1722514341067);
-		});
-
-		test("returns token as undefined when no Set-Cookie header is present", async () => {
-			fetchMock.mockResolvedValueOnce(jsonResponse({ expiry: 1722514341067 }));
-
-			const result = await client.adoptIdentity();
-
-			expect(result.token).toBeUndefined();
+			await expect(client.adoptIdentity()).resolves.toBeUndefined();
 		});
 	});
 

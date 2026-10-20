@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IAuthenticationAuditComponent } from "@3sixty/api-auth-entity-storage-models";
 import { AuthAuditEvent } from "@3sixty/api-auth-entity-storage-models";
@@ -57,18 +58,22 @@ export class PasswordHelper {
 			email: user.email,
 			salt: Converter.bytesToBase64(saltBytes),
 			password: hashedPassword,
-			identity: user.identity,
+			userId: user.userId,
 			organization: user.organization,
 			scope: user.scope,
 			passwordVersion: (user.passwordVersion ?? 0) + 1
 		};
+		if (user.identity !== undefined) {
+			updatedUser.identity = user.identity;
+		}
 
 		await userEntityStorage.set(updatedUser);
 		await authenticationAuditService?.create({
 			actorId: user.email,
 			event: AuthAuditEvent.PasswordChanged,
 			data: {
-				userIdentity: updatedUser.identity,
+				userId: updatedUser.userId,
+				...(Is.stringValue(updatedUser.identity) ? { userIdentity: updatedUser.identity } : {}),
 				organizationIdentity: updatedUser.organization
 			}
 		});

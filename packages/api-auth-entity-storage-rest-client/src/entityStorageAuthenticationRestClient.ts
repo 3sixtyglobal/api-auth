@@ -96,22 +96,11 @@ export class EntityStorageAuthenticationRestClient
 	}
 
 	/**
-	 * Replace an e-mail subject with a DID and issue a new token.
-	 * @returns The new token and its expiry. The token is read from the response cookie.
+	 * Attach a DID to the signed-in account. The current session is left in place.
+	 * @returns A promise that resolves when the request has completed.
 	 */
-	public async adoptIdentity(): Promise<{
-		token?: string;
-		expiry: number;
-	}> {
-		const response = await this.fetch<INoContentRequest, ILoginResponse>("/identity", "POST");
-
-		return {
-			token: CookieHelper.getCookieFromHeaders(
-				response?.headers?.[HeaderTypes.SetCookie],
-				this._cookieName
-			),
-			expiry: response.body.expiry
-		};
+	public async adoptIdentity(): Promise<void> {
+		await this.fetch<INoContentRequest, INoContentResponse>("/identity", "POST");
 	}
 
 	/**
