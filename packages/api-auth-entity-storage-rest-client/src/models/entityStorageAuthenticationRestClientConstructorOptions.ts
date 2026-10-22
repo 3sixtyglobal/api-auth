@@ -1,6 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IBaseRestClientConfig } from "@twin.org/api-models";
+import type { IBaseRestClientConfig } from "@3sixty/api-models";
 
 /**
  * Options for the Entity Storage Authentication REST client constructor.

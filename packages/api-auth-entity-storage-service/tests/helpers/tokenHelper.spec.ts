@@ -1,8 +1,8 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { UnauthorizedError } from "@twin.org/core";
-import type { IVaultConnector } from "@twin.org/vault-models";
-import { HeaderTypes, type IHttpHeaders, Jwt } from "@twin.org/web";
+import { UnauthorizedError } from "@3sixty/core";
+import type { IVaultConnector } from "@3sixty/vault-models";
+import { HeaderTypes, type IHttpHeaders, Jwt } from "@3sixty/web";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";
 
 describe("TokenHelper.createToken", () => {

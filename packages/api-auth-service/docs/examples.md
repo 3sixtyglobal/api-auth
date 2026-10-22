@@ -1,71 +1,13 @@
-# Auth Entity Storage Service Examples
+# Auth Service Examples
 
-These snippets show how to wire authentication services into your component container and apply token processing in request pipelines.
-
-## EntityStorageAuthenticationAdminService
-
-```typescript
-import { EntityStorageAuthenticationAdminService } from '@twin.org/api-auth-entity-storage-service';
-
-const adminService = new EntityStorageAuthenticationAdminService();
-
-console.log(adminService.className()); // EntityStorageAuthenticationAdminService
-
-await adminService.create({
-  email: 'owner@example.org',
-  password: 'StartPassword123',
-  userIdentity: 'did:example:owner',
-  organizationIdentity: 'did:example:org',
-  scope: ['admin']
-});
-
-await adminService.update({
-  email: 'owner@example.org',
-  scope: ['admin', 'security']
-});
-
-await adminService.updatePassword('owner@example.org', 'StartPassword124', 'StartPassword123');
-
-const fromIdentity = await adminService.getByIdentity('did:example:owner');
-console.log(fromIdentity.scope.length); // 2
-```
-
-```typescript
-import { EntityStorageAuthenticationAdminService } from '@twin.org/api-auth-entity-storage-service';
-
-const adminService = new EntityStorageAuthenticationAdminService();
-const user = await adminService.get('owner@example.org');
-await adminService.remove(user.email);
-
-console.log(user.email); // owner@example.org
-```
-
-## EntityStorageAuthenticationService
-
-```typescript
-import { EntityStorageAuthenticationService } from '@twin.org/api-auth-entity-storage-service';
-
-const authService = new EntityStorageAuthenticationService();
-
-await authService.start('default');
-console.log(authService.className()); // EntityStorageAuthenticationService
-
-const loginResult = await authService.login('alice@example.org', 'correct-horse-battery-staple');
-
-const refreshResult = await authService.refresh(loginResult.token);
-
-await authService.updatePassword('correct-horse-battery-staple', 'correct-horse-battery-staple-2');
-
-await authService.logout(refreshResult.token);
-console.log(refreshResult.expiry > 0); // true
-```
+These snippets show how to apply rate limiting, record authentication audit entries and allow privileged callers to override the tenant of a request.
 
 ## EntityStorageAuthenticationRateService
 
 ```typescript
-import { EntityStorageAuthenticationRateService } from '@twin.org/api-auth-entity-storage-service';
-import { BaseError, GeneralError } from '@twin.org/core';
-import { TooManyRequestsError } from '@twin.org/api-models';
+import { EntityStorageAuthenticationRateService } from '@3sixty/api-auth-service';
+import { BaseError, GeneralError } from '@3sixty/core';
+import { TooManyRequestsError } from '@3sixty/api-models';
 
 const rateService = new EntityStorageAuthenticationRateService({
   config: {
@@ -113,7 +55,7 @@ await rateService.stop('default');
 ## EntityStorageAuthenticationAuditService
 
 ```typescript
-import { EntityStorageAuthenticationAuditService } from '@twin.org/api-auth-entity-storage-service';
+import { EntityStorageAuthenticationAuditService } from '@3sixty/api-auth-service';
 
 const auditService = new EntityStorageAuthenticationAuditService({
   config: {
@@ -150,29 +92,46 @@ console.log(auditPage.entries.length); // 1
 console.log(auditPage.cursor); // eyJpZCI6IjAxOGYyZjY3YmI5ZDRhMGNhYWQ4Mzg2ZjU2ZGY4NWNlIn0=
 ```
 
-## AuthHeaderProcessor
+## TenantOverrideProcessor
+
+The processor runs after `AuthHeaderProcessor`. A caller holding the escalated privilege role can supply the `override-tenant` query parameter to act on another tenant.
 
 ```typescript
-import { AuthHeaderProcessor } from '@twin.org/api-auth-entity-storage-service';
+import { TenantOverrideProcessor } from '@3sixty/api-auth-service';
 
-const processor = new AuthHeaderProcessor();
+const processor = new TenantOverrideProcessor({
+  tenantAdminComponentType: 'tenant-admin',
+  authorizationComponentType: 'authorization',
+  config: {
+    escalatedPrivilegeRole: 'global-admin',
+    authorizationModelId: 'system'
+  }
+});
 
-await processor.start('default');
-console.log(processor.className()); // AuthHeaderProcessor
+console.log(processor.className()); // TenantOverrideProcessor
 
 const request = {
   method: 'get',
-  url: '/info',
-  headers: {
-    authorization: 'Bearer token-value'
+  url: '/authentication/audit?override-tenant=did:example:tenant:beta',
+  query: {
+    'override-tenant': 'did:example:tenant:beta'
   }
 };
 
 const response = {};
-const contextIds = {};
+const contextIds = {
+  user: 'did:example:user:admin',
+  tenant: 'did:example:tenant:alpha'
+};
 const processorState: { [id: string]: unknown } = {};
 
-await processor.pre(request, response, { skipAuth: false }, contextIds, processorState);
+await processor.pre(
+  request,
+  response,
+  { operationId: 'auditQuery', path: '/' },
+  contextIds,
+  processorState
+);
 
-await processor.post(request, response, { skipAuth: false }, contextIds, processorState);
+console.log(contextIds.tenant); // did:example:tenant:beta
 ```

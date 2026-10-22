@@ -10,12 +10,12 @@ import {
 	type IHttpServerRequest,
 	type ITenant,
 	type ITenantAdminComponent
-} from "@twin.org/api-models";
-import type { IAuthorizationComponent } from "@twin.org/authorization-models";
-import { ContextIdKeys, type IContextIds } from "@twin.org/context";
-import { BaseError, ComponentFactory, GuardError, Is, NotFoundError } from "@twin.org/core";
-import { nameof } from "@twin.org/nameof";
-import { HttpStatusCode } from "@twin.org/web";
+} from "@3sixty/api-models";
+import type { IAuthorizationComponent } from "@3sixty/authorization-models";
+import { ContextIdKeys, type IContextIds } from "@3sixty/context";
+import { BaseError, ComponentFactory, GuardError, Is, NotFoundError } from "@3sixty/core";
+import { nameof } from "@3sixty/nameof";
+import { HttpStatusCode } from "@3sixty/web";
 import type { ITenantOverrideProcessorConstructorOptions } from "../models/ITenantOverrideProcessorConstructorOptions.js";
 
 /**
@@ -45,7 +45,7 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 	public static readonly CLASS_NAME: string = nameof<TenantOverrideProcessor>();
 
 	/**
-	 * The entity storage for api keys.
+	 * The component used to resolve tenants.
 	 * @internal
 	 */
 	private readonly _tenantAdminComponent: ITenantAdminComponent;

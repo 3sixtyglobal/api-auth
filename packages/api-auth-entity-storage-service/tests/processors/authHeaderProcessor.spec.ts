@@ -1,22 +1,22 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { HttpErrorHelper, type IHttpResponse } from "@twin.org/api-models";
-import { ContextIdKeys, ContextIdStore, type IContextIds } from "@twin.org/context";
+import { HttpErrorHelper, type IHttpResponse } from "@3sixty/api-models";
+import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context";
 import {
 	ComponentFactory,
 	Converter,
 	type IError,
 	LfuCache,
 	UnauthorizedError
-} from "@twin.org/core";
-import { Blake2b } from "@twin.org/crypto";
+} from "@3sixty/core";
+import { Blake2b } from "@3sixty/crypto";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
-import type { IVaultConnector } from "@twin.org/vault-models";
-import { VaultConnectorFactory } from "@twin.org/vault-models";
-import { HeaderTypes, HttpStatusCode } from "@twin.org/web";
+} from "@3sixty/entity-storage-models";
+import type { IVaultConnector } from "@3sixty/vault-models";
+import { VaultConnectorFactory } from "@3sixty/vault-models";
+import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { AuthHeaderProcessor } from "../../src/processors/authHeaderProcessor.js";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";

@@ -1,6 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IRestRouteEntryPoint } from "@twin.org/api-models";
+import type { IRestRouteEntryPoint } from "@3sixty/api-models";
 import {
 	generateRestRoutesAuthenticationAdmin,
 	tagsAuthenticationAdmin
@@ -11,7 +11,7 @@ import {
 } from "./routes/entityStorageAuthenticationRoutes.js";
 
 /**
- * REST entry points for the authentication, authentication admin, and authentication audit services.
+ * REST entry points for the authentication and authentication admin services.
  */
 export const restEntryPoints: IRestRouteEntryPoint[] = [
 	{

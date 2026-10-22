@@ -1,11 +1,11 @@
-# TWIN API Auth Entity Storage REST Client
+# 3Sixty API Auth REST Client
 
-This package provides REST clients for authentication and admin operations against entity storage endpoints.
+This package provides a REST client for the authentication audit endpoints.
 
 ## Installation
 
 ```shell
-npm install @twin.org/api-auth-entity-storage-rest-client
+npm install @3sixty/api-auth-rest-client
 ```
 
 ## Examples
@@ -19,3 +19,7 @@ Detailed reference documentation for the API can be found in [docs/reference/ind
 ## Changelog
 
 The changes between each version can be found in [docs/changelog.md](docs/changelog.md)
+
+## Origin
+
+This package is derived from the original [iotaledger/twin-api-auth](https://github.com/iotaledger/twin-api-auth/tree/feature/authorization/packages/api-auth-rest-client) repository.

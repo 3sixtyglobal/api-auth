@@ -1,11 +1,11 @@
-# TWIN API Auth Entity Storage Service
+# 3Sixty API Auth Service
 
-This package provides an authentication service implementation and REST routes backed by entity storage.
+This package provides authentication audit and rate limiting services, tenant override processing and audit REST routes backed by entity storage.
 
 ## Installation
 
 ```shell
-npm install @twin.org/api-auth-entity-storage-service
+npm install @3sixty/api-auth-service
 ```
 
 ## Examples
@@ -19,3 +19,7 @@ Detailed reference documentation for the API can be found in [docs/reference/ind
 ## Changelog
 
 The changes between each version can be found in [docs/changelog.md](docs/changelog.md)
+
+## Origin
+
+This package is derived from the original [iotaledger/twin-api-auth](https://github.com/iotaledger/twin-api-auth/tree/feature/authorization/packages/api-auth-service) repository.

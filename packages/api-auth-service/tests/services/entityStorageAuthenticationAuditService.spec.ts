@@ -1,14 +1,14 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { HttpContextIdKeys } from "@twin.org/api-models";
-import { ContextIdKeys, ContextIdStore } from "@twin.org/context";
-import { Converter, RandomHelper, Validation } from "@twin.org/core";
-import { Sha256 } from "@twin.org/crypto";
-import { ComparisonOperator } from "@twin.org/entity";
+import { HttpContextIdKeys } from "@3sixty/api-models";
+import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
+import { Converter, RandomHelper, Validation } from "@3sixty/core";
+import { Sha256 } from "@3sixty/crypto";
+import { ComparisonOperator } from "@3sixty/entity";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
-} from "@twin.org/entity-storage-models";
+} from "@3sixty/entity-storage-models";
 import { EntityStorageAuthenticationAuditService } from "../../src/services/entityStorageAuthenticationAuditService.js";
 
 describe("EntityStorageAuthenticationAuditService", () => {

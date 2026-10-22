@@ -1,6 +1,6 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import { SortDirection, entity, property } from "@twin.org/entity";
+import { SortDirection, entity, property } from "@3sixty/entity";
 
 /**
  * Class defining the storage for authentication audit entries.

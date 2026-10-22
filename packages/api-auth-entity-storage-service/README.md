@@ -1,11 +1,11 @@
-# TWIN API Auth Entity Storage Service
+# 3Sixty API Auth Entity Storage Service
 
 This package provides an authentication service implementation and REST routes backed by entity storage.
 
 ## Installation
 
 ```shell
-npm install @twin.org/api-auth-entity-storage-service
+npm install @3sixty/api-auth-entity-storage-service
 ```
 
 ## Examples
