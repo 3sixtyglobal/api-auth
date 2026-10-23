@@ -32,6 +32,20 @@ authentication-audit
 
 ***
 
+### authorizationComponentType? {#authorizationcomponenttype}
+
+> `optional` **authorizationComponentType?**: `string`
+
+The authorization component used to guard accounts with escalated privilege.
+
+#### Default
+
+```ts
+authorization
+```
+
+***
+
 ### config? {#config}
 
 > `optional` **config?**: [`IEntityStorageAuthenticationAdminServiceConfig`](IEntityStorageAuthenticationAdminServiceConfig.md)

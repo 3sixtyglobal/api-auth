@@ -1,4 +1,4 @@
-# @twin.org/api-auth-rest-client
+# @3sixty/api-auth-rest-client
 
 ## Classes
 

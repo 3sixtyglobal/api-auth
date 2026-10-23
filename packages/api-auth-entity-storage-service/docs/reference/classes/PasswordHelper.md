@@ -24,7 +24,7 @@ Runtime name for the class.
 
 ### updatePassword() {#updatepassword}
 
-> `static` **updatePassword**(`userEntityStorage`, `authenticationAuditService`, `user`, `newPassword`, `currentPassword?`, `minPasswordLength?`): `Promise`\<`void`\>
+> `static` **updatePassword**(`userEntityStorage`, `authenticationAuditService`, `user`, `newPassword`, `currentPassword?`, `options?`): `Promise`\<`void`\>
 
 Update the password for a user.
 Validates password strength, verifies the current password if provided, then hashes and stores the new password and raises an audit event.
@@ -61,11 +61,11 @@ The new password to set.
 
 The current password to verify against, if supplied.
 
-##### minPasswordLength?
+##### options?
 
-`number`
+`IPasswordOptions`
 
-Optional minimum password length for validation.
+Optional password length validation options.
 
 #### Returns
 

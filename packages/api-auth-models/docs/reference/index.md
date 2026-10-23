@@ -1,4 +1,4 @@
-# @twin.org/api-auth-models
+# @3sixty/api-auth-models
 
 ## Interfaces
 
