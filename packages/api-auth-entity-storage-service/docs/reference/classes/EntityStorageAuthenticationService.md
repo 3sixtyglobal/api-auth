@@ -219,3 +219,21 @@ A promise that resolves when the password has been updated and the rate limit cl
 #### Implementation of
 
 `IAuthenticationComponent.updatePassword`
+
+***
+
+### passwordPolicy() {#passwordpolicy}
+
+> **passwordPolicy**(): `Promise`\<`IPasswordOptions`\>
+
+Get the password policy used for password validation.
+
+#### Returns
+
+`Promise`\<`IPasswordOptions`\>
+
+The password policy options.
+
+#### Implementation of
+
+`IAuthenticationComponent.passwordPolicy`

@@ -2,7 +2,7 @@
 
 > **initSchema**(): `void`
 
-Initialize the schema for the authentication service.
+Initialize the schema for the authentication audit and rate services.
 
 ## Returns
 

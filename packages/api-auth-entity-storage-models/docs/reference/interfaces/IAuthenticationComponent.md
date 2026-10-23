@@ -105,3 +105,17 @@ The new password for the user.
 `Promise`\<`void`\>
 
 A promise that resolves when the password has been updated.
+
+***
+
+### passwordPolicy() {#passwordpolicy}
+
+> **passwordPolicy**(): `Promise`\<[`IPasswordOptions`](IPasswordOptions.md)\>
+
+Get the password policy used for password validation.
+
+#### Returns
+
+`Promise`\<[`IPasswordOptions`](IPasswordOptions.md)\>
+
+The password policy options.

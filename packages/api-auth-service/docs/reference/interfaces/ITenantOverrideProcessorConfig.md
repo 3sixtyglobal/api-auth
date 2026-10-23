@@ -16,7 +16,13 @@ Include the stack with errors.
 
 > `optional` **escalatedPrivilegeRole?**: `string`
 
-The role value that grants escalated privilege for cross-tenant access. Defaults to "global-admin".
+The role value that grants escalated privilege for cross-tenant access.
+
+#### Default
+
+```ts
+global-admin
+```
 
 ***
 
@@ -29,5 +35,5 @@ The authorization model ID to use for REST requests.
 #### Default
 
 ```ts
-rest
+system
 ```

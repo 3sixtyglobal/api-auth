@@ -1,4 +1,4 @@
-# @twin.org/api-auth-service
+# @3sixty/api-auth-service
 
 ## Classes
 

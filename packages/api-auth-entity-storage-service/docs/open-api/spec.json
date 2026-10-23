@@ -432,6 +432,86 @@
 				}
 			}
 		},
+		"/authentication/policy": {
+			"get": {
+				"operationId": "authenticationPasswordPolicy",
+				"summary": "Get the password policy",
+				"tags": [
+					"Authentication"
+				],
+				"requestBody": {
+					"description": "A REST request with no input parameters.",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/NoContentRequest"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Get the password policy.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PasswordOptions"
+								},
+								"examples": {
+									"passwordPolicyResponseExample": {
+										"summary": "The response for the password policy request.",
+										"value": {
+											"minPasswordLength": 15,
+											"maxPasswordLength": 128
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/authentication/admin/users": {
 			"post": {
 				"operationId": "authenticationAdminCreateUser",
@@ -1192,6 +1272,24 @@
 					}
 				},
 				"description": "The logout token details."
+			},
+			"NoContentRequest": {
+				"not": {},
+				"description": "Data to return send as the body."
+			},
+			"PasswordOptions": {
+				"description": "Password length validation options.",
+				"type": "object",
+				"properties": {
+					"minPasswordLength": {
+						"type": "number",
+						"description": "The minimum password length for validation."
+					},
+					"maxPasswordLength": {
+						"type": "number",
+						"description": "The maximum password length for validation."
+					}
+				}
 			},
 			"RefreshTokenRequest": {
 				"type": "object",

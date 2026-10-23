@@ -38,6 +38,14 @@ The query parameter name used to supply the override tenant ID.
 
 ***
 
+### DEFAULT\_AUTHORIZATION\_MODEL\_ID {#default_authorization_model_id}
+
+> `readonly` `static` **DEFAULT\_AUTHORIZATION\_MODEL\_ID**: `string` = `"system"`
+
+The model identifier that is reserved for system-only use.
+
+***
+
 ### DEFAULT\_ESCALATED\_PRIVILEGE\_ROLE {#default_escalated_privilege_role}
 
 > `readonly` `static` **DEFAULT\_ESCALATED\_PRIVILEGE\_ROLE**: `string` = `"global-admin"`
@@ -105,6 +113,8 @@ The route to process.
 The context IDs of the request.
 
 ##### processorState
+
+\{\[`id`: `string`\]: `unknown`; \}
 
 The state handed through the processors.
 
