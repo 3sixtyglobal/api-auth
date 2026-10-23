@@ -24,7 +24,7 @@ Runtime name for the class.
 
 ### createToken() {#createtoken}
 
-> `static` **createToken**(`vaultConnector`, `nodeId`, `signingKeyName`, `userIdentity`, `organizationIdentity`, `tenantId`, `ttlMinutes`, `scope?`, `passwordVersion?`): `Promise`\<\{ `token`: `string`; `expiry`: `number`; \}\>
+> `static` **createToken**(`vaultConnector`, `nodeId`, `signingKeyName`, `userIdentity`, `organizationIdentity`, `tenantId`, `ttlMinutes`, `passwordVersion?`): `Promise`\<\{ `token`: `string`; `expiry`: `number`; \}\>
 
 Create a new token.
 
@@ -72,12 +72,6 @@ The tenant id for the token.
 
 The time to live for the token in minutes.
 
-##### scope?
-
-`string`
-
-The scopes for the token.
-
 ##### passwordVersion?
 
 `number`
@@ -94,7 +88,7 @@ The new token and its expiry date.
 
 ### verify() {#verify}
 
-> `static` **verify**(`vaultConnector`, `nodeId`, `signingKeyName`, `token`, `requiredScopes?`, `verifyUser?`): `Promise`\<\{ `header`: `JWTHeaderParameters`; `payload`: `JWTPayload`; \}\>
+> `static` **verify**(`vaultConnector`, `nodeId`, `signingKeyName`, `token`, `verifyUser?`): `Promise`\<\{ `header`: `JWTHeaderParameters`; `payload`: `JWTPayload`; \}\>
 
 Verify the token.
 
@@ -123,12 +117,6 @@ The signing key name, expected to match the JWT key identifier.
 `string` \| `undefined`
 
 The token to verify.
-
-##### requiredScopes?
-
-`string`[]
-
-The required scopes.
 
 ##### verifyUser?
 

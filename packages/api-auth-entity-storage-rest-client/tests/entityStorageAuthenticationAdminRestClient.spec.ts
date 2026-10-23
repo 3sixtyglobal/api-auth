@@ -18,8 +18,7 @@ const PREFIX = "authentication/admin";
 const TEST_USER = {
 	email: "user@example.com",
 	userIdentity: "did:example:123456789abcdefghi",
-	organizationIdentity: "did:example:123456789abcdefghi",
-	scope: ["scope1", "scope2"]
+	organizationIdentity: "did:example:123456789abcdefghi"
 };
 
 const fetchMock = vi.fn();
@@ -83,7 +82,6 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 			const body = JSON.parse(options.body);
 			expect(body.email).toBe(TEST_USER.email);
 			expect(body.password).toBe("MyPassword123!");
-			expect(body.scope).toEqual(TEST_USER.scope);
 			expect(body.userIdentity).toBeUndefined();
 			expect(userIdentity).toBe(TEST_USER.userIdentity);
 		});

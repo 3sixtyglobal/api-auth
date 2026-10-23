@@ -6,12 +6,12 @@ import { entity, property } from "@3sixty/entity";
 /**
  * Class defining the storage for user login credentials.
  */
-@entity()
+@entity({ version: 1 })
 export class AuthenticationUser {
 	/**
 	 * The user e-mail address.
 	 */
-	@property({ type: "string", isPrimary: true })
+	@property({ type: "string", format: "email", isPrimary: true })
 	public email!: string;
 
 	/**
@@ -29,26 +29,20 @@ export class AuthenticationUser {
 	/**
 	 * Stable identifier of the account. This is the token subject.
 	 */
-	@property({ type: "string", isSecondary: true })
+	@property({ type: "string", maxLength: 255, isSecondary: true })
 	public userId!: string;
 
 	/**
 	 * The DID attached to the account, once one has been adopted.
 	 */
-	@property({ type: "string", isSecondary: true, optional: true })
+	@property({ type: "string", maxLength: 255, isSecondary: true, optional: true })
 	public identity?: string;
 
 	/**
 	 * The users organization.
 	 */
-	@property({ type: "string" })
+	@property({ type: "string", maxLength: 255 })
 	public organization!: string;
-
-	/**
-	 * The scope assigned to the user, comma separated.
-	 */
-	@property({ type: "string" })
-	public scope!: string;
 
 	/**
 	 * The password version counter, incremented on every password change to invalidate existing tokens.

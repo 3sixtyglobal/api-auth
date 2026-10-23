@@ -178,94 +178,18 @@ A promise that resolves when the password has been updated on the server.
 
 ***
 
-### getEndpointWithPrefix() {#getendpointwithprefix}
+### passwordPolicy() {#passwordpolicy}
 
-> **getEndpointWithPrefix**(): `string`
+> **passwordPolicy**(): `Promise`\<`IPasswordOptions`\>
 
-Get the endpoint with the prefix for the namespace.
-
-#### Returns
-
-`string`
-
-The endpoint with namespace prefix attached.
-
-#### Inherited from
-
-`BaseRestClient.getEndpointWithPrefix`
-
-***
-
-### getPathPrefix() {#getpathprefix}
-
-> **getPathPrefix**(): `string`
-
-Get the path prefix as a URL path string provided in the constructor.
+Get the password policy used for password validation.
 
 #### Returns
 
-`string`
+`Promise`\<`IPasswordOptions`\>
 
-The path prefix.
+The password policy options.
 
-#### Inherited from
+#### Implementation of
 
-`BaseRestClient.getPathPrefix`
-
-***
-
-### fetch() {#fetch}
-
-> **fetch**\<`T`, `U`\>(`route`, `method`, `request?`, `options?`): `Promise`\<`U`\>
-
-Perform a request in json format.
-
-#### Type Parameters
-
-##### T
-
-`T` *extends* `IHttpRequest`\<`any`\>
-
-##### U
-
-`U` *extends* `IHttpResponse`\<`any`\>
-
-#### Parameters
-
-##### route
-
-`string`
-
-The route of the request.
-
-##### method
-
-`HttpMethod`
-
-The http method.
-
-##### request?
-
-`T`
-
-Request to send to the endpoint.
-
-##### options?
-
-Optional override options for the request.
-
-###### overridePrefix?
-
-`string`
-
-Optional override prefix to use for this request instead of the default prefix.
-
-#### Returns
-
-`Promise`\<`U`\>
-
-The response.
-
-#### Inherited from
-
-`BaseRestClient.fetch`
+`IAuthenticationComponent.passwordPolicy`

@@ -6,6 +6,7 @@ import type {
 	ILoginRequest,
 	ILoginResponse,
 	ILogoutRequest,
+	IPasswordPolicyResponse,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IUpdatePasswordRequest
@@ -220,7 +221,46 @@ export function generateRestRoutesAuthentication(
 		]
 	};
 
-	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute, adoptIdentityRoute];
+	const passwordPolicyRoute: IRestRoute<INoContentRequest, IPasswordPolicyResponse> = {
+		operationId: "authenticationPasswordPolicy",
+		summary: "Get the password policy",
+		tag: tagsAuthentication[0].name,
+		method: "GET",
+		path: `${baseRouteName}/policy`,
+		handler: async (httpRequestContext, request) =>
+			authenticationPasswordPolicy(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<INoContentRequest>()
+		},
+		responseType: [
+			{
+				type: nameof<IPasswordPolicyResponse>(),
+				examples: [
+					{
+						id: "passwordPolicyResponseExample",
+						description: "The response for the password policy request.",
+						response: {
+							body: {
+								minPasswordLength: 15,
+								maxPasswordLength: 128
+							}
+						}
+					}
+				]
+			}
+		],
+		skipAuth: true,
+		skipTenant: true
+	};
+
+	return [
+		loginRoute,
+		logoutRoute,
+		refreshTokenRoute,
+		updatePasswordRoute,
+		adoptIdentityRoute,
+		passwordPolicyRoute
+	];
 }
 
 /**
@@ -351,5 +391,25 @@ export async function authenticationUpdatePassword(
 
 	return {
 		statusCode: HttpStatusCode.noContent
+	};
+}
+
+/**
+ * Get the password policy.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationPasswordPolicy(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: INoContentRequest
+): Promise<IPasswordPolicyResponse & IRestRouteResponseOptions> {
+	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+	const result = await component.passwordPolicy();
+
+	return {
+		body: result
 	};
 }

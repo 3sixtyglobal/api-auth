@@ -17,11 +17,6 @@ export interface IAuthenticationUserCreate {
 	password: string;
 
 	/**
-	 * The scope assigned to the user.
-	 */
-	scope: string[];
-
-	/**
 	 * DID to store on the account. When omitted, the account is created without one.
 	 */
 	userIdentity?: string;

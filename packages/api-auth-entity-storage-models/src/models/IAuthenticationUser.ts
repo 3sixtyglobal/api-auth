@@ -25,9 +25,4 @@ export interface IAuthenticationUser {
 	 * The users organization.
 	 */
 	organizationIdentity: string;
-
-	/**
-	 * The scope assigned to the user, comma separated.
-	 */
-	scope: string[];
 }

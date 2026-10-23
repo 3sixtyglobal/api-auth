@@ -80,6 +80,24 @@ A promise that resolves when the node identity and organization ID have been cac
 
 ***
 
+### stop() {#stop}
+
+> **stop**(): `Promise`\<`void`\>
+
+Stop the processor and release the token cache.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the processor has stopped.
+
+#### Implementation of
+
+`IBaseRouteProcessor.stop`
+
+***
+
 ### pre() {#pre}
 
 > **pre**(`request`, `response`, `route`, `contextIds`, `processorState`): `Promise`\<`void`\>
@@ -113,6 +131,8 @@ The route to process.
 The context IDs of the request.
 
 ##### processorState
+
+\{\[`id`: `string`\]: `unknown`; \}
 
 The state handed through the processors.
 
@@ -161,6 +181,8 @@ The route to process.
 The context IDs of the request.
 
 ##### processorState
+
+\{\[`id`: `string`\]: `unknown`; \}
 
 The state handed through the processors.
 

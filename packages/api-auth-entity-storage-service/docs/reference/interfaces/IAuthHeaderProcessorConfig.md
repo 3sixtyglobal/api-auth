@@ -37,3 +37,49 @@ access_token
 > `optional` **includeErrorStack?**: `boolean`
 
 Include the stack with errors.
+
+***
+
+### tokenCacheTtlMs? {#tokencachettlms}
+
+> `optional` **tokenCacheTtlMs?**: `number`
+
+The time in milliseconds a verified token is kept in the in-memory cache, counted from when it
+was verified and not extended by use, set to 0 to disable caching. A hit skips the vault
+signature check, the tenant lookup and the user lookup, so this is also the longest a password
+change, a user removal or a signing key rotation can go unnoticed. An entry never outlives the
+expiry claim of its own token either.
+
+#### Default
+
+```ts
+30000
+```
+
+***
+
+### tokenCacheCapacity? {#tokencachecapacity}
+
+> `optional` **tokenCacheCapacity?**: `number`
+
+The maximum number of verified tokens to hold in the in-memory cache.
+
+#### Default
+
+```ts
+undefined (LfuCache default)
+```
+
+***
+
+### tokenCacheMutexTimeoutMs? {#tokencachemutextimeoutms}
+
+> `optional` **tokenCacheMutexTimeoutMs?**: `number`
+
+Maximum time in milliseconds to wait for the token cache mutex during a cache population.
+
+#### Default
+
+```ts
+undefined (LfuCache default)
+```

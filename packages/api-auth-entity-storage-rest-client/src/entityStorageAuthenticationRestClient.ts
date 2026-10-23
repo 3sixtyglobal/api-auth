@@ -6,6 +6,8 @@ import type {
 	ILoginRequest,
 	ILoginResponse,
 	ILogoutRequest,
+	IPasswordPolicyResponse,
+	IPasswordOptions,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IUpdatePasswordRequest
@@ -168,5 +170,15 @@ export class EntityStorageAuthenticationRestClient
 				newPassword
 			}
 		});
+	}
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	public async passwordPolicy(): Promise<IPasswordOptions> {
+		const response = await this.fetch<INoContentRequest, IPasswordPolicyResponse>("/policy", "GET");
+
+		return response.body;
 	}
 }

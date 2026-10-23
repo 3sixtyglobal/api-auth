@@ -22,12 +22,26 @@ authentication-user
 
 > `optional` **authenticationAuditServiceType?**: `string`
 
-The audit service.
+The audit component.
 
 #### Default
 
 ```ts
 authentication-audit
+```
+
+***
+
+### authorizationComponentType? {#authorizationcomponenttype}
+
+> `optional` **authorizationComponentType?**: `string`
+
+The authorization component used to guard accounts with escalated privilege.
+
+#### Default
+
+```ts
+authorization
 ```
 
 ***

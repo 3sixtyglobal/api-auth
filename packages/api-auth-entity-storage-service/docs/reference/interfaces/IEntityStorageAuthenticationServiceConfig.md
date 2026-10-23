@@ -41,7 +41,21 @@ The minimum password length for new password validation.
 #### Default
 
 ```ts
-8
+15
+```
+
+***
+
+### maxPasswordLength? {#maxpasswordlength}
+
+> `optional` **maxPasswordLength?**: `number`
+
+The maximum password length for new password validation.
+
+#### Default
+
+```ts
+128
 ```
 
 ***

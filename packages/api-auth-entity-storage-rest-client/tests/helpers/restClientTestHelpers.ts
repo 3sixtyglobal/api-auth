@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { HeaderTypes, HttpStatusCode, MimeTypes } from "@3sixty/web";
 
@@ -78,8 +79,8 @@ export function createdResponse(location: string): object {
  * Call in beforeEach alongside any client construction.
  * @param mock The vi.fn() mock to install as globalThis.fetch.
  */
-export function setupFetchMock(mock: object): void {
-	globalThis.fetch = mock as typeof fetch;
+export function setupFetchMock(mock: typeof fetch): void {
+	globalThis.fetch = mock;
 }
 
 /**

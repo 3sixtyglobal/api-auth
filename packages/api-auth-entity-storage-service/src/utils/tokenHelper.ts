@@ -31,7 +31,6 @@ export class TokenHelper {
 	 * @param organizationIdentity The organization for the token.
 	 * @param tenantId The tenant id for the token.
 	 * @param ttlMinutes The time to live for the token in minutes.
-	 * @param scope The scopes for the token.
 	 * @param passwordVersion The user's current password version counter, embedded in the token so that a password change invalidates existing tokens.
 	 * @returns The new token and its expiry date.
 	 */
@@ -43,7 +42,6 @@ export class TokenHelper {
 		organizationIdentity: string | undefined,
 		tenantId: string | undefined,
 		ttlMinutes: number,
-		scope?: string,
 		passwordVersion?: number
 	): Promise<{
 		token: string;
@@ -61,7 +59,6 @@ export class TokenHelper {
 				org: organizationIdentity,
 				tid: tenantId,
 				exp: nowSeconds + ttlSeconds,
-				scope,
 				pver: passwordVersion
 			},
 			async (header, payload) =>

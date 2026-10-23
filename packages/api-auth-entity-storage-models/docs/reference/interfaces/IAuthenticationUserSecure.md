@@ -44,18 +44,6 @@ The users organization.
 
 ***
 
-### scope {#scope}
-
-> **scope**: `string`[]
-
-The scope assigned to the user, comma separated.
-
-#### Inherited from
-
-[`IAuthenticationUser`](IAuthenticationUser.md).[`scope`](IAuthenticationUser.md#scope)
-
-***
-
 ### password {#password}
 
 > **password**: `string`

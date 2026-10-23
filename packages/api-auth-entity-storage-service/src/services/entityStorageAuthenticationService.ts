@@ -2,12 +2,15 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
+	IAuthenticationComponent,
+	IPasswordOptions
+} from "@3sixty/api-auth-entity-storage-models";
+import type {
 	IAuthenticationRateActionConfig,
 	IAuthenticationRateComponent,
-	IAuthenticationAuditComponent,
-	IAuthenticationComponent
-} from "@3sixty/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@3sixty/api-auth-entity-storage-models";
+	IAuthenticationAuditComponent
+} from "@3sixty/api-auth-models";
+import { AuthAuditEvent } from "@3sixty/api-auth-models";
 import type { ITenantAdminComponent } from "@3sixty/api-models";
 import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
@@ -140,6 +143,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _minPasswordLength?: number;
 
 	/**
+	 * The maximum password length for validation.
+	 * @internal
+	 */
+	private readonly _maxPasswordLength?: number;
+
+	/**
 	 * Rate limit configuration for login failures.
 	 * @internal
 	 */
@@ -212,6 +221,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._defaultTtlMinutes =
 			options?.config?.defaultTtlMinutes ?? EntityStorageAuthenticationService._DEFAULT_TTL_MINUTES;
 		this._minPasswordLength = options?.config?.minPasswordLength;
+		this._maxPasswordLength = options?.config?.maxPasswordLength;
 		this._loginRateLimit = {
 			maxAttempts:
 				options?.config?.loginRateLimit?.maxAttempts ??
@@ -346,7 +356,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				user.organization,
 				loginTenantId,
 				this._defaultTtlMinutes,
-				user.scope,
 				user.passwordVersion ?? 0
 			);
 			loginUser = user;
@@ -371,10 +380,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			event: AuthAuditEvent.LoginSuccess,
 			data: {
 				userId: loginUser.userId,
-				...(Is.stringValue(loginUser.identity) ? { userIdentity: loginUser.identity } : {}),
+				userIdentity: Is.stringValue(loginUser.identity) ? loginUser.identity : undefined,
 				organizationIdentity: loginUser.organization,
-				tenantId: loginTenantId,
-				scope: loginUser.scope.split(",")
+				tenantId: loginTenantId
 			}
 		});
 
@@ -443,7 +451,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			actorId: user.userId,
 			event: AuthAuditEvent.AccountUpdated,
 			data: {
-				...(Is.stringValue(user.identity) ? { previousIdentity: user.identity } : {}),
+				previousIdentity: Is.stringValue(user.identity) ? user.identity : undefined,
 				userIdentity: documentId,
 				organizationIdentity: user.organization
 			}
@@ -481,8 +489,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
 		}
 
-		let refreshPasswordVersion: number | undefined;
 		let tenantId: string | undefined;
+		let refreshUser: AuthenticationUser | undefined;
 
 		// If the verify fails on the current token then it will throw an exception.
 		const headerAndPayload = await TokenHelper.verify(
@@ -515,8 +523,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 					this._userEntityStorage.get(sub, "userId")
 				);
 
-				refreshPasswordVersion = user?.passwordVersion;
-				if (user?.userId === sub && (passwordVersion ?? 0) === (refreshPasswordVersion ?? 0)) {
+				refreshUser = user;
+
+				if (user?.userId === sub && (passwordVersion ?? 0) === (user.passwordVersion ?? 0)) {
 					validParts.push("user");
 				}
 				if (user?.organization === org) {
@@ -530,7 +539,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await this._authenticationRateService.check("token-refresh", refreshSub);
 
 		const payloadOrg = Coerce.string(headerAndPayload.payload.org);
-		const payloadScope = Coerce.string(headerAndPayload.payload?.scope);
 
 		const refreshTokenAndExpiry = await TokenHelper.createToken(
 			this._vaultConnector,
@@ -540,8 +548,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			payloadOrg,
 			tenantId,
 			this._defaultTtlMinutes,
-			payloadScope,
-			refreshPasswordVersion ?? 0
+			refreshUser?.passwordVersion ?? 0
 		);
 
 		await this._authenticationAuditService?.create({
@@ -550,8 +557,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			data: {
 				organizationIdentity: payloadOrg,
 				tenantId,
-				scope: payloadScope?.split(",").filter(scope => scope.length > 0),
-				version: refreshPasswordVersion ?? 0
+				version: refreshUser?.passwordVersion ?? 0
 			}
 		});
 
@@ -586,9 +592,23 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			user,
 			newPassword,
 			currentPassword,
-			this._minPasswordLength
+			{
+				minPasswordLength: this._minPasswordLength,
+				maxPasswordLength: this._maxPasswordLength
+			}
 		);
 
 		await this._authenticationRateService.clear("password-change", userId);
+	}
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	public async passwordPolicy(): Promise<IPasswordOptions> {
+		return {
+			minPasswordLength: this._minPasswordLength,
+			maxPasswordLength: this._maxPasswordLength
+		};
 	}
 }
