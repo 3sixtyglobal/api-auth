@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationComponent,
@@ -11,6 +12,7 @@ import type {
 	IUpdatePasswordRequest
 } from "@3sixty/api-auth-entity-storage-models";
 import type {
+	IConflictResponse,
 	IHttpRequestContext,
 	INoContentRequest,
 	INoContentResponse,
@@ -198,6 +200,27 @@ export function generateRestRoutesAuthentication(
 		]
 	};
 
+	const adoptIdentityRoute: IRestRoute<INoContentRequest, INoContentResponse> = {
+		operationId: "authenticationAdoptIdentity",
+		summary: "Adopt a DID for the signed-in user",
+		tag: tagsAuthentication[0].name,
+		method: "POST",
+		path: `${baseRouteName}/identity`,
+		handler: async httpRequestContext =>
+			authenticationAdoptIdentity(httpRequestContext, componentName),
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<IConflictResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		]
+	};
+
 	const passwordPolicyRoute: IRestRoute<INoContentRequest, IPasswordPolicyResponse> = {
 		operationId: "authenticationPasswordPolicy",
 		summary: "Get the password policy",
@@ -230,7 +253,14 @@ export function generateRestRoutesAuthentication(
 		skipTenant: true
 	};
 
-	return [loginRoute, logoutRoute, refreshTokenRoute, updatePasswordRoute, passwordPolicyRoute];
+	return [
+		loginRoute,
+		logoutRoute,
+		refreshTokenRoute,
+		updatePasswordRoute,
+		adoptIdentityRoute,
+		passwordPolicyRoute
+	];
 }
 
 /**
@@ -260,6 +290,24 @@ export async function authenticationLogin(
 		body: {
 			expiry: result.expiry
 		}
+	};
+}
+
+/**
+ * Attach a DID to the signed-in account. The current session is left in place.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @returns An empty response once the DID has been stored.
+ */
+export async function authenticationAdoptIdentity(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string
+): Promise<INoContentResponse & IRestRouteResponseOptions> {
+	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+	await component.adoptIdentity();
+
+	return {
+		statusCode: HttpStatusCode.noContent
 	};
 }
 

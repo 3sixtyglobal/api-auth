@@ -22,7 +22,7 @@ export interface IAuthTokenContext {
 	tenantPublicOrigin?: string;
 
 	/**
-	 * The identity of the verified user.
+	 * The account id of the verified user. This is the token subject.
 	 */
 	userIdentity?: string;
 

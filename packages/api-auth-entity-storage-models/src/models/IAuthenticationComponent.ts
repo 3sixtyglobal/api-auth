@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IComponent } from "@3sixty/core";
 import type { IPasswordOptions } from "./IPasswordOptions.js";
@@ -20,6 +21,12 @@ export interface IAuthenticationComponent extends IComponent {
 		token?: string;
 		expiry: number;
 	}>;
+
+	/**
+	 * Attach a DID to the signed-in account. The token subject stays the account id.
+	 * @returns A promise that resolves when the DID has been stored.
+	 */
+	adoptIdentity(): Promise<void>;
 
 	/**
 	 * Logout the current user.

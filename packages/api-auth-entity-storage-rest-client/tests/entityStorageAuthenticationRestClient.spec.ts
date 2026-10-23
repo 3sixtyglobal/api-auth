@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { GuardError } from "@3sixty/core";
 import { HttpMethod } from "@3sixty/web";
@@ -151,6 +152,25 @@ describe("EntityStorageAuthenticationRestClient", () => {
 			const result = await client.refresh();
 
 			expect(result.token).toBeUndefined();
+		});
+	});
+
+	describe("adoptIdentity", () => {
+		test("sends POST to /identity with no body", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
+
+			await client.adoptIdentity();
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/identity`);
+			expect(options.method).toBe(HttpMethod.POST);
+			expect(options.body).toBeUndefined();
+		});
+
+		test("resolves without a return value", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
+
+			await expect(client.adoptIdentity()).resolves.toBeUndefined();
 		});
 	});
 

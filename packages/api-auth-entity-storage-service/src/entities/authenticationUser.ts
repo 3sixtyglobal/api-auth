@@ -1,11 +1,12 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { entity, property } from "@3sixty/entity";
 
 /**
  * Class defining the storage for user login credentials.
  */
-@entity({ version: 1 })
+@entity({ version: 2 })
 export class AuthenticationUser {
 	/**
 	 * The user e-mail address.
@@ -26,10 +27,16 @@ export class AuthenticationUser {
 	public salt!: string;
 
 	/**
-	 * The user identity.
+	 * Stable identifier of the account. This is the token subject.
 	 */
 	@property({ type: "string", maxLength: 255, isSecondary: true })
-	public identity!: string;
+	public userId!: string;
+
+	/**
+	 * The DID attached to the account, once one has been adopted.
+	 */
+	@property({ type: "string", maxLength: 255, isSecondary: true, optional: true })
+	public identity?: string;
 
 	/**
 	 * The users organization.

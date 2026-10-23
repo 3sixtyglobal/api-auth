@@ -1,8 +1,10 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationAdminComponent,
-	IAuthenticationUser
+	IAuthenticationUser,
+	IAuthenticationUserCreate
 } from "@3sixty/api-auth-entity-storage-models";
 import { type IAuthenticationAuditComponent, AuthAuditEvent } from "@3sixty/api-auth-models";
 import { ForbiddenError, HttpContextIdKeys } from "@3sixty/api-models";
@@ -117,6 +119,21 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	}
 
 	/**
+	 * Map a stored account to the admin response.
+	 * @param user The stored account.
+	 * @returns The account fields returned to callers. The DID is included only when one is stored.
+	 * @internal
+	 */
+	private static toAuthenticationUser(user: AuthenticationUser): IAuthenticationUser {
+		return {
+			email: user.email,
+			userId: user.userId,
+			userIdentity: Is.stringValue(user.identity) ? user.identity : undefined,
+			organizationIdentity: user.organization
+		};
+	}
+
+	/**
 	 * Returns the class name of the component.
 	 * @returns The class name of the component.
 	 */
@@ -126,11 +143,12 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 	/**
 	 * Create a login for the user.
+	 * The service allocates the account id. A DID is stored only when one is provided. A missing organisation is taken from the request context.
 	 * @param user The user to create.
 	 * @returns A promise that resolves when the user account has been created and the audit entry recorded.
 	 */
-	public async create(user: IAuthenticationUser & { password: string }): Promise<void> {
-		Guards.object<IAuthenticationUser>(
+	public async create(user: IAuthenticationUserCreate): Promise<void> {
+		Guards.object<IAuthenticationUserCreate>(
 			EntityStorageAuthenticationAdminService.CLASS_NAME,
 			nameof(user),
 			user
@@ -145,16 +163,27 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			nameof(user.password),
 			user.password
 		);
-		Guards.stringValue(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.userIdentity),
-			user.userIdentity
-		);
+
+		let userIdentity: string | undefined;
+		if (user.userIdentity !== undefined) {
+			userIdentity = user.userIdentity.trim();
+			Guards.stringValue(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				nameof(user.userIdentity),
+				userIdentity
+			);
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		const organizationIdentity =
+			user.organizationIdentity ?? contextIds?.[ContextIdKeys.Organization] ?? "";
 		Guards.stringValue(
 			EntityStorageAuthenticationAdminService.CLASS_NAME,
 			nameof(user.organizationIdentity),
-			user.organizationIdentity
+			organizationIdentity.trim()
 		);
+
+		const userId = RandomHelper.generateUuidV7();
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
@@ -167,8 +196,17 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "userExists");
 			}
 
-			// Roles belong to the identity, so a login mapped to an escalated identity inherits them.
-			await this.guardEscalatedPrivilegeTarget(user.userIdentity);
+			if (userIdentity !== undefined) {
+				// Roles belong to the identity, so a login mapped to an escalated identity inherits them.
+				await this.guardEscalatedPrivilegeTarget(userIdentity);
+				const existingIdentity = await this._userEntityStorage.get(userIdentity, "identity");
+				if (Is.object<AuthenticationUser>(existingIdentity)) {
+					throw new GeneralError(
+						EntityStorageAuthenticationAdminService.CLASS_NAME,
+						"identityInUse"
+					);
+				}
+			}
 
 			const saltBytes = RandomHelper.generate(16);
 			const passwordBytes = Converter.utf8ToBytes(user.password);
@@ -179,22 +217,25 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				email: user.email,
 				salt: Converter.bytesToBase64(saltBytes),
 				password: hashedPassword,
-				identity: user.userIdentity,
-				organization: user.organizationIdentity,
+				userId,
+				organization: organizationIdentity,
 				passwordVersion: 0
 			};
+			if (userIdentity !== undefined) {
+				newUser.identity = userIdentity;
+			}
 
 			await this._userEntityStorage.set(newUser);
 
-			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
 			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: user.email,
 				event: AuthAuditEvent.AccountCreated,
 				data: {
-					userIdentity: user.userIdentity,
-					organizationIdentity: user.organizationIdentity,
+					userId,
+					userIdentity,
+					organizationIdentity,
 					tenantId: requestorTenantId,
 					originalTenantId
 				}
@@ -284,7 +325,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				event: AuthAuditEvent.AccountUpdated,
 				data: {
 					updatedFields,
-					userIdentity: existingUser.identity,
+					userId: existingUser.userId,
+					userIdentity: Is.stringValue(existingUser.identity) ? existingUser.identity : undefined,
 					organizationIdentity: existingUser.organization,
 					tenantId: requestorTenantId,
 					originalTenantId
@@ -321,11 +363,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
-			return {
-				email: user.email,
-				userIdentity: user.identity,
-				organizationIdentity: user.organization
-			};
+			return EntityStorageAuthenticationAdminService.toAuthenticationUser(user);
 		} catch (error) {
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
@@ -358,11 +396,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
-			return {
-				email: user.email,
-				userIdentity: user.identity,
-				organizationIdentity: user.organization
-			};
+			return EntityStorageAuthenticationAdminService.toAuthenticationUser(user);
 		} catch (error) {
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
@@ -402,7 +436,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				actorId: email,
 				event: AuthAuditEvent.AccountDeleted,
 				data: {
-					userIdentity: user.identity,
+					userId: user.userId,
+					userIdentity: Is.stringValue(user.identity) ? user.identity : undefined,
 					organizationIdentity: user.organization,
 					tenantId: requestorTenantId,
 					originalTenantId
@@ -478,12 +513,12 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 	/**
 	 * Ensure the caller holds escalated privilege when the target identity holds it.
-	 * @param targetIdentity The identity of the account being modified.
+	 * @param targetIdentity The identity of the account being modified. Accounts with no DID are skipped.
 	 * @throws ForbiddenError if the target holds escalated privilege and the caller does not.
 	 * @internal
 	 */
-	private async guardEscalatedPrivilegeTarget(targetIdentity: string): Promise<void> {
-		if (Is.empty(this._authorizationComponent)) {
+	private async guardEscalatedPrivilegeTarget(targetIdentity?: string): Promise<void> {
+		if (!Is.stringValue(targetIdentity) || Is.empty(this._authorizationComponent)) {
 			return;
 		}
 

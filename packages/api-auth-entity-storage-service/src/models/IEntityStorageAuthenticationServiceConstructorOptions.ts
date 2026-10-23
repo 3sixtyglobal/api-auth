@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IEntityStorageAuthenticationServiceConfig } from "./IEntityStorageAuthenticationServiceConfig.js";
 
@@ -35,6 +36,12 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	 * @default tenant-admin
 	 */
 	tenantAdminComponentType?: string;
+
+	/**
+	 * The identity component used to create a DID.
+	 * @default identity-service
+	 */
+	identityComponentType?: string;
 
 	/**
 	 * The configuration for the authentication.
