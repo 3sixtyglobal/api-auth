@@ -18,6 +18,7 @@ import {
 	type IHttpRequestContext,
 	type INoContentResponse,
 	type IRestRoute,
+	type IRouteAuthorization,
 	type ITag,
 	type IUnauthorizedResponse
 } from "@3sixty/api-models";
@@ -31,6 +32,18 @@ import { HttpStatusCode, type IHttpHeaders } from "@3sixty/web";
  */
 const ROUTES_SOURCE = "authenticationAdminRoutes";
 
+/**
+ * The default authorization for the routes, used to seed authorization rules.
+ */
+const DEFAULT_AUTHORIZATION_READER: IRouteAuthorization = {
+	permission: "user-admin:read",
+	role: "user-admin"
+};
+const DEFAULT_AUTHORIZATION_WRITER: IRouteAuthorization = {
+	permission: "user-admin:write",
+	role: "user-admin",
+	inherits: [DEFAULT_AUTHORIZATION_READER.permission]
+};
 /**
  * The tag to associate with the routes.
  */
@@ -70,8 +83,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							email: "user@example.com",
 							password: "MyPassword123!",
 							userIdentity: "did:example:123456789abcdefghi",
-							organizationIdentity: "did:example:123456789abcdefghi",
-							scope: ["scope1", "scope2"]
+							organizationIdentity: "did:example:123456789abcdefghi"
 						}
 					}
 				}
@@ -84,7 +96,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const updateUserRoute: IRestRoute<IAdminUserUpdateRequest, INoContentResponse> = {
@@ -107,8 +120,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						},
 						body: {
 							userIdentity: "did:example:123456789abcdefghi",
-							organizationIdentity: "did:example:123456789abcdefghi",
-							scope: ["scope1", "scope2"]
+							organizationIdentity: "did:example:123456789abcdefghi"
 						}
 					}
 				}
@@ -121,7 +133,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const updateUserPasswordRoute: IRestRoute<IAdminUserUpdatePasswordRequest, INoContentResponse> = {
@@ -156,7 +169,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	const getUserRoute: IRestRoute<IAdminUserGetRequest, IAdminUserGetResponse> = {
@@ -192,8 +206,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							body: {
 								email: "user@example.com",
 								userIdentity: "did:example:123456789abcdefghi",
-								organizationIdentity: "did:example:123456789abcdefghi",
-								scope: ["scope1", "scope2"]
+								organizationIdentity: "did:example:123456789abcdefghi"
 							}
 						}
 					}
@@ -202,7 +215,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
 	const getByIdentityUserRoute: IRestRoute<IAdminUserGetByIdentityRequest, IAdminUserGetResponse> =
@@ -239,8 +253,7 @@ export function generateRestRoutesAuthenticationAdmin(
 								body: {
 									email: "user@example.com",
 									userIdentity: "did:example:123456789abcdefghi",
-									organizationIdentity: "did:example:123456789abcdefghi",
-									scope: ["scope1", "scope2"]
+									organizationIdentity: "did:example:123456789abcdefghi"
 								}
 							}
 						}
@@ -249,7 +262,8 @@ export function generateRestRoutesAuthenticationAdmin(
 				{
 					type: nameof<IUnauthorizedResponse>()
 				}
-			]
+			],
+			defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 		};
 
 	const removeUserRoute: IRestRoute<IAdminUserRemoveRequest, INoContentResponse> = {
@@ -281,7 +295,8 @@ export function generateRestRoutesAuthenticationAdmin(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
 	return [

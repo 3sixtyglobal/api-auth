@@ -1,6 +1,8 @@
 // Copyright 2026 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationAuditComponent } from "@3sixty/api-auth-entity-storage-models";
+import type { IAuthenticationAuditComponent } from "@3sixty/api-auth-models";
+import { ForbiddenError } from "@3sixty/api-models";
+import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { ComponentFactory, GeneralError, RandomHelper } from "@3sixty/core";
 import { PasswordGenerator, PasswordValidator } from "@3sixty/crypto";
@@ -58,50 +60,13 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(service.className()).toBe(EntityStorageAuthenticationAdminService.CLASS_NAME);
 	});
 
-	it("should create a new user with normalised scopes", async () => {
-		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
-		vi.spyOn(RandomHelper, "generate").mockReturnValue(new Uint8Array([1, 2, 3, 4]));
-		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("hashed-password");
-
-		await service.create({
-			email: "user@example.com",
-			password: "correct-horse-battery",
-			userIdentity: "did:user:123",
-			organizationIdentity: "did:org:456",
-			scope: [" Read ", "WRITE"]
-		});
-
-		expect(PasswordValidator.validatePassword).toHaveBeenCalledWith("correct-horse-battery", {
-			minLength: 10
-		});
-		expect(await userEntityStorage.get("user@example.com")).toEqual({
-			email: "user@example.com",
-			salt: "AQIDBA==",
-			password: "hashed-password",
-			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write",
-			passwordVersion: 0
-		});
-		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-			actorId: "user@example.com",
-			event: "account-created",
-			data: {
-				userIdentity: "did:user:123",
-				organizationIdentity: "did:org:456",
-				scope: [" Read ", "WRITE"]
-			}
-		});
-	});
-
 	it("should wrap create failures when the user already exists", async () => {
 		await userEntityStorage.set({
 			email: "user@example.com",
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read"
+			organization: "did:org:456"
 		});
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 
@@ -110,8 +75,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				email: "user@example.com",
 				password: "correct-horse-battery",
 				userIdentity: "did:user:123",
-				organizationIdentity: "did:org:456",
-				scope: ["read"]
+				organizationIdentity: "did:org:456"
 			})
 		).rejects.toThrow(GeneralError);
 		expect(await userEntityStorage.get("user@example.com")).toMatchObject({
@@ -129,47 +93,10 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				email: "user@example.com",
 				password: "short",
 				userIdentity: "did:user:123",
-				organizationIdentity: "did:org:456",
-				scope: ["read"]
+				organizationIdentity: "did:org:456"
 			})
 		).rejects.toThrow(GeneralError);
 		expect(await userEntityStorage.get("user@example.com")).toBeUndefined();
-	});
-
-	it("should update an existing user and normalise scopes", async () => {
-		await userEntityStorage.set({
-			email: "user@example.com",
-			password: "stored-password",
-			salt: "AQIDBA==",
-			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read"
-		});
-
-		await service.update({
-			email: "user@example.com",
-			organizationIdentity: "did:org:999",
-			scope: [" Admin ", "WRITE"]
-		});
-
-		expect(await userEntityStorage.get("user@example.com")).toEqual({
-			email: "user@example.com",
-			password: "stored-password",
-			salt: "AQIDBA==",
-			identity: "did:user:123",
-			organization: "did:org:999",
-			scope: "admin,write"
-		});
-		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-			actorId: "user@example.com",
-			event: "account-updated",
-			data: {
-				updatedFields: ["organizationIdentity", "scope"],
-				userIdentity: "did:user:123",
-				organizationIdentity: "did:org:999",
-				scope: ["admin", "write"]
-			}
-		});
 	});
 
 	it("should wrap update failures when the user is missing", async () => {
@@ -188,8 +115,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write"
+			organization: "did:org:456"
 		});
 
 		const result = await service.get("user@example.com");
@@ -197,8 +123,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(result).toEqual({
 			email: "user@example.com",
 			userIdentity: "did:user:123",
-			organizationIdentity: "did:org:456",
-			scope: ["read", "write"]
+			organizationIdentity: "did:org:456"
 		});
 	});
 
@@ -208,8 +133,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write"
+			organization: "did:org:456"
 		});
 
 		const result = await service.getByIdentity("did:user:123");
@@ -217,8 +141,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(result).toEqual({
 			email: "user@example.com",
 			userIdentity: "did:user:123",
-			organizationIdentity: "did:org:456",
-			scope: ["read", "write"]
+			organizationIdentity: "did:org:456"
 		});
 	});
 
@@ -236,8 +159,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read"
+			organization: "did:org:456"
 		});
 
 		await service.remove("user@example.com");
@@ -248,8 +170,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			event: "account-deleted",
 			data: {
 				userIdentity: "did:user:123",
-				organizationIdentity: "did:org:456",
-				scope: ["read"]
+				organizationIdentity: "did:org:456"
 			}
 		});
 	});
@@ -267,8 +188,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write"
+			organization: "did:org:456"
 		});
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 		vi.spyOn(PasswordValidator, "comparePasswordHashes").mockReturnValue(true);
@@ -285,7 +205,6 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "new-password-hash",
 			identity: "did:user:123",
 			organization: "did:org:456",
-			scope: "read,write",
 			passwordVersion: 1
 		});
 		expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
@@ -304,8 +223,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write"
+			organization: "did:org:456"
 		});
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 		const comparePasswordHashesSpy = vi.spyOn(PasswordValidator, "comparePasswordHashes");
@@ -321,7 +239,6 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "new-password-hash",
 			identity: "did:user:123",
 			organization: "did:org:456",
-			scope: "read,write",
 			passwordVersion: 1
 		});
 	});
@@ -332,8 +249,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			identity: "did:user:123",
-			organization: "did:org:456",
-			scope: "read,write"
+			organization: "did:org:456"
 		});
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("current-password-hash");
@@ -396,8 +312,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "correct-horse-battery",
 					userIdentity: "did:user:123",
-					organizationIdentity: "did:org:456",
-					scope: ["read"]
+					organizationIdentity: "did:org:456"
 				});
 
 				expect(await userEntityStorage.get("user@example.com")).toEqual({
@@ -406,7 +321,6 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "hashed-password",
 					identity: "did:user:123",
 					organization: "did:org:456",
-					scope: "read",
 					passwordVersion: 0
 				});
 			});
@@ -419,8 +333,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read,write"
+					organization: "did:org:456"
 				});
 
 				const result = await service.get("user@example.com");
@@ -428,8 +341,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				expect(result).toEqual({
 					email: "user@example.com",
 					userIdentity: "did:user:123",
-					organizationIdentity: "did:org:456",
-					scope: ["read", "write"]
+					organizationIdentity: "did:org:456"
 				});
 			});
 		});
@@ -441,8 +353,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read,write"
+					organization: "did:org:456"
 				});
 
 				const result = await service.getByIdentity("did:user:123");
@@ -450,8 +361,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				expect(result).toEqual({
 					email: "user@example.com",
 					userIdentity: "did:user:123",
-					organizationIdentity: "did:org:456",
-					scope: ["read", "write"]
+					organizationIdentity: "did:org:456"
 				});
 			});
 		});
@@ -463,19 +373,16 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 
 				await service.update({
 					email: "user@example.com",
-					organizationIdentity: "did:org:999",
-					scope: ["admin"]
+					organizationIdentity: "did:org:999"
 				});
 
 				expect(await userEntityStorage.get("user@example.com")).toMatchObject({
-					organization: "did:org:999",
-					scope: "admin"
+					organization: "did:org:999"
 				});
 			});
 		});
@@ -487,8 +394,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 
 				await service.remove("user@example.com");
@@ -508,8 +414,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read,write"
+					organization: "did:org:456"
 				});
 
 				await service.updatePassword("user@example.com", "better-password-value");
@@ -532,8 +437,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "correct-horse-battery",
 					userIdentity: "did:user:tenant-a",
-					organizationIdentity: "did:org:456",
-					scope: ["read"]
+					organizationIdentity: "did:org:456"
 				});
 			});
 
@@ -542,19 +446,18 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "correct-horse-battery",
 					userIdentity: "did:user:tenant-b",
-					organizationIdentity: "did:org:456",
-					scope: ["write"]
+					organizationIdentity: "did:org:456"
 				});
 			});
 
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_A }, async () => {
 				const userA = await service.get("user@example.com");
-				expect(userA).toMatchObject({ userIdentity: "did:user:tenant-a", scope: ["read"] });
+				expect(userA).toMatchObject({ userIdentity: "did:user:tenant-a" });
 			});
 
 			await ContextIdStore.run({ [ContextIdKeys.Tenant]: TENANT_B }, async () => {
 				const userB = await service.get("user@example.com");
-				expect(userB).toMatchObject({ userIdentity: "did:user:tenant-b", scope: ["write"] });
+				expect(userB).toMatchObject({ userIdentity: "did:user:tenant-b" });
 			});
 		});
 
@@ -565,8 +468,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 			});
 
@@ -582,8 +484,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 			});
 
@@ -599,8 +500,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 			});
 
@@ -624,8 +524,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 			});
 
@@ -647,8 +546,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password",
 					salt: "AQIDBA==",
 					identity: "did:user:123",
-					organization: "did:org:456",
-					scope: "read"
+					organization: "did:org:456"
 				});
 			});
 
@@ -663,6 +561,182 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					password: "stored-password"
 				});
 			});
+		});
+	});
+
+	describe("escalated privilege", () => {
+		const ESCALATED_IDENTITY = "did:user:admin";
+		const PLAIN_IDENTITY = "did:user:plain";
+		const CALLER_IDENTITY = "did:user:caller";
+
+		let mockAuthorizationComponent: IAuthorizationComponent;
+		let escalatedIdentities: string[];
+		let guardedService: EntityStorageAuthenticationAdminService;
+
+		/**
+		 * Set the identity of the caller in the request context.
+		 * @param identity The caller identity, if any.
+		 */
+		function setCaller(identity?: string): void {
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.User]: identity
+			});
+		}
+
+		beforeEach(async () => {
+			escalatedIdentities = [ESCALATED_IDENTITY];
+
+			mockAuthorizationComponent = {
+				hasRoleForSubject: vi.fn(
+					async (modelId: string, subject: string, role: string) =>
+						role === "global-admin" && escalatedIdentities.includes(subject)
+				)
+			} as unknown as IAuthorizationComponent;
+
+			vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
+				if (componentName === "authentication-audit") {
+					return mockAuthenticationAuditService;
+				}
+				if (componentName === "authorization") {
+					return mockAuthorizationComponent;
+				}
+				return undefined;
+			});
+			vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+
+			guardedService = new EntityStorageAuthenticationAdminService({
+				config: { minPasswordLength: 10 }
+			});
+
+			await userEntityStorage.set({
+				email: "admin@example.com",
+				password: "stored-password",
+				salt: "AQIDBA==",
+				identity: ESCALATED_IDENTITY,
+				organization: "did:org:456"
+			});
+			await userEntityStorage.set({
+				email: "plain@example.com",
+				password: "stored-password",
+				salt: "AQIDBA==",
+				identity: PLAIN_IDENTITY,
+				organization: "did:org:456"
+			});
+		});
+
+		it("should forbid removing an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(guardedService.remove("admin@example.com")).rejects.toMatchObject({
+				name: ForbiddenError.CLASS_NAME,
+				message: "entityStorageAuthenticationAdminService.insufficientRoleForEscalatedTarget"
+			});
+			expect(await userEntityStorage.get("admin@example.com")).toBeDefined();
+		});
+
+		it("should allow removing an escalated account when the caller is escalated", async () => {
+			escalatedIdentities.push(CALLER_IDENTITY);
+			setCaller(CALLER_IDENTITY);
+
+			await guardedService.remove("admin@example.com");
+
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+		});
+
+		it("should allow removing a plain account without checking the caller", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await guardedService.remove("plain@example.com");
+
+			expect(await userEntityStorage.get("plain@example.com")).toBeUndefined();
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledTimes(1);
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+				"system",
+				PLAIN_IDENTITY,
+				"global-admin"
+			);
+		});
+
+		it("should forbid modifying an escalated account when there is no caller", async () => {
+			setCaller(undefined);
+
+			await expect(guardedService.remove("admin@example.com")).rejects.toMatchObject({
+				name: ForbiddenError.CLASS_NAME
+			});
+		});
+
+		it("should forbid resetting the password of an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.updatePassword("admin@example.com", "new-password-123")
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("admin@example.com")).toMatchObject({
+				password: "stored-password"
+			});
+		});
+
+		it("should forbid updating an escalated account when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.update({ email: "admin@example.com", organizationIdentity: "did:org:789" })
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("admin@example.com")).toMatchObject({
+				organization: "did:org:456"
+			});
+		});
+
+		it("should forbid pointing an account at an escalated identity when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.update({ email: "plain@example.com", userIdentity: ESCALATED_IDENTITY })
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("plain@example.com")).toMatchObject({
+				identity: PLAIN_IDENTITY
+			});
+		});
+
+		it("should forbid creating an account for an escalated identity when the caller is not escalated", async () => {
+			setCaller(CALLER_IDENTITY);
+
+			await expect(
+				guardedService.create({
+					email: "new@example.com",
+					password: "correct-horse-battery",
+					userIdentity: ESCALATED_IDENTITY,
+					organizationIdentity: "did:org:456"
+				})
+			).rejects.toMatchObject({ name: ForbiddenError.CLASS_NAME });
+			expect(await userEntityStorage.get("new@example.com")).toBeUndefined();
+		});
+
+		it("should use the configured role and authorization model", async () => {
+			setCaller(CALLER_IDENTITY);
+			const customService = new EntityStorageAuthenticationAdminService({
+				config: { escalatedPrivilegeRole: "super-admin", authorizationModelId: "custom-model" }
+			});
+
+			await customService.remove("admin@example.com");
+
+			expect(mockAuthorizationComponent.hasRoleForSubject).toHaveBeenCalledWith(
+				"custom-model",
+				ESCALATED_IDENTITY,
+				"super-admin"
+			);
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+		});
+
+		it("should skip the guard when no authorization component is registered", async () => {
+			vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
+			setCaller(CALLER_IDENTITY);
+			const unguardedService = new EntityStorageAuthenticationAdminService();
+
+			await unguardedService.remove("admin@example.com");
+
+			expect(await userEntityStorage.get("admin@example.com")).toBeUndefined();
+			expect(mockAuthorizationComponent.hasRoleForSubject).not.toHaveBeenCalled();
 		});
 	});
 });

@@ -6,16 +6,12 @@ import {
 	tagsAuthenticationAdmin
 } from "./routes/entityStorageAuthenticationAdminRoutes.js";
 import {
-	generateRestRoutesAuthenticationAudit,
-	tagsAuthenticationAudit
-} from "./routes/entityStorageAuthenticationAuditRoutes.js";
-import {
 	generateRestRoutesAuthentication,
 	tagsAuthentication
 } from "./routes/entityStorageAuthenticationRoutes.js";
 
 /**
- * REST entry points for the authentication, authentication admin, and authentication audit services.
+ * REST entry points for the authentication and authentication admin services.
  */
 export const restEntryPoints: IRestRouteEntryPoint[] = [
 	{
@@ -29,11 +25,5 @@ export const restEntryPoints: IRestRouteEntryPoint[] = [
 		defaultBaseRoute: "authentication/admin",
 		tags: tagsAuthenticationAdmin,
 		generateRoutes: generateRestRoutesAuthenticationAdmin
-	},
-	{
-		name: "authenticationAudit",
-		defaultBaseRoute: "authentication/audit",
-		tags: tagsAuthenticationAudit,
-		generateRoutes: generateRestRoutesAuthenticationAudit
 	}
 ];

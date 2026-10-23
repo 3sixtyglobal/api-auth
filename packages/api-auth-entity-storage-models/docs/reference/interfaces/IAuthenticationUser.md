@@ -29,11 +29,3 @@ The user identity.
 > **organizationIdentity**: `string`
 
 The users organization.
-
-***
-
-### scope {#scope}
-
-> **scope**: `string`[]
-
-The scope assigned to the user, comma separated.

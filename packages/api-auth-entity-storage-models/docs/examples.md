@@ -47,8 +47,7 @@ const createRequest: IAdminUserCreateRequest = {
     email: 'bob@example.org',
     password: 'initial-password',
     userIdentity: 'did:example:bob',
-    organizationIdentity: 'did:example:org',
-    scope: ['admin', 'auditor']
+    organizationIdentity: 'did:example:org'
   }
 };
 
@@ -57,18 +56,20 @@ const updateRequest: IAdminUserUpdateRequest = {
     email: 'bob@example.org'
   },
   body: {
-    userIdentity: 'did:example:bob:ops',
-    scope: ['admin']
+    userIdentity: 'did:example:bob:ops'
   }
 };
 
-console.log(createRequest.body.scope.length); // 2
+console.log(updateRequest.body.userIdentity); // did:example:bob:ops
 ```
 
 ## Authentication Responses
 
 ```typescript
-import type { ILoginResponse } from '@3sixty/api-auth-entity-storage-models';
+import type {
+  ILoginResponse,
+  IPasswordPolicyResponse
+} from '@3sixty/api-auth-entity-storage-models';
 
 const loginResponse: ILoginResponse = {
   body: {
@@ -76,5 +77,13 @@ const loginResponse: ILoginResponse = {
   }
 };
 
+const passwordPolicyResponse: IPasswordPolicyResponse = {
+  body: {
+    minPasswordLength: 8,
+    maxPasswordLength: 128
+  }
+};
+
 console.log(loginResponse.body.expiry); // 3600
+console.log(passwordPolicyResponse.body.minPasswordLength); // 8
 ```

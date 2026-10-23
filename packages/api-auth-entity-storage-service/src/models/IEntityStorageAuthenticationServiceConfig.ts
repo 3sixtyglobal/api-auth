@@ -1,6 +1,6 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationRateActionConfig } from "@3sixty/api-auth-entity-storage-models";
+import type { IAuthenticationRateActionConfig } from "@3sixty/api-auth-models";
 
 /**
  * Configuration for the entity storage authentication service.
@@ -20,9 +20,15 @@ export interface IEntityStorageAuthenticationServiceConfig {
 
 	/**
 	 * The minimum password length for new password validation.
-	 * @default 8
+	 * @default 15
 	 */
 	minPasswordLength?: number;
+
+	/**
+	 * The maximum password length for new password validation.
+	 * @default 128
+	 */
+	maxPasswordLength?: number;
 
 	/**
 	 * Optional override for login failure rate limit.

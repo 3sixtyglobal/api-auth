@@ -5,12 +5,12 @@ import { entity, property } from "@3sixty/entity";
 /**
  * Class defining the storage for user login credentials.
  */
-@entity()
+@entity({ version: 1 })
 export class AuthenticationUser {
 	/**
 	 * The user e-mail address.
 	 */
-	@property({ type: "string", isPrimary: true })
+	@property({ type: "string", format: "email", isPrimary: true })
 	public email!: string;
 
 	/**
@@ -28,20 +28,14 @@ export class AuthenticationUser {
 	/**
 	 * The user identity.
 	 */
-	@property({ type: "string", isSecondary: true })
+	@property({ type: "string", maxLength: 255, isSecondary: true })
 	public identity!: string;
 
 	/**
 	 * The users organization.
 	 */
-	@property({ type: "string" })
+	@property({ type: "string", maxLength: 255 })
 	public organization!: string;
-
-	/**
-	 * The scope assigned to the user, comma separated.
-	 */
-	@property({ type: "string" })
-	public scope!: string;
 
 	/**
 	 * The password version counter, incremented on every password change to invalidate existing tokens.

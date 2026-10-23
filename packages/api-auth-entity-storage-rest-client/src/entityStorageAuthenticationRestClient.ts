@@ -5,12 +5,14 @@ import type {
 	ILoginRequest,
 	ILoginResponse,
 	ILogoutRequest,
+	IPasswordPolicyResponse,
+	IPasswordOptions,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IUpdatePasswordRequest
 } from "@3sixty/api-auth-entity-storage-models";
 import { BaseRestClient } from "@3sixty/api-core";
-import type { INoContentResponse } from "@3sixty/api-models";
+import type { INoContentRequest, INoContentResponse } from "@3sixty/api-models";
 import { Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { CookieHelper, HeaderTypes } from "@3sixty/web";
@@ -159,5 +161,15 @@ export class EntityStorageAuthenticationRestClient
 				newPassword
 			}
 		});
+	}
+
+	/**
+	 * Get the password policy used for password validation.
+	 * @returns The password policy options.
+	 */
+	public async passwordPolicy(): Promise<IPasswordOptions> {
+		const response = await this.fetch<INoContentRequest, IPasswordPolicyResponse>("/policy", "GET");
+
+		return response.body;
 	}
 }

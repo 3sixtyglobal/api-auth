@@ -13,10 +13,16 @@ export interface IEntityStorageAuthenticationAdminServiceConstructorOptions {
 	userEntityStorageType?: string;
 
 	/**
-	 * The audit service.
+	 * The audit component.
 	 * @default authentication-audit
 	 */
 	authenticationAuditServiceType?: string;
+
+	/**
+	 * The authorization component used to guard accounts with escalated privilege.
+	 * @default authorization
+	 */
+	authorizationComponentType?: string;
 
 	/**
 	 * The configuration for the authentication.

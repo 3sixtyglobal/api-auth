@@ -17,8 +17,7 @@ const PREFIX = "authentication/admin";
 const TEST_USER = {
 	email: "user@example.com",
 	userIdentity: "did:example:123456789abcdefghi",
-	organizationIdentity: "did:example:123456789abcdefghi",
-	scope: ["scope1", "scope2"]
+	organizationIdentity: "did:example:123456789abcdefghi"
 };
 
 const fetchMock = vi.fn();

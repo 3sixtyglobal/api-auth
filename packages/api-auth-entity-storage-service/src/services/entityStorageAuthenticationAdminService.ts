@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationAdminComponent,
-	IAuthenticationAuditComponent,
 	IAuthenticationUser
 } from "@3sixty/api-auth-entity-storage-models";
-import { AuthAuditEvent } from "@3sixty/api-auth-entity-storage-models";
+import { type IAuthenticationAuditComponent, AuthAuditEvent } from "@3sixty/api-auth-models";
+import { ForbiddenError, HttpContextIdKeys } from "@3sixty/api-models";
+import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
+	BaseError,
 	ComponentFactory,
 	Converter,
 	GeneralError,
@@ -36,22 +38,56 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	public static readonly CLASS_NAME: string = nameof<EntityStorageAuthenticationAdminService>();
 
 	/**
+	 * The default role that grants escalated privilege.
+	 */
+	public static readonly DEFAULT_ESCALATED_PRIVILEGE_ROLE: string = "global-admin";
+
+	/**
+	 * The default authorization model ID used to look up roles.
+	 */
+	public static readonly DEFAULT_AUTHORIZATION_MODEL_ID: string = "system";
+
+	/**
 	 * The entity storage for users.
 	 * @internal
 	 */
 	private readonly _userEntityStorage: IEntityStorageConnector<AuthenticationUser>;
 
 	/**
-	 * The audit service.
+	 * The audit component.
 	 * @internal
 	 */
 	private readonly _authenticationAuditService?: IAuthenticationAuditComponent;
+
+	/**
+	 * The authorization component used to guard accounts with escalated privilege.
+	 * @internal
+	 */
+	private readonly _authorizationComponent?: IAuthorizationComponent;
+
+	/**
+	 * The role that grants escalated privilege.
+	 * @internal
+	 */
+	private readonly _escalatedPrivilegeRole: string;
+
+	/**
+	 * The authorization model ID used to look up roles.
+	 * @internal
+	 */
+	private readonly _authorizationModelId: string;
 
 	/**
 	 * The minimum password length.
 	 * @internal
 	 */
 	private readonly _minPasswordLength?: number;
+
+	/**
+	 * The maximum password length.
+	 * @internal
+	 */
+	private readonly _maxPasswordLength?: number;
 
 	/**
 	 * Create a new instance of EntityStorageAuthentication.
@@ -66,7 +102,18 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			options?.authenticationAuditServiceType ?? "authentication-audit"
 		);
 
+		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+			options?.authorizationComponentType ?? "authorization"
+		);
+
 		this._minPasswordLength = options?.config?.minPasswordLength;
+		this._maxPasswordLength = options?.config?.maxPasswordLength;
+		this._escalatedPrivilegeRole =
+			options?.config?.escalatedPrivilegeRole ??
+			EntityStorageAuthenticationAdminService.DEFAULT_ESCALATED_PRIVILEGE_ROLE;
+		this._authorizationModelId =
+			options?.config?.authorizationModelId ??
+			EntityStorageAuthenticationAdminService.DEFAULT_AUTHORIZATION_MODEL_ID;
 	}
 
 	/**
@@ -108,21 +155,20 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			nameof(user.organizationIdentity),
 			user.organizationIdentity
 		);
-		Guards.array<string>(
-			EntityStorageAuthenticationAdminService.CLASS_NAME,
-			nameof(user.scope),
-			user.scope
-		);
 
 		try {
 			PasswordValidator.validatePassword(user.password, {
-				minLength: this._minPasswordLength
+				minLength: this._minPasswordLength,
+				maxLength: this._maxPasswordLength
 			});
 
 			const existingUser = await this._userEntityStorage.get(user.email);
 			if (Is.object<AuthenticationUser>(existingUser)) {
 				throw new GeneralError(EntityStorageAuthenticationAdminService.CLASS_NAME, "userExists");
 			}
+
+			// Roles belong to the identity, so a login mapped to an escalated identity inherits them.
+			await this.guardEscalatedPrivilegeTarget(user.userIdentity);
 
 			const saltBytes = RandomHelper.generate(16);
 			const passwordBytes = Converter.utf8ToBytes(user.password);
@@ -135,7 +181,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				password: hashedPassword,
 				identity: user.userIdentity,
 				organization: user.organizationIdentity,
-				scope: user.scope.map(s => s.trim().toLocaleLowerCase()).join(","),
 				passwordVersion: 0
 			};
 
@@ -143,6 +188,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: user.email,
 				event: AuthAuditEvent.AccountCreated,
@@ -150,10 +196,13 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: user.userIdentity,
 					organizationIdentity: user.organizationIdentity,
 					tenantId: requestorTenantId,
-					scope: user.scope
+					originalTenantId
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"createUserFailed",
@@ -194,13 +243,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				user.organizationIdentity
 			);
 		}
-		if (!Is.empty(user.scope)) {
-			Guards.array<string>(
-				EntityStorageAuthenticationAdminService.CLASS_NAME,
-				nameof(user.scope),
-				user.scope
-			);
-		}
 
 		try {
 			const existingUser = await this._userEntityStorage.get(user.email);
@@ -212,10 +254,12 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(existingUser.identity);
+			if (Is.stringValue(user.userIdentity) && user.userIdentity !== existingUser.identity) {
+				await this.guardEscalatedPrivilegeTarget(user.userIdentity);
+			}
+
 			const updatedFields: string[] = [];
-			const updatedScope = Is.array(user.scope)
-				? user.scope.map(s => s.trim().toLocaleLowerCase()).join(",")
-				: existingUser.scope;
 
 			if (user.userIdentity !== undefined && user.userIdentity !== existingUser.identity) {
 				updatedFields.push("userIdentity");
@@ -226,18 +270,15 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			) {
 				updatedFields.push("organizationIdentity");
 			}
-			if (Is.array(user.scope) && updatedScope !== existingUser.scope) {
-				updatedFields.push("scope");
-			}
 
 			existingUser.identity = user.userIdentity ?? existingUser.identity;
 			existingUser.organization = user.organizationIdentity ?? existingUser.organization;
-			existingUser.scope = Is.array(user.scope) ? updatedScope : existingUser.scope;
 
 			await this._userEntityStorage.set(existingUser);
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: existingUser.email,
 				event: AuthAuditEvent.AccountUpdated,
@@ -246,10 +287,13 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: existingUser.identity,
 					organizationIdentity: existingUser.organization,
 					tenantId: requestorTenantId,
-					scope: existingUser.scope.split(",")
+					originalTenantId
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"updateUserFailed",
@@ -280,8 +324,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			return {
 				email: user.email,
 				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
+				organizationIdentity: user.organization
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -318,8 +361,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			return {
 				email: user.email,
 				userIdentity: user.identity,
-				organizationIdentity: user.organization,
-				scope: user.scope.split(",")
+				organizationIdentity: user.organization
 			};
 		} catch (error) {
 			throw new GeneralError(
@@ -349,10 +391,13 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(user.identity);
+
 			await this._userEntityStorage.remove(email);
 
 			const contextIds = await ContextIdStore.getContextIds();
 			const requestorTenantId = contextIds?.[ContextIdKeys.Tenant];
+			const originalTenantId = contextIds?.[HttpContextIdKeys.OriginalTenant];
 			await this._authenticationAuditService?.create({
 				actorId: email,
 				event: AuthAuditEvent.AccountDeleted,
@@ -360,10 +405,13 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					userIdentity: user.identity,
 					organizationIdentity: user.organization,
 					tenantId: requestorTenantId,
-					scope: user.scope.split(",")
+					originalTenantId
 				}
 			});
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"removeUserFailed",
@@ -402,20 +450,67 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				);
 			}
 
+			await this.guardEscalatedPrivilegeTarget(user.identity);
+
 			await PasswordHelper.updatePassword(
 				this._userEntityStorage,
 				this._authenticationAuditService,
 				user,
 				newPassword,
 				currentPassword,
-				this._minPasswordLength
+				{
+					minPasswordLength: this._minPasswordLength,
+					maxPasswordLength: this._maxPasswordLength
+				}
 			);
 		} catch (error) {
+			if (BaseError.isErrorName(error, ForbiddenError.CLASS_NAME)) {
+				throw error;
+			}
 			throw new GeneralError(
 				EntityStorageAuthenticationAdminService.CLASS_NAME,
 				"updatePasswordFailed",
 				undefined,
 				error
+			);
+		}
+	}
+
+	/**
+	 * Ensure the caller holds escalated privilege when the target identity holds it.
+	 * @param targetIdentity The identity of the account being modified.
+	 * @throws ForbiddenError if the target holds escalated privilege and the caller does not.
+	 * @internal
+	 */
+	private async guardEscalatedPrivilegeTarget(targetIdentity: string): Promise<void> {
+		if (Is.empty(this._authorizationComponent)) {
+			return;
+		}
+
+		const targetIsEscalated = await this._authorizationComponent.hasRoleForSubject(
+			this._authorizationModelId,
+			targetIdentity,
+			this._escalatedPrivilegeRole
+		);
+		if (!targetIsEscalated) {
+			return;
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		const callerIdentity = contextIds?.[ContextIdKeys.User];
+		const callerIsEscalated =
+			Is.stringValue(callerIdentity) &&
+			(await this._authorizationComponent.hasRoleForSubject(
+				this._authorizationModelId,
+				callerIdentity,
+				this._escalatedPrivilegeRole
+			));
+
+		if (!callerIsEscalated) {
+			throw new ForbiddenError(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				"insufficientRoleForEscalatedTarget",
+				{ roleName: this._escalatedPrivilegeRole }
 			);
 		}
 	}

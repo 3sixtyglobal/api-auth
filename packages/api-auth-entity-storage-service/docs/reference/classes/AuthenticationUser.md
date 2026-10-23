@@ -54,14 +54,6 @@ The users organization.
 
 ***
 
-### scope {#scope}
-
-> **scope**: `string`
-
-The scope assigned to the user, comma separated.
-
-***
-
 ### passwordVersion? {#passwordversion}
 
 > `optional` **passwordVersion?**: `number`
