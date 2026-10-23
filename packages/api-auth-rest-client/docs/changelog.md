@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.1](https://github.com/3sixtyglobal/api-auth/compare/api-auth-rest-client-v0.20.0-next.0...api-auth-rest-client-v0.20.0-next.1) (2026-10-23)
+
+
+### Features
+
+* authorization ([#3](https://github.com/3sixtyglobal/api-auth/issues/3)) ([5688693](https://github.com/3sixtyglobal/api-auth/commit/568869364065b9d2c82c5c17c81f07cbdc64ec8b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.0 to 0.20.0-next.1
+
 ## [0.9.2-next.7](https://github.com/iotaledger/twin-api/compare/api-auth-entity-storage-rest-client-v0.9.2-next.6...api-auth-entity-storage-rest-client-v0.9.2-next.7) (2026-08-12)
 
 
