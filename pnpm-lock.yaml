@@ -294,7 +294,7 @@ importers:
   packages/api-auth-entity-storage-rest-client:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.0
+        specifier: 0.20.0-next.1
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-core':
         specifier: next
@@ -355,10 +355,10 @@ importers:
   packages/api-auth-entity-storage-service:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.0
+        specifier: 0.20.0-next.1
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.0
+        specifier: 0.20.0-next.1
         version: link:../api-auth-models
       '@3sixty/api-models':
         specifier: next
@@ -489,7 +489,7 @@ importers:
   packages/api-auth-rest-client:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.0
+        specifier: 0.20.0-next.1
         version: link:../api-auth-models
       '@3sixty/api-core':
         specifier: next
@@ -550,7 +550,7 @@ importers:
   packages/api-auth-service:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.0
+        specifier: 0.20.0-next.1
         version: link:../api-auth-models
       '@3sixty/api-models':
         specifier: next
