@@ -255,7 +255,7 @@ const tsRestrictedSyntaxCommon = [
 	},
 	{
 		selector: "NewExpression[callee.name='RangeError']",
-		message: 'new RangeError is disallowed; use Guards and Validation from @twin.org/core instead'
+		message: 'new RangeError is disallowed; use Guards and Validation from @3sixty/core instead'
 	},
 	{
 		selector: "MemberExpression[object.name='process'][property.name='env']",
@@ -317,7 +317,7 @@ const tsRestrictedSyntax = [
 	{
 		selector:
 			":matches(BinaryExpression[operator='==='], BinaryExpression[operator='!=='], BinaryExpression[operator='=='], BinaryExpression[operator='!=']) > UnaryExpression[operator='typeof']",
-		message: 'Avoid runtime typeof comparisons. Use the @twin.org/core Is.* methods instead.'
+		message: 'Avoid runtime typeof comparisons. Use the @3sixty/core Is.* methods instead.'
 	},
 	{
 		selector:
@@ -674,7 +674,7 @@ if (customModule?.extendRules) {
 const config = [
 	// Global ignores
 	{
-		ignores: ['**/dist/**', '**/coverage/**', '**/vitest.config.ts.timestamp*']
+		ignores: ['**/dist/**', '**/coverage/**', '**/vitest.config.ts.timestamp*', '**/.tmp/**']
 	},
 
 	// Repository structure naming validation.
