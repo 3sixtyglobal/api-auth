@@ -1,12 +1,6 @@
 // Copyright 2026 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-const randomUUID = vi.hoisted(() => vi.fn(() => "user-1"));
-vi.mock("node:crypto", async importOriginal => {
-	const actual = (await importOriginal()) as { [key: string]: unknown };
-	return { ...actual, randomUUID };
-});
-
 import type { IAuthenticationAuditComponent } from "@3sixty/api-auth-models";
 import { ForbiddenError } from "@3sixty/api-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
@@ -29,8 +23,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 
 	beforeEach(() => {
 		vi.restoreAllMocks();
-		randomUUID.mockReset();
-		randomUUID.mockReturnValue("user-1");
+		vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("user-1");
 
 		mockAuthenticationAuditService = {
 			className: vi.fn().mockReturnValue("AuthenticationAuditService"),
@@ -162,7 +155,9 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
 		vi.spyOn(RandomHelper, "generate").mockReturnValue(new Uint8Array([1, 2, 3, 4]));
 		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("hashed-password");
-		randomUUID.mockReturnValueOnce("user-1").mockReturnValueOnce("user-2");
+		vi.spyOn(RandomHelper, "generateUuidV7")
+			.mockReturnValueOnce("user-1")
+			.mockReturnValueOnce("user-2");
 
 		await ContextIdStore.run({ [ContextIdKeys.Organization]: "did:org:node" }, async () => {
 			await service.create({

@@ -22,6 +22,7 @@ import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
 import { PasswordHelper } from "../../src/utils/passwordHelper.js";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";
+import { migrateAuthenticationUser } from "../helpers/migrateAuthenticationUser.js";
 
 initSchema();
 
@@ -136,6 +137,49 @@ describe("EntityStorageAuthenticationService", () => {
 				tenantId: "tenant-1"
 			}
 		});
+	});
+
+	it("should login a stored account with the id allocated by migration", async () => {
+		const migrated = await migrateAuthenticationUser(
+			{
+				email: "user@example.com",
+				password: "stored-password-hash",
+				salt: "c2FsdA==",
+				identity: "did:user:123",
+				organization: "did:org:456",
+				scope: "read"
+			},
+			0
+		);
+		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+			[ContextIdKeys.Node]: "node-1",
+			[ContextIdKeys.Tenant]: "tenant-1"
+		});
+		vi.mocked(mockUserEntityStorage.get).mockResolvedValue(migrated);
+		vi.spyOn(PasswordGenerator, "hashPassword").mockResolvedValue("generated-password-hash");
+		vi.spyOn(PasswordValidator, "comparePasswordHashes").mockReturnValue(true);
+		vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
+			token: "jwt-token",
+			expiry: 123456789
+		});
+
+		await service.start();
+		await service.login("user@example.com", "correct-password");
+
+		expect(migrated.userId).toEqual(expect.any(String));
+		expect(migrated.userId).not.toBe("did:user:123");
+		expect(migrated.identity).toBe("did:user:123");
+		expect(migrated).not.toHaveProperty("scope");
+		expect(TokenHelper.createToken).toHaveBeenCalledWith(
+			mockVaultConnector,
+			"node-1",
+			"auth-signing",
+			migrated.userId,
+			"did:org:456",
+			"tenant-1",
+			60,
+			0
+		);
 	});
 
 	it("should login with the account id when the account has no DID", async () => {

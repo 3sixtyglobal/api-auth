@@ -6,7 +6,7 @@ import { entity, property } from "@3sixty/entity";
 /**
  * Class defining the storage for user login credentials.
  */
-@entity({ version: 1 })
+@entity({ version: 2 })
 export class AuthenticationUser {
 	/**
 	 * The user e-mail address.
