@@ -197,7 +197,8 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		requiresAuthorization: false
 	};
 
 	const adoptIdentityRoute: IRestRoute<INoContentRequest, INoContentResponse> = {
@@ -218,7 +219,8 @@ export function generateRestRoutesAuthentication(
 			{
 				type: nameof<IUnauthorizedResponse>()
 			}
-		]
+		],
+		requiresAuthorization: false
 	};
 
 	const passwordPolicyRoute: IRestRoute<INoContentRequest, IPasswordPolicyResponse> = {

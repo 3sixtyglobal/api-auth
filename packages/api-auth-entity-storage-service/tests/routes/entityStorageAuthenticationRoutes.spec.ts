@@ -9,7 +9,10 @@ import {
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import { HeaderTypes } from "@3sixty/web";
 import { AuthHeaderProcessor } from "../../src/processors/authHeaderProcessor.js";
-import { authenticationAdoptIdentity } from "../../src/routes/entityStorageAuthenticationRoutes.js";
+import {
+	authenticationAdoptIdentity,
+	generateRestRoutesAuthentication
+} from "../../src/routes/entityStorageAuthenticationRoutes.js";
 
 describe("authenticationAdoptIdentity", () => {
 	beforeEach(() => {
@@ -75,5 +78,20 @@ describe("authenticationAdoptIdentity", () => {
 
 		expect(result.statusCode).toBe(204);
 		expect(response.headers?.[HeaderTypes.SetCookie]).toBeUndefined();
+	});
+});
+
+describe("authentication routes before a DID exists", () => {
+	it("should stay authenticated without an authorization subject", () => {
+		const routes = generateRestRoutesAuthentication("/authentication", "authentication");
+		const updatePassword = routes.find(
+			route => route.operationId === "authenticationUpdatePassword"
+		);
+		const adoptIdentity = routes.find(route => route.operationId === "authenticationAdoptIdentity");
+
+		expect(updatePassword?.requiresAuthorization).toBe(false);
+		expect(updatePassword?.skipAuth).toBeUndefined();
+		expect(adoptIdentity?.requiresAuthorization).toBe(false);
+		expect(adoptIdentity?.skipAuth).toBeUndefined();
 	});
 });

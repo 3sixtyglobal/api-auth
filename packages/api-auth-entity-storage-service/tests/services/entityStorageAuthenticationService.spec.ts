@@ -17,7 +17,6 @@ import {
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
-import type { IIdentityAdoption } from "../../src/models/IIdentityAdoption.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
 import { PasswordHelper } from "../../src/utils/passwordHelper.js";
@@ -596,7 +595,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 	it("should update the password for the current user", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "user-1"
+			[ContextIdKeys.Account]: "user-1"
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
@@ -625,7 +624,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 	it("should throw TooManyRequestsError when password change rate limit is exceeded", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "user-1"
+			[ContextIdKeys.Account]: "user-1"
 		});
 		vi.mocked(mockAuthenticationRateService.check).mockRejectedValue(
 			new TooManyRequestsError(
@@ -645,7 +644,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 	it("should throw NotFoundError when updating the password for an unknown user", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "did:user:missing"
+			[ContextIdKeys.Account]: "user-missing"
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue(undefined);
 
@@ -657,7 +656,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 	it("should logout without throwing", async () => {
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.User]: "user-1"
+			[ContextIdKeys.Account]: "user-1"
 		});
 
 		await expect(service.logout("token")).resolves.toBeUndefined();
@@ -789,7 +788,7 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.spyOn(PasswordHelper, "updatePassword").mockResolvedValue(undefined);
 
 			await ContextIdStore.run(
-				{ [ContextIdKeys.Tenant]: TENANT_A, [ContextIdKeys.User]: "user-1" },
+				{ [ContextIdKeys.Tenant]: TENANT_A, [ContextIdKeys.Account]: "user-1" },
 				async () => {
 					await userEntityStorage.set({
 						email: "user@example.com",
@@ -827,7 +826,7 @@ describe("EntityStorageAuthenticationService", () => {
 			});
 
 			await ContextIdStore.run(
-				{ [ContextIdKeys.Tenant]: TENANT_B, [ContextIdKeys.User]: "user-1" },
+				{ [ContextIdKeys.Tenant]: TENANT_B, [ContextIdKeys.Account]: "user-1" },
 				async () => {
 					await expect(service.updatePassword("current-password", "new-password")).rejects.toThrow(
 						NotFoundError
@@ -1023,13 +1022,17 @@ describe("EntityStorageAuthenticationService", () => {
 	describe("adoptIdentity", () => {
 		const mnemonic = "abandon abandon abandon abandon abandon abandon";
 		const documentId = "did:iota:tst:abc";
-		let identity: IIdentityAdoption;
+		let identity: {
+			className: () => string;
+			identityCreate: ReturnType<typeof vi.fn>;
+			identityRemove: ReturnType<typeof vi.fn>;
+		};
 		let user: AuthenticationUser;
 
 		beforeEach(async () => {
 			identity = {
 				className: vi.fn().mockReturnValue("IdentityService"),
-				identityCreateSelf: vi.fn().mockResolvedValue({ id: documentId, mnemonic }),
+				identityCreate: vi.fn().mockResolvedValue({ id: documentId, mnemonic }),
 				identityRemove: vi.fn().mockResolvedValue(undefined)
 			};
 			user = {
@@ -1053,7 +1056,7 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
 				[ContextIdKeys.Node]: "node-1",
 				[ContextIdKeys.Tenant]: "tenant-1",
-				[ContextIdKeys.User]: "user-1"
+				[ContextIdKeys.Account]: "user-1"
 			});
 			vi.mocked(mockUserEntityStorage.get).mockResolvedValue(user);
 			vi.spyOn(TokenHelper, "createToken").mockResolvedValue({
@@ -1066,7 +1069,9 @@ describe("EntityStorageAuthenticationService", () => {
 		it("should store the DID on the account and leave the token subject unchanged", async () => {
 			const result = await service.adoptIdentity();
 
-			expect(vi.mocked(identity.identityCreateSelf)).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(identity.identityCreate)).toHaveBeenCalledWith(undefined, undefined, {
+				selfControlled: true
+			});
 			expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 			expect(mockUserEntityStorage.set).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -1099,23 +1104,23 @@ describe("EntityStorageAuthenticationService", () => {
 			user.identity = "did:iota:tst:existing";
 			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
 				[ContextIdKeys.Node]: "node-1",
-				[ContextIdKeys.User]: "user-1"
+				[ContextIdKeys.Account]: "user-1"
 			});
 
 			await expect(service.adoptIdentity()).rejects.toBeInstanceOf(ConflictError);
-			expect(vi.mocked(identity.identityCreateSelf)).not.toHaveBeenCalled();
+			expect(vi.mocked(identity.identityCreate)).not.toHaveBeenCalled();
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
 			expect(user.identity).toBe("did:iota:tst:existing");
 		});
 
 		it("should leave the stored identity unchanged when identity create throws", async () => {
-			vi.mocked(identity.identityCreateSelf).mockRejectedValue(new Error("publish failed"));
+			vi.mocked(identity.identityCreate).mockRejectedValue(new Error("publish failed"));
 
 			await expect(service.adoptIdentity()).rejects.toThrow("publish failed");
 			expect(mockUserEntityStorage.set).not.toHaveBeenCalled();
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
 			expect(user.identity).toBeUndefined();
-			expect(JSON.stringify(vi.mocked(identity.identityCreateSelf).mock.results)).not.toContain(
+			expect(JSON.stringify(vi.mocked(identity.identityCreate).mock.results)).not.toContain(
 				"token"
 			);
 		});
@@ -1126,7 +1131,7 @@ describe("EntityStorageAuthenticationService", () => {
 			await expect(service.adoptIdentity()).rejects.toThrow("save failed");
 			expect(vi.mocked(identity.identityRemove)).toHaveBeenCalledWith(
 				documentId,
-				{ removeKeys: true },
+				{ removeKeys: true, removeDocumentKey: true },
 				documentId
 			);
 			expect(TokenHelper.createToken).not.toHaveBeenCalled();
@@ -1135,7 +1140,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 		it("should keep a recorded mnemonic out of the failure", async () => {
 			const created = { id: "not-a-did", mnemonic };
-			vi.mocked(identity.identityCreateSelf).mockResolvedValue(created);
+			vi.mocked(identity.identityCreate).mockResolvedValue(created);
 
 			const rejection = await service.adoptIdentity().then(
 				() => "",

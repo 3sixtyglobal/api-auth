@@ -29,11 +29,11 @@ import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
 } from "@3sixty/entity-storage-models";
+import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../models/IEntityStorageAuthenticationServiceConstructorOptions.js";
-import type { IIdentityAdoption } from "../models/IIdentityAdoption.js";
 import { PasswordHelper } from "../utils/passwordHelper.js";
 import { TokenHelper } from "../utils/tokenHelper.js";
 
@@ -182,7 +182,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * The identity component used to create a self-controlled DID.
 	 * @internal
 	 */
-	private readonly _identityComponent?: IIdentityAdoption;
+	private readonly _identityComponent?: IIdentityComponent;
 
 	/**
 	 * The node identity.
@@ -213,7 +213,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			options?.tenantAdminComponentType ?? "tenant-admin"
 		);
 
-		this._identityComponent = ComponentFactory.getIfExists<IIdentityAdoption>(
+		this._identityComponent = ComponentFactory.getIfExists<IIdentityComponent>(
 			options?.identityComponentType ?? "identity-service"
 		);
 
@@ -402,8 +402,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		}
 
 		const contextIds = await ContextIdStore.getContextIds();
-		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
-		const subject = contextIds[ContextIdKeys.User];
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
+		const subject = contextIds[ContextIdKeys.Account];
 
 		const user = await this._userEntityStorage.get(subject, "userId");
 		if (!Is.object<AuthenticationUser>(user) || user.userId !== subject) {
@@ -424,14 +424,16 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await this._authenticationRateService.check("identity-adopt", subject);
 
 		const identityComponent = this._identityComponent;
-		if (!Is.object<IIdentityAdoption>(identityComponent)) {
+		if (!Is.object<IIdentityComponent>(identityComponent)) {
 			throw new GeneralError(
 				EntityStorageAuthenticationService.CLASS_NAME,
 				"identityComponentMissing"
 			);
 		}
 
-		const created = await identityComponent.identityCreateSelf();
+		const created = await identityComponent.identityCreate(undefined, undefined, {
+			selfControlled: true
+		});
 		const documentId = created.id;
 		if (!Is.stringValue(documentId) || !documentId.startsWith("did:")) {
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "identityCreateFailed");
@@ -443,7 +445,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				identity: documentId
 			});
 		} catch (error) {
-			await identityComponent.identityRemove(documentId, { removeKeys: true }, documentId);
+			await identityComponent.identityRemove(
+				documentId,
+				{ removeKeys: true, removeDocumentKey: true },
+				documentId
+			);
 			throw error;
 		}
 
@@ -467,7 +473,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		// Nothing to do here, as we are stateless.
 		// The cookie will be revoked by the REST route handling
 		const contextIds = await ContextIdStore.getContextIds();
-		const identifier = contextIds?.[ContextIdKeys.User];
+		const identifier = contextIds?.[ContextIdKeys.Account];
 		if (Is.stringValue(identifier)) {
 			await this._authenticationAuditService?.create({
 				actorId: identifier,
@@ -572,9 +578,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 */
 	public async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
 		const contextIds = await ContextIdStore.getContextIds();
-		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
 
-		const userId = contextIds[ContextIdKeys.User];
+		const userId = contextIds[ContextIdKeys.Account];
 		await this._authenticationRateService.check("password-change", userId);
 
 		const user = await this._userEntityStorage.get(userId, "userId");

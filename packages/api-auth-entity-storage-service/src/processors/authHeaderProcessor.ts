@@ -208,7 +208,16 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 				// in a single-tenant environment we fall back to the node organization ID.
 				contextIds[ContextIdKeys.Organization] =
 					tokenContext.tenantOrganizationId ?? this._nodeOrganizationId;
-				contextIds[ContextIdKeys.User] = tokenContext.userIdentity;
+				if (Is.stringValue(tokenContext.userIdentity)) {
+					contextIds[ContextIdKeys.Account] = tokenContext.userIdentity;
+				} else {
+					delete contextIds[ContextIdKeys.Account];
+				}
+				if (Is.stringValue(tokenContext.identity) && tokenContext.identity.startsWith("did:")) {
+					contextIds[ContextIdKeys.User] = tokenContext.identity;
+				} else {
+					delete contextIds[ContextIdKeys.User];
+				}
 				contextIds[ContextIdKeys.UserOrganization] = tokenContext.userOrganization;
 
 				// If the tenant has a custom public origin, we set it in the context for downstream processors to use.
@@ -389,6 +398,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			tenantOrganizationId,
 			tenantPublicOrigin,
 			userIdentity: user?.userId,
+			identity: Is.stringValue(user?.identity) ? user.identity : undefined,
 			userOrganization: user?.organization,
 			expires: Is.integer(expiresSeconds) ? expiresSeconds * 1000 : undefined
 		};

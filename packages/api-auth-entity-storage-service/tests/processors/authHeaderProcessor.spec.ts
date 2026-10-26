@@ -91,10 +91,52 @@ describe("AuthHeaderProcessor", () => {
 		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
 
 		expect(response.statusCode).toBeUndefined();
-		expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
 		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
+	});
+
+	it("should set the account key only when the user has no DID", async () => {
+		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+			[ContextIdKeys.Node]: "node-1",
+			[ContextIdKeys.Organization]: "did:org:456"
+		});
+		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
+			email: "user@example.com",
+			userId: "user-1",
+			organization: "did:org:456",
+			password: "hashed",
+			salt: "salt",
+			passwordVersion: 0
+		});
+		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
+			token: "jwt",
+			location: "authorization"
+		});
+		vi.spyOn(TokenHelper, "verify").mockImplementation(
+			async (vault, nodeId, key, token, verifyUser) => {
+				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
+				expect(verified).toEqual(["user", "organization"]);
+				return {
+					header: { alg: "EdDSA" },
+					payload: { sub: "user-1", org: "did:org:456" }
+				};
+			}
+		);
+
+		await processor.start();
+
+		const contextIds: IContextIds = {
+			[ContextIdKeys.User]: "did:user:stale"
+		};
+		const response: IHttpResponse = {};
+		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
+
+		expect(response.statusCode).toBeUndefined();
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
 	});
 
 	it("should set tenant context from token when tenantAdminComponent is configured", async () => {
@@ -146,7 +188,8 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe("tenant-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 	});
 
@@ -177,6 +220,7 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(buildResponseSpy).toHaveBeenCalled();
 		expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
+		expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
 	});
 
@@ -251,6 +295,7 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(buildResponseSpy).toHaveBeenCalled();
 		expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
+		expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
 		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
 	});
@@ -291,7 +336,8 @@ describe("AuthHeaderProcessor", () => {
 		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
 
 		expect(response.statusCode).toBeUndefined();
-		expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
 		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
@@ -337,6 +383,7 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(buildResponseSpy).toHaveBeenCalled();
 		expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
+		expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
 	});
 
@@ -392,7 +439,8 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe("tenant-a");
-		expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 	});
 
@@ -434,7 +482,8 @@ describe("AuthHeaderProcessor", () => {
 		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
 
 		expect(response.statusCode).toBeUndefined();
-		expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
 		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 		expect(contextIds[ContextIdKeys.Tenant]).toBeUndefined();
@@ -690,7 +739,8 @@ describe("AuthHeaderProcessor", () => {
 			for (let i = 0; i < 3; i++) {
 				const { response, contextIds } = await runRequest(authProcessor);
 				expect(response.statusCode).toBeUndefined();
-				expect(contextIds[ContextIdKeys.User]).toBe("user-1");
+				expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+				expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 				expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 			}
 
