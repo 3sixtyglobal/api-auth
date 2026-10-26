@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IAuthenticationRateActionConfig } from "@3sixty/api-auth-models";
 
@@ -47,4 +48,10 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	 * @default { maxAttempts: 30, windowMinutes: 60 }
 	 */
 	tokenRefreshRateLimit?: IAuthenticationRateActionConfig;
+
+	/**
+	 * Optional override for identity adoption rate limit.
+	 * @default { maxAttempts: 5, windowMinutes: 15 }
+	 */
+	identityAdoptRateLimit?: IAuthenticationRateActionConfig;
 }

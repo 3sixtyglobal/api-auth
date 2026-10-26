@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAdminUserCreateRequest,
@@ -84,6 +85,17 @@ export function generateRestRoutesAuthenticationAdmin(
 							password: "MyPassword123!",
 							userIdentity: "did:example:123456789abcdefghi",
 							organizationIdentity: "did:example:123456789abcdefghi"
+						}
+					}
+				},
+				{
+					id: "createUserWithoutIdentityRequestExample",
+					description:
+						"The request to create a user before a DID exists. The service allocates an account id and stores the context organisation as the organisation.",
+					request: {
+						body: {
+							email: "user@example.com",
+							password: "MyPassword123!"
 						}
 					}
 				}
@@ -205,6 +217,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						response: {
 							body: {
 								email: "user@example.com",
+								userId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
 								userIdentity: "did:example:123456789abcdefghi",
 								organizationIdentity: "did:example:123456789abcdefghi"
 							}
@@ -252,6 +265,7 @@ export function generateRestRoutesAuthenticationAdmin(
 							response: {
 								body: {
 									email: "user@example.com",
+									userId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
 									userIdentity: "did:example:123456789abcdefghi",
 									organizationIdentity: "did:example:123456789abcdefghi"
 								}

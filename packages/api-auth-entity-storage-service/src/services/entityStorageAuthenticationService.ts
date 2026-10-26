@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationComponent,
@@ -15,6 +16,7 @@ import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@3sixty/context"
 import {
 	Coerce,
 	ComponentFactory,
+	ConflictError,
 	Converter,
 	GeneralError,
 	Guards,
@@ -27,6 +29,7 @@ import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
 } from "@3sixty/entity-storage-models";
+import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
@@ -84,6 +87,18 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @internal
 	 */
 	private static readonly _DEFAULT_TOKEN_REFRESH_RATE_WINDOW_MINUTES: number = 60;
+
+	/**
+	 * Default maximum identity adoption attempts in a rate window.
+	 * @internal
+	 */
+	private static readonly _DEFAULT_IDENTITY_ADOPT_RATE_MAX_ATTEMPTS: number = 5;
+
+	/**
+	 * Default identity adoption rate window in minutes.
+	 * @internal
+	 */
+	private static readonly _DEFAULT_IDENTITY_ADOPT_RATE_WINDOW_MINUTES: number = 15;
 
 	/**
 	 * The audit service.
@@ -152,10 +167,22 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _tokenRefreshRateLimit: IAuthenticationRateActionConfig;
 
 	/**
+	 * Rate limit configuration for identity adoption.
+	 * @internal
+	 */
+	private readonly _identityAdoptRateLimit: IAuthenticationRateActionConfig;
+
+	/**
 	 * The component to retrieve tenant information.
 	 * @internal
 	 */
 	private readonly _tenantAdminComponent?: ITenantAdminComponent;
+
+	/**
+	 * The identity component used to create a self-controlled DID.
+	 * @internal
+	 */
+	private readonly _identityComponent?: IIdentityComponent;
 
 	/**
 	 * The node identity.
@@ -184,6 +211,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 		this._tenantAdminComponent = ComponentFactory.getIfExists<ITenantAdminComponent>(
 			options?.tenantAdminComponentType ?? "tenant-admin"
+		);
+
+		this._identityComponent = ComponentFactory.getIfExists<IIdentityComponent>(
+			options?.identityComponentType ?? "identity-service"
 		);
 
 		this._signingKeyName = options?.config?.signingKeyName ?? "auth-signing";
@@ -215,6 +246,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				options?.config?.tokenRefreshRateLimit?.windowMinutes ??
 				EntityStorageAuthenticationService._DEFAULT_TOKEN_REFRESH_RATE_WINDOW_MINUTES
 		};
+		this._identityAdoptRateLimit = {
+			maxAttempts:
+				options?.config?.identityAdoptRateLimit?.maxAttempts ??
+				EntityStorageAuthenticationService._DEFAULT_IDENTITY_ADOPT_RATE_MAX_ATTEMPTS,
+			windowMinutes:
+				options?.config?.identityAdoptRateLimit?.windowMinutes ??
+				EntityStorageAuthenticationService._DEFAULT_IDENTITY_ADOPT_RATE_WINDOW_MINUTES
+		};
 	}
 
 	/**
@@ -244,6 +283,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			"token-refresh",
 			this._tokenRefreshRateLimit
 		);
+		await this._authenticationRateService.registerAction(
+			"identity-adopt",
+			this._identityAdoptRateLimit
+		);
 	}
 
 	/**
@@ -255,6 +298,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await this._authenticationRateService.unregisterAction("login");
 		await this._authenticationRateService.unregisterAction("password-change");
 		await this._authenticationRateService.unregisterAction("token-refresh");
+		await this._authenticationRateService.unregisterAction("identity-adopt");
 	}
 
 	/**
@@ -308,7 +352,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				this._vaultConnector,
 				this._nodeId,
 				this._signingKeyName,
-				user.identity,
+				user.userId,
 				user.organization,
 				loginTenantId,
 				this._defaultTtlMinutes,
@@ -335,13 +379,89 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			actorId: email,
 			event: AuthAuditEvent.LoginSuccess,
 			data: {
-				userIdentity: loginUser.identity,
+				userId: loginUser.userId,
+				userIdentity: Is.stringValue(loginUser.identity) ? loginUser.identity : undefined,
 				organizationIdentity: loginUser.organization,
 				tenantId: loginTenantId
 			}
 		});
 
 		return tokenAndExpiry;
+	}
+
+	/**
+	 * Attach a DID to the signed-in account. The token subject stays the account id.
+	 * @returns A promise that resolves when the DID has been stored.
+	 * @throws NotFoundError When the signed-in user cannot be loaded.
+	 * @throws ConflictError When the user already has a DID.
+	 * @throws GeneralError When the node or the identity component is not available, or the new document id is not a DID.
+	 */
+	public async adoptIdentity(): Promise<void> {
+		if (!Is.stringValue(this._nodeId)) {
+			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
+		}
+
+		const contextIds = await ContextIdStore.getContextIds();
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
+		const subject = contextIds[ContextIdKeys.Account];
+
+		const user = await this._userEntityStorage.get(subject, "userId");
+		if (!Is.object<AuthenticationUser>(user) || user.userId !== subject) {
+			throw new NotFoundError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"userNotFound",
+				subject
+			);
+		}
+
+		if (user.identity?.startsWith("did:")) {
+			throw new ConflictError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"identityAlreadyAssigned"
+			);
+		}
+
+		await this._authenticationRateService.check("identity-adopt", subject);
+
+		const identityComponent = this._identityComponent;
+		if (!Is.object<IIdentityComponent>(identityComponent)) {
+			throw new GeneralError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"identityComponentMissing"
+			);
+		}
+
+		const created = await identityComponent.identityCreate(undefined, undefined, {
+			selfControlled: true
+		});
+		const documentId = created.id;
+		if (!Is.stringValue(documentId) || !documentId.startsWith("did:")) {
+			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "identityCreateFailed");
+		}
+
+		try {
+			await this._userEntityStorage.set({
+				...user,
+				identity: documentId
+			});
+		} catch (error) {
+			await identityComponent.identityRemove(
+				documentId,
+				{ removeKeys: true, removeDocumentKey: true },
+				documentId
+			);
+			throw error;
+		}
+
+		await this._authenticationAuditService?.create({
+			actorId: user.userId,
+			event: AuthAuditEvent.AccountUpdated,
+			data: {
+				previousIdentity: Is.stringValue(user.identity) ? user.identity : undefined,
+				userIdentity: documentId,
+				organizationIdentity: user.organization
+			}
+		});
 	}
 
 	/**
@@ -353,7 +473,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		// Nothing to do here, as we are stateless.
 		// The cookie will be revoked by the REST route handling
 		const contextIds = await ContextIdStore.getContextIds();
-		const identifier = contextIds?.[ContextIdKeys.User];
+		const identifier = contextIds?.[ContextIdKeys.Account];
 		if (Is.stringValue(identifier)) {
 			await this._authenticationAuditService?.create({
 				actorId: identifier,
@@ -406,12 +526,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 				// Wrap the user lookup in the request context so partitioned storage uses the correct tenant.
 				const user = await ContextIdStore.run(contextIdsForUserLookup, async () =>
-					this._userEntityStorage.get(sub, "identity")
+					this._userEntityStorage.get(sub, "userId")
 				);
 
 				refreshUser = user;
 
-				if (user?.identity === sub && (passwordVersion ?? 0) === (user?.passwordVersion ?? 0)) {
+				if (user?.userId === sub && (passwordVersion ?? 0) === (user.passwordVersion ?? 0)) {
 					validParts.push("user");
 				}
 				if (user?.organization === org) {
@@ -458,17 +578,17 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 */
 	public async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
 		const contextIds = await ContextIdStore.getContextIds();
-		ContextIdHelper.guard(contextIds, ContextIdKeys.User);
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
 
-		const userIdentity = contextIds[ContextIdKeys.User];
-		await this._authenticationRateService.check("password-change", userIdentity);
+		const userId = contextIds[ContextIdKeys.Account];
+		await this._authenticationRateService.check("password-change", userId);
 
-		const user = await this._userEntityStorage.get(userIdentity, "identity");
-		if (!Is.object<AuthenticationUser>(user)) {
+		const user = await this._userEntityStorage.get(userId, "userId");
+		if (!Is.object<AuthenticationUser>(user) || user.userId !== userId) {
 			throw new NotFoundError(
 				EntityStorageAuthenticationService.CLASS_NAME,
 				"userNotFound",
-				userIdentity
+				userId
 			);
 		}
 
@@ -484,7 +604,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			}
 		);
 
-		await this._authenticationRateService.clear("password-change", userIdentity);
+		await this._authenticationRateService.clear("password-change", userId);
 	}
 
 	/**

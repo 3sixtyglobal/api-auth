@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import {
 	HttpContextIdKeys,
@@ -207,7 +208,16 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 				// in a single-tenant environment we fall back to the node organization ID.
 				contextIds[ContextIdKeys.Organization] =
 					tokenContext.tenantOrganizationId ?? this._nodeOrganizationId;
-				contextIds[ContextIdKeys.User] = tokenContext.userIdentity;
+				if (Is.stringValue(tokenContext.userIdentity)) {
+					contextIds[ContextIdKeys.Account] = tokenContext.userIdentity;
+				} else {
+					delete contextIds[ContextIdKeys.Account];
+				}
+				if (Is.stringValue(tokenContext.identity) && tokenContext.identity.startsWith("did:")) {
+					contextIds[ContextIdKeys.User] = tokenContext.identity;
+				} else {
+					delete contextIds[ContextIdKeys.User];
+				}
 				contextIds[ContextIdKeys.UserOrganization] = tokenContext.userOrganization;
 
 				// If the tenant has a custom public origin, we set it in the context for downstream processors to use.
@@ -367,10 +377,10 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 
 				// Wrap the user lookup in the request context so partitioned storage uses the correct tenant.
 				user = await ContextIdStore.run(contextIdsForUserLookup, async () =>
-					this._userEntityStorage.get(sub, "identity")
+					this._userEntityStorage.get(sub, "userId")
 				);
 
-				if (user?.identity === sub && (passwordVersion ?? 0) === (user.passwordVersion ?? 0)) {
+				if (user?.userId === sub && (passwordVersion ?? 0) === (user.passwordVersion ?? 0)) {
 					validParts.push("user");
 				}
 				if (user?.organization === org) {
@@ -387,7 +397,8 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			tenantId,
 			tenantOrganizationId,
 			tenantPublicOrigin,
-			userIdentity: user?.identity,
+			userIdentity: user?.userId,
+			identity: Is.stringValue(user?.identity) ? user.identity : undefined,
 			userOrganization: user?.organization,
 			expires: Is.integer(expiresSeconds) ? expiresSeconds * 1000 : undefined
 		};

@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationComponent,
@@ -94,6 +95,14 @@ export class EntityStorageAuthenticationRestClient
 			),
 			expiry: response.body.expiry
 		};
+	}
+
+	/**
+	 * Attach a DID to the signed-in account. The current session is left in place.
+	 * @returns A promise that resolves when the request has completed.
+	 */
+	public async adoptIdentity(): Promise<void> {
+		await this.fetch<INoContentRequest, INoContentResponse>("/identity", "POST");
 	}
 
 	/**
