@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAuthenticationRateActionConfig,
@@ -6,7 +7,7 @@ import type {
 } from "@3sixty/api-auth-models";
 import { TooManyRequestsError, type IPlatformComponent } from "@3sixty/api-models";
 import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
-import { ComponentFactory, Converter, GeneralError, Guards, Is } from "@3sixty/core";
+import { ComponentFactory, Converter, GeneralError, Guards, Is, Mutex } from "@3sixty/core";
 import { Sha256 } from "@3sixty/crypto";
 import { ComparisonOperator } from "@3sixty/entity";
 import {
@@ -163,10 +164,12 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 	}
 
 	/**
-	 * Check the authentication rate for a given action and identifier.
+	 * Check the authentication rate for a given action and identifier, recording the attempt. Checks
+	 * of the same entry are serialised in the process.
 	 * @param action The action to be checked.
 	 * @param identifier The identifier to be checked.
 	 * @returns The rate entry id.
+	 * @throws TooManyRequestsError when the limit is reached.
 	 */
 	public async check(action: string, identifier: string): Promise<string> {
 		Guards.stringValue(EntityStorageAuthenticationRateService.CLASS_NAME, nameof(action), action);
@@ -190,7 +193,58 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 
 		const hashedIdentifier = Converter.bytesToHex(Sha256.sum256(Converter.utf8ToBytes(identifier)));
 		const compositeId = `|${action}|${hashedIdentifier}|`;
+		const lockKey = `${EntityStorageAuthenticationRateService.CLASS_NAME}${compositeId}`;
 
+		await Mutex.lock(lockKey, { throwOnTimeout: true });
+		try {
+			await this.recordAttempt(action, actionConfig, compositeId);
+		} finally {
+			Mutex.unlock(lockKey);
+		}
+		return compositeId;
+	}
+
+	/**
+	 * Clear the authentication rate entry for the given action and identifier, serialised with the
+	 * checks of the same entry in the process.
+	 * @param action The action to clear.
+	 * @param identifier The identifier to clear.
+	 * @returns A promise that resolves when the rate entry has been removed.
+	 */
+	public async clear(action: string, identifier: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationRateService.CLASS_NAME, nameof(action), action);
+		Guards.stringValue(
+			EntityStorageAuthenticationRateService.CLASS_NAME,
+			nameof(identifier),
+			identifier
+		);
+
+		const hashedIdentifier = Converter.bytesToHex(Sha256.sum256(Converter.utf8ToBytes(identifier)));
+		const compositeId = `|${action}|${hashedIdentifier}|`;
+		const lockKey = `${EntityStorageAuthenticationRateService.CLASS_NAME}${compositeId}`;
+
+		await Mutex.lock(lockKey, { throwOnTimeout: true });
+		try {
+			await this._authenticationRateEntryStorage.remove(compositeId);
+		} finally {
+			Mutex.unlock(lockKey);
+		}
+	}
+
+	/**
+	 * Record an attempt in the entry when it is inside the limit.
+	 * @param action The action.
+	 * @param actionConfig The limit of the action.
+	 * @param compositeId The entry id.
+	 * @returns A promise that resolves when the attempt has been recorded.
+	 * @throws TooManyRequestsError when the limit is reached.
+	 * @internal
+	 */
+	private async recordAttempt(
+		action: string,
+		actionConfig: IAuthenticationRateActionConfig,
+		compositeId: string
+	): Promise<void> {
 		const now = Date.now();
 		const nowIso = new Date(now).toISOString();
 		const windowMs = actionConfig.windowMinutes * 60 * 1000;
@@ -227,28 +281,6 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 			timestamps: activeTimestamps,
 			dateModified: nowIso
 		});
-
-		return compositeId;
-	}
-
-	/**
-	 * Clear the authentication rate entry for the given action and identifier.
-	 * @param action The action to clear.
-	 * @param identifier The identifier to clear.
-	 * @returns A promise that resolves when the rate entry has been removed.
-	 */
-	public async clear(action: string, identifier: string): Promise<void> {
-		Guards.stringValue(EntityStorageAuthenticationRateService.CLASS_NAME, nameof(action), action);
-		Guards.stringValue(
-			EntityStorageAuthenticationRateService.CLASS_NAME,
-			nameof(identifier),
-			identifier
-		);
-
-		const hashedIdentifier = Converter.bytesToHex(Sha256.sum256(Converter.utf8ToBytes(identifier)));
-		const compositeId = `|${action}|${hashedIdentifier}|`;
-
-		await this._authenticationRateEntryStorage.remove(compositeId);
 	}
 
 	/**
@@ -267,8 +299,10 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 				const actionConfig = this._actionConfigs[action];
 				const windowMs = actionConfig.windowMinutes * 60 * 1000;
 				const cutoffIso = new Date(now - windowMs).toISOString();
+				const ids: string[] = [];
 				let cursor: string | undefined;
 
+				// The ids are gathered first, as removing while paging would move the cursor past entries.
 				do {
 					// Query by composite rate entry id prefix and expiry window for this action.
 					const result = await this._authenticationRateEntryStorage.query(
@@ -287,17 +321,20 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 							]
 						},
 						undefined,
-						undefined,
+						["id"],
 						cursor,
 						EntityStorageAuthenticationRateService._CLEANUP_PAGE_SIZE
 					);
 
-					for (const entity of result.entities as AuthenticationRateEntry[]) {
-						await this._authenticationRateEntryStorage.remove(entity.id);
+					for (const entity of result.entities as Pick<AuthenticationRateEntry, "id">[]) {
+						ids.push(entity.id);
 					}
-
 					cursor = result.cursor;
-				} while (!Is.empty(cursor));
+				} while (Is.stringValue(cursor));
+
+				if (ids.length > 0) {
+					await this._authenticationRateEntryStorage.removeBatch(ids);
+				}
 			}
 		});
 	}

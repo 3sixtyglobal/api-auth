@@ -1,0 +1,13 @@
+{
+	"error": {
+		"oAuthService": {
+			"providerNotOAuth": "The authentication provider \"{authProviderId}\" is not registered or does not sign in through OAuth",
+			"signInMismatch": "The sign in callback does not match a started sign in",
+			"signInFailed": "The sign in through the authentication provider failed",
+			"transactionUnreadable": "The sign in kept by the browser could not be read"
+		},
+		"oauthRoutes": {
+			"publicOriginMissing": "The request has no public origin to build the callback address from"
+		}
+	}
+}

@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { Coerce, Is, UnauthorizedError } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
@@ -27,39 +28,46 @@ export class TokenHelper {
 	 * @param vaultConnector The vault connector.
 	 * @param nodeId The node identifier, embedded as the JWT issuer claim.
 	 * @param signingKeyName The signing key name, embedded as the JWT key identifier.
-	 * @param userIdentity The subject for the token.
-	 * @param organizationIdentity The organization for the token.
+	 * @param accountId The subject for the token.
 	 * @param tenantId The tenant id for the token.
 	 * @param ttlMinutes The time to live for the token in minutes.
 	 * @param passwordVersion The user's current password version counter, embedded in the token so that a password change invalidates existing tokens.
+	 * @param sessionStart When the session started in seconds, embedded as the sst claim and kept across refreshes, now when omitted, and left out of the token when null, for a session whose start is not known.
+	 * @param maxSessionMinutes The longest a session may last, the expiry is not set beyond it.
 	 * @returns The new token and its expiry date.
 	 */
 	public static async createToken(
 		vaultConnector: IVaultConnector,
 		nodeId: string,
 		signingKeyName: string,
-		userIdentity: string,
-		organizationIdentity: string | undefined,
+		accountId: string,
 		tenantId: string | undefined,
 		ttlMinutes: number,
-		passwordVersion?: number
+		passwordVersion?: number,
+		sessionStart?: number | null,
+		maxSessionMinutes?: number
 	): Promise<{
 		token: string;
 		expiry: number;
 	}> {
 		const nowSeconds = Math.trunc(Date.now() / 1000);
-		const ttlSeconds = ttlMinutes * 60;
+		const sessionStartSeconds = Is.null(sessionStart) ? undefined : (sessionStart ?? nowSeconds);
+		const maxSessionSeconds = Is.integer(maxSessionMinutes) ? maxSessionMinutes * 60 : 0;
+		const sessionEndSeconds = (sessionStartSeconds ?? nowSeconds) + maxSessionSeconds;
+		const ttlSeconds = Is.integer(maxSessionMinutes)
+			? Math.max(0, Math.min(ttlMinutes * 60, sessionEndSeconds - nowSeconds))
+			: ttlMinutes * 60;
 		const vaultKeyName = `${nodeId}/${signingKeyName}`;
 
 		const jwt = await Jwt.encodeWithSigner(
 			{ alg: "EdDSA", kid: signingKeyName },
 			{
 				iss: nodeId,
-				sub: userIdentity,
-				org: organizationIdentity,
+				sub: accountId,
 				tid: tenantId,
 				exp: nowSeconds + ttlSeconds,
-				pver: passwordVersion
+				pver: passwordVersion,
+				sst: sessionStartSeconds
 			},
 			async (header, payload) =>
 				VaultConnectorHelper.jwtSigner(vaultConnector, vaultKeyName, header, payload)
@@ -77,7 +85,7 @@ export class TokenHelper {
 	 * @param nodeId The node identifier, expected to match the JWT issuer claim.
 	 * @param signingKeyName The signing key name, expected to match the JWT key identifier.
 	 * @param token The token to verify.
-	 * @param verifyUser A function to verify the user identity and organization. The password version counter embedded in the token (pver claim) is passed so callers can detect if the password has changed since the token was issued.
+	 * @param verifyUser A function to verify the account and tenant. The password version counter embedded in the token (pver claim) is passed so callers can detect if the password has changed since the token was issued.
 	 * @returns The verified details.
 	 * @throws UnauthorizedError if the token is missing, invalid or expired.
 	 */
@@ -88,7 +96,6 @@ export class TokenHelper {
 		token: string | undefined,
 		verifyUser?: (
 			sub: string,
-			org: string,
 			tid: string | undefined,
 			passwordVersion: number | undefined
 		) => Promise<string[]>
@@ -112,8 +119,6 @@ export class TokenHelper {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadIssuerMismatch");
 		} else if (!Is.stringValue(decoded.payload.sub)) {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadMissingSubject");
-		} else if (!Is.stringValue(decoded.payload.org)) {
-			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadMissingOrganization");
 		} else if (
 			!Is.empty(decoded.payload?.exp) &&
 			decoded.payload.exp < Math.trunc(Date.now() / 1000)
@@ -125,14 +130,11 @@ export class TokenHelper {
 			const tid = Coerce.string(decoded.payload.tid);
 			const userVerified = await verifyUser(
 				decoded.payload.sub,
-				decoded.payload.org,
 				tid,
 				Coerce.integer(decoded.payload.pver)
 			);
 			if (!userVerified.includes("user")) {
 				throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
-			} else if (!userVerified.includes("organization")) {
-				throw new UnauthorizedError(TokenHelper.CLASS_NAME, "organizationNotVerified");
 			} else if (Is.stringValue(tid) && !userVerified.includes("tenant")) {
 				throw new UnauthorizedError(TokenHelper.CLASS_NAME, "tenantNotVerified");
 			}

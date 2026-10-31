@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // SPDX-License-Identifier: Apache-2.0.
 export * from "./entities/authenticationAuditEntry.js";
+export * from "./entities/authenticationAuditEntryV0.js";
 export * from "./entities/authenticationRateEntry.js";
 export * from "./models/IEntityStorageAuthenticationAuditServiceConfig.js";
 export * from "./models/IEntityStorageAuthenticationAuditServiceConstructorOptions.js";

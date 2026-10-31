@@ -58,14 +58,11 @@ describe("EntityStorageAuthenticationAuditService", () => {
 			[ContextIdKeys.Node]: "node-1",
 			[ContextIdKeys.Organization]: "org-1",
 			[ContextIdKeys.Tenant]: "tenant-1",
-			[HttpContextIdKeys.IpAddress]: "127.0.0.1|10.0.0.7",
+			[HttpContextIdKeys.IpAddress]: "127.0.0.1",
 			[HttpContextIdKeys.UserAgent]: "test-agent"
 		});
-		const expectedIpAddressHash1 = Converter.bytesToHex(
+		const expectedIpAddressHash = Converter.bytesToHex(
 			Sha256.sum256(Converter.utf8ToBytes(`${ipHashSalt}:127.0.0.1`))
-		);
-		const expectedIpAddressHash2 = Converter.bytesToHex(
-			Sha256.sum256(Converter.utf8ToBytes(`${ipHashSalt}:10.0.0.7`))
 		);
 
 		const result = await service.create({
@@ -84,7 +81,7 @@ describe("EntityStorageAuthenticationAuditService", () => {
 			tenantId: "tenant-1",
 			dateCreated: "2026-04-13T10:11:12.000Z",
 			event: "login-success",
-			ipAddressHashes: [expectedIpAddressHash1, expectedIpAddressHash2],
+			ipAddressHash: expectedIpAddressHash,
 			userAgent: "test-agent",
 			correlationId: undefined,
 			data: {
@@ -141,21 +138,18 @@ describe("EntityStorageAuthenticationAuditService", () => {
 
 		vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("audit-entry-id");
 		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[HttpContextIdKeys.IpAddress]: "203.0.113.10|198.51.100.3"
+			[HttpContextIdKeys.IpAddress]: "203.0.113.10"
 		});
 
 		await service.create({ event: "login-success" });
 
-		const expectedIpAddressHash1 = Converter.bytesToHex(
+		const expectedIpAddressHash = Converter.bytesToHex(
 			Sha256.sum256(Converter.utf8ToBytes(`${ipHashSalt}:203.0.113.10`))
-		);
-		const expectedIpAddressHash2 = Converter.bytesToHex(
-			Sha256.sum256(Converter.utf8ToBytes(`${ipHashSalt}:198.51.100.3`))
 		);
 
 		expect(setMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				ipAddressHashes: [expectedIpAddressHash1, expectedIpAddressHash2]
+				ipAddressHash: expectedIpAddressHash
 			})
 		);
 	});

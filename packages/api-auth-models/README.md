@@ -1,6 +1,6 @@
 # 3Sixty API Auth Models
 
-This package provides contracts for authentication audit and rate limiting.
+This package provides contracts for authentication providers, audit and rate limiting.
 
 ## Installation
 

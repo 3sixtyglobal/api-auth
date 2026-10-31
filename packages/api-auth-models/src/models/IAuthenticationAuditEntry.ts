@@ -42,9 +42,9 @@ export interface IAuthenticationAuditEntry {
 	tenantId?: string;
 
 	/**
-	 * The hashed IP addresses of the client.
+	 * The hashed IP address of the client.
 	 */
-	ipAddressHashes?: string[];
+	ipAddressHash?: string;
 
 	/**
 	 * The user agent string of the client.

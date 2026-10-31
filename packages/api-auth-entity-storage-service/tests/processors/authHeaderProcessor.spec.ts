@@ -20,6 +20,7 @@ import { VaultConnectorFactory } from "@3sixty/vault-models";
 import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { AuthHeaderProcessor } from "../../src/processors/authHeaderProcessor.js";
+import { AuthTokenCache } from "../../src/utils/authTokenCache.js";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";
 
 describe("AuthHeaderProcessor", () => {
@@ -61,11 +62,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -75,11 +77,11 @@ describe("AuthHeaderProcessor", () => {
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
 				// No tid - single-tenant or tenant-free token; only user+org verified.
-				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
-				expect(verified).toEqual(["user", "organization"]);
+				const verified = await verifyUser?.("user-1", undefined, 0);
+				expect(verified).toEqual(["user"]);
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456" }
+					payload: { sub: "user-1" }
 				};
 			}
 		);
@@ -92,51 +94,8 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
-		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
-	});
-
-	it("should set the account key only when the user has no DID", async () => {
-		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
-			[ContextIdKeys.Node]: "node-1",
-			[ContextIdKeys.Organization]: "did:org:456"
-		});
-		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
-			email: "user@example.com",
-			userId: "user-1",
-			organization: "did:org:456",
-			password: "hashed",
-			salt: "salt",
-			passwordVersion: 0
-		});
-		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
-			token: "jwt",
-			location: "authorization"
-		});
-		vi.spyOn(TokenHelper, "verify").mockImplementation(
-			async (vault, nodeId, key, token, verifyUser) => {
-				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
-				expect(verified).toEqual(["user", "organization"]);
-				return {
-					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456" }
-				};
-			}
-		);
-
-		await processor.start();
-
-		const contextIds: IContextIds = {
-			[ContextIdKeys.User]: "did:user:stale"
-		};
-		const response: IHttpResponse = {};
-		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
-
-		expect(response.statusCode).toBeUndefined();
-		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1");
 	});
 
 	it("should set tenant context from token when tenantAdminComponent is configured", async () => {
@@ -157,11 +116,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -171,11 +131,11 @@ describe("AuthHeaderProcessor", () => {
 		const tenantId = "tenant-1";
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
-				const verified = await verifyUser?.("user-1", "did:org:456", tenantId, 0);
+				const verified = await verifyUser?.("user-1", tenantId, 0);
 				expect(verified).toContain("tenant");
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456", tid: tenantId }
+					payload: { sub: "user-1", tid: tenantId }
 				};
 			}
 		);
@@ -189,8 +149,6 @@ describe("AuthHeaderProcessor", () => {
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe("tenant-1");
 		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
-		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 	});
 
 	it("should return unauthorized response when verifyUser cannot confirm user", async () => {
@@ -204,7 +162,7 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
-				await verifyUser?.("user-1", "did:org:456", undefined, undefined);
+				await verifyUser?.("user-1", undefined, undefined);
 				throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
 			}
 		);
@@ -258,11 +216,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 1
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -273,13 +232,13 @@ describe("AuthHeaderProcessor", () => {
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
 				// pver=0 in token but user has passwordVersion=1 - simulate stale token
-				const verified = await verifyUser?.("user-1", "did:org:456", encryptedTenantId, 0);
+				const verified = await verifyUser?.("user-1", encryptedTenantId, 0);
 				if (!verified?.includes("user")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
 				}
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456", tid: encryptedTenantId }
+					payload: { sub: "user-1", tid: encryptedTenantId }
 				};
 			}
 		);
@@ -297,7 +256,92 @@ describe("AuthHeaderProcessor", () => {
 		expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
 		expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 		expect(contextIds[ContextIdKeys.User]).toBeUndefined();
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1");
+	});
+
+	it("should return unauthorized when the account is disabled or unverified", async () => {
+		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+			[ContextIdKeys.Node]: "node-1"
+		});
+		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
+			token: "jwt",
+			location: "authorization"
+		});
+		vi.spyOn(TokenHelper, "verify").mockImplementation(
+			async (vault, nodeId, key, token, verifyUser) => {
+				const verified = await verifyUser?.("user-1", undefined, undefined);
+				if (!verified?.includes("user")) {
+					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
+				}
+				return {
+					header: { alg: "EdDSA" },
+					payload: { sub: "user-1" }
+				};
+			}
+		);
+		await processor.start();
+
+		for (const status of [{ dateDisabled: "2026-01-02T00:00:00.000Z" }, { verified: false }]) {
+			vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
+				email: "user@example.com",
+				accountId: "user-1",
+				authProviderId: "entity-storage",
+				dateCreated: "2026-01-01T00:00:00.000Z",
+				dateModified: "2026-01-01T00:00:00.000Z",
+				...status
+			});
+			const contextIds: IContextIds = {};
+			const response: IHttpResponse = {};
+			await processor.pre(
+				{ headers: { authorization: "dateDisabled" in status ? "Bearer a" : "Bearer b" } } as never,
+				response,
+				{} as never,
+				contextIds,
+				{}
+			);
+
+			expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
+			expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
+		}
+	});
+
+	it("should return unauthorized when the account has been disabled", async () => {
+		vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+			[ContextIdKeys.Node]: "node-1"
+		});
+		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
+			email: "user@example.com",
+			accountId: "user-1",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
+			dateDisabled: "2026-02-01T00:00:00.000Z"
+		});
+		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
+			token: "jwt",
+			location: "authorization"
+		});
+		vi.spyOn(TokenHelper, "verify").mockImplementation(
+			async (vault, nodeId, key, token, verifyUser) => {
+				const verified = await verifyUser?.("user-1", undefined, undefined);
+				if (!verified?.includes("user")) {
+					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "userNotVerified");
+				}
+				return {
+					header: { alg: "EdDSA" },
+					payload: { sub: "user-1" }
+				};
+			}
+		);
+
+		await processor.start();
+
+		const contextIds: IContextIds = {};
+		const response: IHttpResponse = {};
+		await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
+
+		expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
+		expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 	});
 
 	it("should succeed when token has no pver and user has no passwordVersion stored", async () => {
@@ -307,11 +351,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
-			salt: "salt"
+			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z"
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
 			token: "jwt",
@@ -320,11 +365,11 @@ describe("AuthHeaderProcessor", () => {
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
 				// No tid - pver behaviour is the focus here.
-				const verified = await verifyUser?.("user-1", "did:org:456", undefined, undefined);
-				expect(verified).toEqual(["user", "organization"]);
+				const verified = await verifyUser?.("user-1", undefined, undefined);
+				expect(verified).toEqual(["user"]);
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456" }
+					payload: { sub: "user-1" }
 				};
 			}
 		);
@@ -337,10 +382,8 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
-		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
-		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1", "userId");
+		expect(mockUserEntityStorage.get).toHaveBeenCalledWith("user-1");
 	});
 
 	it("should return unauthorized when token has an encrypted tenant but tenantAdminComponent is not configured", async () => {
@@ -349,11 +392,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -363,13 +407,13 @@ describe("AuthHeaderProcessor", () => {
 		const encryptedTenantId = "encrypted:tenant-1";
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
-				const verified = await verifyUser?.("user-1", "did:org:456", encryptedTenantId, 0);
+				const verified = await verifyUser?.("user-1", encryptedTenantId, 0);
 				if (!verified?.includes("tenant")) {
 					throw new UnauthorizedError(TokenHelper.CLASS_NAME, "tenantNotVerified");
 				}
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456", tid: encryptedTenantId }
+					payload: { sub: "user-1", tid: encryptedTenantId }
 				};
 			}
 		);
@@ -405,11 +449,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -419,11 +464,11 @@ describe("AuthHeaderProcessor", () => {
 		const tenantA = "tenant-a";
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
-				const verified = await verifyUser?.("user-1", "did:org:456", tenantA, 0);
+				const verified = await verifyUser?.("user-1", tenantA, 0);
 				expect(verified).toContain("tenant");
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456", tid: tenantA }
+					payload: { sub: "user-1", tid: tenantA }
 				};
 			}
 		);
@@ -440,8 +485,6 @@ describe("AuthHeaderProcessor", () => {
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Tenant]).toBe("tenant-a");
 		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
-		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 	});
 
 	it("should succeed in single-tenant setup when neither context nor token has a tenant", async () => {
@@ -451,11 +494,12 @@ describe("AuthHeaderProcessor", () => {
 		});
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		});
 		vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -465,11 +509,11 @@ describe("AuthHeaderProcessor", () => {
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vault, nodeId, key, token, verifyUser) => {
 				// No tid in token - single-tenant system, no tenant verification required.
-				const verified = await verifyUser?.("user-1", "did:org:456", undefined, 0);
-				expect(verified).toEqual(["user", "organization"]);
+				const verified = await verifyUser?.("user-1", undefined, 0);
+				expect(verified).toEqual(["user"]);
 				return {
 					header: { alg: "EdDSA" },
-					payload: { sub: "user-1", org: "did:org:456" }
+					payload: { sub: "user-1" }
 				};
 			}
 		);
@@ -483,9 +527,7 @@ describe("AuthHeaderProcessor", () => {
 
 		expect(response.statusCode).toBeUndefined();
 		expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-		expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
 		expect(contextIds[ContextIdKeys.Organization]).toBe("did:org:456");
-		expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 		expect(contextIds[ContextIdKeys.Tenant]).toBeUndefined();
 	});
 
@@ -493,10 +535,8 @@ describe("AuthHeaderProcessor", () => {
 		expect(processor.className()).toBe(AuthHeaderProcessor.CLASS_NAME);
 	});
 
-	describe("_nodeOrganizationId and UserOrganization", () => {
+	describe("_nodeOrganizationId", () => {
 		const NODE_ORG = "did:node-org:111";
-		const USER_ORG = "did:user-org:456";
-		const USER_IDENTITY = "did:user:123";
 
 		beforeEach(() => {
 			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
@@ -505,11 +545,12 @@ describe("AuthHeaderProcessor", () => {
 			});
 			vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 				email: "user@example.com",
-				userId: "user-1",
-				identity: USER_IDENTITY,
-				organization: USER_ORG,
+				accountId: "user-1",
 				password: "hashed",
 				salt: "salt",
+				authProviderId: "entity-storage",
+				dateCreated: "2026-01-01T00:00:00.000Z",
+				dateModified: "2026-01-01T00:00:00.000Z",
 				passwordVersion: 0
 			});
 			vi.spyOn(TokenHelper, "extractTokenFromHeaders").mockReturnValue({
@@ -521,7 +562,7 @@ describe("AuthHeaderProcessor", () => {
 		it("sets Organization context to _nodeOrganizationId when no tenant ID is in the token", async () => {
 			vi.spyOn(TokenHelper, "verify").mockImplementation(
 				async (vault, nodeId, key, token, verifyUser) => {
-					await verifyUser?.("user-1", USER_ORG, undefined, 0);
+					await verifyUser?.("user-1", undefined, 0);
 					return { header: { alg: "EdDSA" }, payload: {} };
 				}
 			);
@@ -536,10 +577,10 @@ describe("AuthHeaderProcessor", () => {
 			expect(contextIds[ContextIdKeys.Organization]).toBe(NODE_ORG);
 		});
 
-		it("sets UserOrganization to the user entity's own organization on successful verify", async () => {
+		it("leaves the user and user organisation to the profile processor", async () => {
 			vi.spyOn(TokenHelper, "verify").mockImplementation(
 				async (vault, nodeId, key, token, verifyUser) => {
-					await verifyUser?.("user-1", USER_ORG, undefined, 0);
+					await verifyUser?.("user-1", undefined, 0);
 					return { header: { alg: "EdDSA" }, payload: {} };
 				}
 			);
@@ -551,7 +592,9 @@ describe("AuthHeaderProcessor", () => {
 			await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
 
 			expect(response.statusCode).toBeUndefined();
-			expect(contextIds[ContextIdKeys.UserOrganization]).toBe(USER_ORG);
+			expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
+			expect(contextIds[ContextIdKeys.User]).toBeUndefined();
+			expect(contextIds[ContextIdKeys.UserOrganization]).toBeUndefined();
 		});
 
 		it("tenant organizationId takes precedence over _nodeOrganizationId for Organization context", async () => {
@@ -570,7 +613,7 @@ describe("AuthHeaderProcessor", () => {
 
 			vi.spyOn(TokenHelper, "verify").mockImplementation(
 				async (vault, nodeId, key, token, verifyUser) => {
-					await verifyUser?.("user-1", USER_ORG, "tenant-1", 0);
+					await verifyUser?.("user-1", "tenant-1", 0);
 					return { header: { alg: "EdDSA" }, payload: {} };
 				}
 			);
@@ -589,10 +632,9 @@ describe("AuthHeaderProcessor", () => {
 
 			expect(response.statusCode).toBeUndefined();
 			expect(contextIds[ContextIdKeys.Organization]).toBe(TENANT_ORG);
-			expect(contextIds[ContextIdKeys.UserOrganization]).toBe(USER_ORG);
 		});
 
-		it("UserOrganization is undefined when token verification fails", async () => {
+		it("leaves the account unset when token verification fails", async () => {
 			vi.spyOn(TokenHelper, "verify").mockRejectedValue(new Error("token invalid"));
 
 			await processor.start();
@@ -602,7 +644,7 @@ describe("AuthHeaderProcessor", () => {
 			await processor.pre({ headers: {} } as never, response, {} as never, contextIds, {});
 
 			expect(response.statusCode).toBe(HttpStatusCode.unauthorized);
-			expect(contextIds[ContextIdKeys.UserOrganization]).toBeUndefined();
+			expect(contextIds[ContextIdKeys.Account]).toBeUndefined();
 		});
 	});
 
@@ -643,7 +685,89 @@ describe("AuthHeaderProcessor", () => {
 				{ authOperation: "logout", authToken: "old-jwt", authTokenLocation: "cookie" }
 			);
 
-			expect(response.headers?.[HeaderTypes.SetCookie]).toContain("Max-Age=0");
+			const cookies = response.headers?.[HeaderTypes.SetCookie] as string[];
+			expect(cookies).toHaveLength(2);
+			expect(cookies[0]).toMatch(/^access_token=;.*Max-Age=0/);
+			expect(cookies[1]).toMatch(/^oauth_transaction=;.*Max-Age=0/);
+		});
+
+		it("should keep the cookies a route has set when setting the session cookie", async () => {
+			const response: IHttpResponse = {
+				headers: { [HeaderTypes.SetCookie]: "oauth_transaction=; Max-Age=0" }
+			};
+			await processor.post(
+				{ headers: {} } as never,
+				response,
+				{} as never,
+				{},
+				{ authOperation: "login", authToken: "new-jwt-token", authTokenLocation: "cookie" }
+			);
+
+			const cookies = response.headers?.[HeaderTypes.SetCookie] as string[];
+			expect(cookies[0]).toBe("oauth_transaction=; Max-Age=0");
+			expect(cookies[1]).toMatch(/^access_token=new-jwt-token/);
+		});
+
+		it("should remove the configured cookies on logout", async () => {
+			const configured = new AuthHeaderProcessor({ config: { logoutCookieNames: [] } });
+			const response: IHttpResponse = {};
+			await configured.post(
+				{ headers: {} } as never,
+				response,
+				{} as never,
+				{},
+				{ authOperation: "logout", authTokenLocation: "cookie" }
+			);
+
+			expect(response.headers?.[HeaderTypes.SetCookie]).toMatch(/^access_token=;/);
+			await configured.stop();
+		});
+
+		it("should set and delete the session cookie with SameSite None by default", async () => {
+			for (const authOperation of ["login", "logout"]) {
+				const response: IHttpResponse = {};
+				await processor.post(
+					{ headers: {} } as never,
+					response,
+					{} as never,
+					{},
+					{ authOperation, authToken: "new-jwt-token", authTokenLocation: "cookie" }
+				);
+
+				const cookies = response.headers?.[HeaderTypes.SetCookie];
+				const sessionCookie = (Array.isArray(cookies) ? cookies[0] : cookies) ?? "";
+				expect(sessionCookie).toMatch(/SameSite=None/);
+				expect(sessionCookie).toMatch(/Secure/);
+			}
+		});
+
+		it("should use the configured SameSite on the session cookie", async () => {
+			const configured = new AuthHeaderProcessor({ config: { cookieSameSite: "Lax" } });
+			for (const authOperation of ["refresh", "logout"]) {
+				const response: IHttpResponse = {};
+				await configured.post(
+					{ headers: {} } as never,
+					response,
+					{} as never,
+					{},
+					{ authOperation, authToken: "new-jwt-token", authTokenLocation: "cookie" }
+				);
+
+				const cookies = response.headers?.[HeaderTypes.SetCookie];
+				const sessionCookie = (Array.isArray(cookies) ? cookies[0] : cookies) ?? "";
+				expect(sessionCookie).toMatch(/SameSite=Lax/);
+				expect(sessionCookie).toMatch(/Secure/);
+			}
+			await configured.stop();
+		});
+
+		it("should refuse an unknown SameSite value", () => {
+			expect(
+				() =>
+					new AuthHeaderProcessor({
+						config: { cookieSameSite: "Loose" as unknown as "Lax" }
+					})
+			).toThrow();
 		});
 
 		it("should not set a cookie when the request came from an Authorization header", async () => {
@@ -676,11 +800,12 @@ describe("AuthHeaderProcessor", () => {
 	describe("token cache", () => {
 		const USER: AuthenticationUser = {
 			email: "user@example.com",
-			userId: "user-1",
-			identity: "did:user:123",
-			organization: "did:org:456",
+			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
+			authProviderId: "entity-storage",
+			dateCreated: "2026-01-01T00:00:00.000Z",
+			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
 		};
 
@@ -692,10 +817,10 @@ describe("AuthHeaderProcessor", () => {
 		function mockVerify(expSeconds?: number): void {
 			vi.spyOn(TokenHelper, "verify").mockImplementation(
 				async (vault, nodeId, key, token, verifyUser) => {
-					await verifyUser?.("user-1", "did:org:456", undefined, 0);
+					await verifyUser?.("user-1", undefined, 0);
 					return {
 						header: { alg: "EdDSA" },
-						payload: { sub: "user-1", org: "did:org:456", exp: expSeconds }
+						payload: { sub: "user-1", exp: expSeconds }
 					};
 				}
 			);
@@ -740,8 +865,6 @@ describe("AuthHeaderProcessor", () => {
 				const { response, contextIds } = await runRequest(authProcessor);
 				expect(response.statusCode).toBeUndefined();
 				expect(contextIds[ContextIdKeys.Account]).toBe("user-1");
-				expect(contextIds[ContextIdKeys.User]).toBe("did:user:123");
-				expect(contextIds[ContextIdKeys.UserOrganization]).toBe("did:org:456");
 			}
 
 			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
@@ -758,11 +881,11 @@ describe("AuthHeaderProcessor", () => {
 					inFlight++;
 					maxInFlight = Math.max(maxInFlight, inFlight);
 					await new Promise(resolve => setTimeout(resolve, 20));
-					await verifyUser?.("user-1", "did:org:456", undefined, 0);
+					await verifyUser?.("user-1", undefined, 0);
 					inFlight--;
 					return {
 						header: { alg: "EdDSA" },
-						payload: { sub: "user-1", org: "did:org:456" }
+						payload: { sub: "user-1" }
 					};
 				}
 			);
@@ -892,6 +1015,104 @@ describe("AuthHeaderProcessor", () => {
 			expect(first.response.statusCode).toBe(HttpStatusCode.unauthorized);
 			expect(second.response.statusCode).toBe(HttpStatusCode.unauthorized);
 			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("verifies the tokens of an account again once its sessions end", async () => {
+			mockVerify();
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			await runRequest(authProcessor);
+			AuthTokenCache.invalidate("other-account");
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
+
+			AuthTokenCache.invalidate("user-1");
+			await runRequest(authProcessor);
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(2);
+
+			await authProcessor.stop();
+		});
+
+		it("does not keep a token verified while the sessions of an account ended", async () => {
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, key, token, verifyUser) => {
+					await verifyUser?.("user-1", undefined, 0);
+					// The account changes after it was read but before the result is cached.
+					AuthTokenCache.invalidate("user-1");
+					return { header: { alg: "EdDSA" }, payload: { sub: "user-1" } };
+				}
+			);
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			await runRequest(authProcessor);
+			await runRequest(authProcessor);
+
+			// Each request verifies again outside the cache, as the sessions ended meanwhile.
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(4);
+
+			await authProcessor.stop();
+		});
+
+		it("does not use a token another request verified while the sessions of an account ended", async () => {
+			let release: () => void = () => {};
+			const blocked = new Promise<void>(resolve => {
+				release = resolve;
+			});
+			let calls = 0;
+			let invalidated = false;
+			let callsAfterInvalidation = 0;
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, key, token, verifyUser) => {
+					calls++;
+					if (invalidated) {
+						callsAfterInvalidation++;
+					}
+					await verifyUser?.("user-1", undefined, 0);
+					if (calls === 1) {
+						await blocked;
+					}
+					return { header: { alg: "EdDSA" }, payload: { sub: "user-1" } };
+				}
+			);
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			const first = runRequest(authProcessor);
+			const second = runRequest(authProcessor);
+			await new Promise(resolve => setTimeout(resolve, 20));
+			// The sessions end while the first request verifies and the second waits for it.
+			AuthTokenCache.invalidate("user-1");
+			invalidated = true;
+			release();
+			await Promise.all([first, second]);
+
+			// Both requests use a verification started after the sessions ended, whether the second
+			// was given the first result from the cache or verified itself.
+			expect(callsAfterInvalidation).toBeGreaterThanOrEqual(2);
+
+			await authProcessor.stop();
+		});
+
+		it("gives the session start of the token to the routes", async () => {
+			vi.spyOn(TokenHelper, "verify").mockImplementation(
+				async (vault, nodeId, key, token, verifyUser) => {
+					await verifyUser?.("user-1", undefined, 0);
+					return { header: { alg: "EdDSA" }, payload: { sub: "user-1", sst: 1700000000 } };
+				}
+			);
+			const authProcessor = new AuthHeaderProcessor();
+			await authProcessor.start();
+
+			for (let i = 0; i < 2; i++) {
+				const processorState: { [id: string]: unknown } = {};
+				await authProcessor.pre({ headers: {} } as never, {}, {} as never, {}, processorState);
+				expect(processorState.authSessionStart).toBe(1700000000);
+			}
+			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
 
 			await authProcessor.stop();
 		});

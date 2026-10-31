@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import {
 	ForbiddenError,
@@ -85,7 +86,7 @@ describe("TenantOverrideProcessor", () => {
 	it("should skip processing when override-tenant query param is absent", async () => {
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -103,7 +104,7 @@ describe("TenantOverrideProcessor", () => {
 	it("should skip processing when response already has a status code set", async () => {
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = { statusCode: HttpStatusCode.unauthorized };
 		await processor.pre(
@@ -122,7 +123,7 @@ describe("TenantOverrideProcessor", () => {
 	it("should proceed with override when response already has a 2xx status code", async () => {
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = { statusCode: HttpStatusCode.ok };
 		await processor.pre(
@@ -159,7 +160,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -182,7 +183,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -204,7 +205,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -227,7 +228,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -247,7 +248,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -265,7 +266,7 @@ describe("TenantOverrideProcessor", () => {
 	it("should substitute the tenant partition and store the original when override is valid", async () => {
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -292,7 +293,7 @@ describe("TenantOverrideProcessor", () => {
 
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await processor.pre(
@@ -316,7 +317,7 @@ describe("TenantOverrideProcessor", () => {
 		});
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await customProcessor.pre(
@@ -342,7 +343,7 @@ describe("TenantOverrideProcessor", () => {
 		});
 		const contextIds: IContextIds = {
 			[ContextIdKeys.Tenant]: CALLER_TENANT,
-			[ContextIdKeys.User]: CALLER_USER
+			[ContextIdKeys.Account]: CALLER_USER
 		};
 		const response: IHttpResponse = {};
 		await customProcessor.pre(

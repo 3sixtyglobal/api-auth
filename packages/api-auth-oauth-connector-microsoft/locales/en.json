@@ -1,0 +1,8 @@
+{
+	"error": {
+		"microsoftOAuthProviderConnector": {
+			"tenantNotAllowed": "Accounts from the Microsoft tenant \"{tenantId}\" may not sign in",
+			"emailNotVerified": "Microsoft has not verified the e-mail address of the account, the tenant must own its domain"
+		}
+	}
+}

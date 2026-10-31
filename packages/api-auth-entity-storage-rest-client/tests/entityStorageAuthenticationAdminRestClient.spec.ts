@@ -17,8 +17,7 @@ const PREFIX = "authentication/admin";
 
 const TEST_USER = {
 	email: "user@example.com",
-	userIdentity: "did:example:123456789abcdefghi",
-	organizationIdentity: "did:example:123456789abcdefghi"
+	accountId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c"
 };
 
 const fetchMock = vi.fn();
@@ -44,9 +43,7 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 		});
 
 		test("throws when user.email is empty", async () => {
-			await expect(
-				client.create({ ...TEST_USER, email: "", password: "MyPassword123!" })
-			).rejects.toMatchObject({
+			await expect(client.create({ email: "", password: "MyPassword123!" })).rejects.toMatchObject({
 				name: GuardError.CLASS_NAME,
 				message: "guard.stringEmpty"
 			});
@@ -55,7 +52,7 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 		test("sends POST to /users", async () => {
 			fetchMock.mockResolvedValueOnce(noContentResponse());
 
-			await client.create({ ...TEST_USER, password: "MyPassword123!" });
+			await client.create({ email: TEST_USER.email, password: "MyPassword123!" });
 
 			const [url, options] = fetchMock.mock.calls[0];
 			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users`);
@@ -65,72 +62,18 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 		test("sends the full user object including password as the request body", async () => {
 			fetchMock.mockResolvedValueOnce(noContentResponse());
 
-			const createUser = { ...TEST_USER, password: "MyPassword123!" };
+			const createUser = { email: TEST_USER.email, password: "MyPassword123!" };
 			await client.create(createUser);
 
 			const [, options] = fetchMock.mock.calls[0];
 			expect(JSON.parse(options.body)).toEqual(createUser);
 		});
 
-		test("sends a create body without a DID when userIdentity is omitted", async () => {
-			fetchMock.mockResolvedValueOnce(noContentResponse());
-
-			const { userIdentity, ...withoutDid } = TEST_USER;
-			await client.create({ ...withoutDid, password: "MyPassword123!" });
-
-			const [, options] = fetchMock.mock.calls[0];
-			const body = JSON.parse(options.body);
-			expect(body.email).toBe(TEST_USER.email);
-			expect(body.password).toBe("MyPassword123!");
-			expect(body.userIdentity).toBeUndefined();
-			expect(userIdentity).toBe(TEST_USER.userIdentity);
-		});
-
 		test("resolves without a return value", async () => {
 			fetchMock.mockResolvedValueOnce(noContentResponse());
 			await expect(
-				client.create({ ...TEST_USER, password: "MyPassword123!" })
+				client.create({ email: TEST_USER.email, password: "MyPassword123!" })
 			).resolves.toBeUndefined();
-		});
-	});
-
-	describe("update", () => {
-		test("throws when user is undefined", async () => {
-			await expect(client.update(undefined as never)).rejects.toMatchObject({
-				name: GuardError.CLASS_NAME,
-				message: "guard.objectUndefined"
-			});
-		});
-
-		test("throws when user.email is empty", async () => {
-			await expect(client.update({ email: "" })).rejects.toMatchObject({
-				name: GuardError.CLASS_NAME,
-				message: "guard.stringEmpty"
-			});
-		});
-
-		test("sends PUT to /users/:email with email substituted in path", async () => {
-			fetchMock.mockResolvedValueOnce(noContentResponse());
-
-			await client.update(TEST_USER);
-
-			const [url, options] = fetchMock.mock.calls[0];
-			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users/${TEST_USER.email}`);
-			expect(options.method).toBe(HttpMethod.PUT);
-		});
-
-		test("sends the user object as the request body", async () => {
-			fetchMock.mockResolvedValueOnce(noContentResponse());
-
-			await client.update(TEST_USER);
-
-			const [, options] = fetchMock.mock.calls[0];
-			expect(JSON.parse(options.body)).toEqual(TEST_USER);
-		});
-
-		test("resolves without a return value", async () => {
-			fetchMock.mockResolvedValueOnce(noContentResponse());
-			await expect(client.update(TEST_USER)).resolves.toBeUndefined();
 		});
 	});
 
@@ -169,22 +112,43 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 			});
 		});
 
-		test("sends GET to /users/identity/:identity with identity substituted in path", async () => {
-			fetchMock.mockResolvedValueOnce(jsonResponse(TEST_USER));
+		test("sends GET to /users/identity/:identity and returns the user", async () => {
+			const user = { ...TEST_USER, userIdentity: "did:example:123" };
+			fetchMock.mockResolvedValueOnce(jsonResponse(user));
 
-			await client.getByIdentity(TEST_USER.userIdentity);
+			const result = await client.getByIdentity("did:example:123");
 
 			const [url, options] = fetchMock.mock.calls[0];
-			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users/identity/${TEST_USER.userIdentity}`);
+			expect(decodeURIComponent(url)).toBe(`${ENDPOINT}/${PREFIX}/users/identity/did:example:123`);
 			expect(options.method).toBe(HttpMethod.GET);
+			expect(result).toEqual(user);
+		});
+	});
+
+	describe("update", () => {
+		test("throws when user.email is empty", async () => {
+			await expect(client.update({ email: "" })).rejects.toMatchObject({
+				name: GuardError.CLASS_NAME,
+				message: "guard.stringEmpty"
+			});
 		});
 
-		test("returns the user from the response body", async () => {
-			fetchMock.mockResolvedValueOnce(jsonResponse(TEST_USER));
+		test("sends PUT to /users/:email with the identity and organization", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
 
-			const result = await client.getByIdentity(TEST_USER.userIdentity);
+			await client.update({
+				email: TEST_USER.email,
+				userIdentity: "did:example:user",
+				organizationIdentity: "did:example:org"
+			});
 
-			expect(result).toEqual(TEST_USER);
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users/${TEST_USER.email}`);
+			expect(options.method).toBe(HttpMethod.PUT);
+			expect(JSON.parse(options.body)).toEqual({
+				userIdentity: "did:example:user",
+				organizationIdentity: "did:example:org"
+			});
 		});
 	});
 
@@ -237,26 +201,14 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 			expect(options.method).toBe(HttpMethod.PUT);
 		});
 
-		test("sends newPassword in the request body and omits currentPassword when not supplied", async () => {
+		test("sends only newPassword in the request body", async () => {
 			fetchMock.mockResolvedValueOnce(noContentResponse());
 
 			await client.updatePassword(TEST_USER.email, "MyNewPassword123!");
 
 			const [, options] = fetchMock.mock.calls[0];
 			const body = JSON.parse(options.body);
-			expect(body.newPassword).toBe("MyNewPassword123!");
-			expect(body.currentPassword).toBeUndefined();
-		});
-
-		test("includes currentPassword in the request body when supplied", async () => {
-			fetchMock.mockResolvedValueOnce(noContentResponse());
-
-			await client.updatePassword(TEST_USER.email, "MyNewPassword123!", "MyPassword123!");
-
-			const [, options] = fetchMock.mock.calls[0];
-			const body = JSON.parse(options.body);
-			expect(body.newPassword).toBe("MyNewPassword123!");
-			expect(body.currentPassword).toBe("MyPassword123!");
+			expect(body).toEqual({ newPassword: "MyNewPassword123!" });
 		});
 
 		test("resolves without a return value", async () => {
@@ -264,6 +216,63 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 			await expect(
 				client.updatePassword(TEST_USER.email, "MyNewPassword123!")
 			).resolves.toBeUndefined();
+		});
+	});
+
+	describe("query", () => {
+		test("sends GET to /users with the filters as query parameters", async () => {
+			fetchMock.mockResolvedValueOnce(jsonResponse({ entities: [TEST_USER], cursor: "c2" }));
+
+			const result = await client.query("user@", true, "entity-storage", "c1", 10);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			const parsed = new URL(url);
+			expect(`${parsed.origin}${parsed.pathname}`).toBe(`${ENDPOINT}/${PREFIX}/users`);
+			expect(parsed.searchParams.get("email")).toBe("user@");
+			expect(parsed.searchParams.get("exactEmail")).toBe("true");
+			expect(parsed.searchParams.get("authProviderId")).toBe("entity-storage");
+			expect(parsed.searchParams.get("cursor")).toBe("c1");
+			expect(parsed.searchParams.get("limit")).toBe("10");
+			expect(options.method).toBe(HttpMethod.GET);
+			expect(result).toEqual({ entities: [TEST_USER], cursor: "c2" });
+		});
+	});
+
+	describe("disable", () => {
+		test("throws when email is empty", async () => {
+			await expect(client.disable("")).rejects.toMatchObject({
+				name: GuardError.CLASS_NAME,
+				message: "guard.stringEmpty"
+			});
+		});
+
+		test("sends POST to /users/:email/disable", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
+
+			await client.disable(TEST_USER.email);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users/${TEST_USER.email}/disable`);
+			expect(options.method).toBe(HttpMethod.POST);
+		});
+	});
+
+	describe("enable", () => {
+		test("throws when email is empty", async () => {
+			await expect(client.enable("")).rejects.toMatchObject({
+				name: GuardError.CLASS_NAME,
+				message: "guard.stringEmpty"
+			});
+		});
+
+		test("sends POST to /users/:email/enable", async () => {
+			fetchMock.mockResolvedValueOnce(noContentResponse());
+
+			await client.enable(TEST_USER.email);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/users/${TEST_USER.email}/enable`);
+			expect(options.method).toBe(HttpMethod.POST);
 		});
 	});
 });

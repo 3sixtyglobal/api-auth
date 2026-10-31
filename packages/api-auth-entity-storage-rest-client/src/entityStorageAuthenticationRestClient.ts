@@ -2,19 +2,31 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
+	IAuthenticationAccountSummary,
 	IAuthenticationComponent,
+	IAuthenticationRegistration,
 	ILoginRequest,
 	ILoginResponse,
+	ILoginResult,
+	ILoginWithProviderRequest,
 	ILogoutRequest,
+	IMeResponse,
+	IPasswordForgotRequest,
 	IPasswordPolicyResponse,
 	IPasswordOptions,
+	IPasswordResetRequest,
+	IProvidersResponse,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
-	IUpdatePasswordRequest
+	IRegisterRequest,
+	IRegisterVerifyRequest,
+	IUpdatePasswordRequest,
+	IUpdatePasswordResponse
 } from "@3sixty/api-auth-entity-storage-models";
+import type { IAuthenticationProviderDetails } from "@3sixty/api-auth-models";
 import { BaseRestClient } from "@3sixty/api-core";
 import type { INoContentRequest, INoContentResponse } from "@3sixty/api-models";
-import { Guards } from "@3sixty/core";
+import { Guards, Is } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { CookieHelper, HeaderTypes } from "@3sixty/web";
 import type { IEntityStorageAuthenticationRestClientConstructorOptions } from "./models/entityStorageAuthenticationRestClientConstructorOptions.js";
@@ -65,15 +77,9 @@ export class EntityStorageAuthenticationRestClient
 	 * Perform a login for the user.
 	 * @param email The email address for the user.
 	 * @param password The password for the user.
-	 * @returns The authentication token for the user, if it uses a mechanism with public access.
+	 * @returns The token, and the profile when the provider holds one.
 	 */
-	public async login(
-		email: string,
-		password: string
-	): Promise<{
-		token?: string;
-		expiry: number;
-	}> {
+	public async login(email: string, password: string): Promise<ILoginResult> {
 		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(email), email);
 		Guards.stringValue(
 			EntityStorageAuthenticationRestClient.CLASS_NAME,
@@ -89,20 +95,63 @@ export class EntityStorageAuthenticationRestClient
 		});
 
 		return {
+			accountId: response.body.accountId,
 			token: CookieHelper.getCookieFromHeaders(
 				response?.headers?.[HeaderTypes.SetCookie],
 				this._cookieName
 			),
-			expiry: response.body.expiry
+			expiry: response.body.expiry,
+			profile: response.body.profile,
+			profileReadOnly: response.body.profileReadOnly ?? false,
+			profileEditUrl: response.body.profileEditUrl,
+			passwordChangeUrl: response.body.passwordChangeUrl
 		};
 	}
 
 	/**
-	 * Attach a DID to the signed-in account. The current session is left in place.
-	 * @returns A promise that resolves when the request has completed.
+	 * Perform a login through an authentication provider, creating the account on the first login.
+	 * @param authProviderId The authentication provider id.
+	 * @param credentials The provider specific credentials.
+	 * @returns The token, and the profile when the provider holds one.
 	 */
-	public async adoptIdentity(): Promise<void> {
-		await this.fetch<INoContentRequest, INoContentResponse>("/identity", "POST");
+	public async loginWithProvider(
+		authProviderId: string,
+		credentials: unknown
+	): Promise<ILoginResult> {
+		Guards.stringValue(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(authProviderId),
+			authProviderId
+		);
+		Guards.object<ILoginWithProviderRequest["body"]>(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(credentials),
+			credentials
+		);
+
+		const response = await this.fetch<ILoginWithProviderRequest, ILoginResponse>(
+			"/login/:authProviderId",
+			"POST",
+			{
+				pathParams: {
+					authProviderId
+				},
+				body: credentials
+			}
+		);
+
+		return {
+			accountId: response.body.accountId,
+			token: CookieHelper.getCookieFromHeaders(
+				response?.headers?.[HeaderTypes.SetCookie],
+				this._cookieName
+			),
+			expiry: response.body.expiry,
+			profile: response.body.profile,
+			profileReadOnly: response.body.profileReadOnly ?? false,
+			profileEditUrl: response.body.profileEditUrl,
+			passwordChangeUrl: response.body.passwordChangeUrl
+		};
 	}
 
 	/**
@@ -147,12 +196,18 @@ export class EntityStorageAuthenticationRestClient
 	}
 
 	/**
-	 * Update the user's password.
+	 * Update the user's password, ending the other sessions of the account.
 	 * @param currentPassword The current password for the user.
 	 * @param newPassword The new password for the user.
-	 * @returns A promise that resolves when the password has been updated on the server.
+	 * @returns The new token for the current session.
 	 */
-	public async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
+	public async updatePassword(
+		currentPassword: string,
+		newPassword: string
+	): Promise<{
+		token?: string;
+		expiry: number;
+	}> {
 		Guards.stringValue(
 			EntityStorageAuthenticationRestClient.CLASS_NAME,
 			nameof(currentPassword),
@@ -164,12 +219,71 @@ export class EntityStorageAuthenticationRestClient
 			newPassword
 		);
 
-		await this.fetch<IUpdatePasswordRequest, INoContentResponse>("/password", "PUT", {
+		const response = await this.fetch<IUpdatePasswordRequest, IUpdatePasswordResponse>(
+			"/password",
+			"PUT",
+			{
+				body: {
+					currentPassword,
+					newPassword
+				}
+			}
+		);
+
+		return {
+			token:
+				response.body.token ??
+				CookieHelper.getCookieFromHeaders(
+					response?.headers?.[HeaderTypes.SetCookie],
+					this._cookieName
+				),
+			expiry: response.body.expiry
+		};
+	}
+
+	/**
+	 * Send a link to reset a forgotten password to the e-mail address, when a password account uses it.
+	 * @param email The e-mail address of the account.
+	 * @returns A promise that resolves when the request has been handled.
+	 */
+	public async forgotPassword(email: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(email), email);
+
+		await this.fetch<IPasswordForgotRequest, INoContentResponse>("/password/forgot", "POST", {
 			body: {
-				currentPassword,
+				email
+			}
+		});
+	}
+
+	/**
+	 * Reset a forgotten password with the token from the reset link.
+	 * @param token The token from the reset link.
+	 * @param newPassword The new password for the account.
+	 * @returns A promise that resolves when the password has been reset.
+	 */
+	public async resetPassword(token: string, newPassword: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(token), token);
+		Guards.stringValue(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(newPassword),
+			newPassword
+		);
+
+		await this.fetch<IPasswordResetRequest, INoContentResponse>("/password/reset", "POST", {
+			body: {
+				token,
 				newPassword
 			}
 		});
+	}
+
+	/**
+	 * Remove the signed in account and the data stored for it.
+	 * @returns A promise that resolves when the account has been removed.
+	 */
+	public async removeAccount(): Promise<void> {
+		await this.fetch<INoContentRequest, INoContentResponse>("/me", "DELETE");
 	}
 
 	/**
@@ -179,6 +293,77 @@ export class EntityStorageAuthenticationRestClient
 	public async passwordPolicy(): Promise<IPasswordOptions> {
 		const response = await this.fetch<INoContentRequest, IPasswordPolicyResponse>("/policy", "GET");
 
+		return response.body;
+	}
+
+	/**
+	 * Get the authentication providers enabled on the server.
+	 * @returns The providers and what each supports, in the order they were registered.
+	 */
+	public async providers(): Promise<IAuthenticationProviderDetails[]> {
+		const response = await this.fetch<INoContentRequest, IProvidersResponse>("/providers", "GET");
+		return response.body.providers;
+	}
+
+	/**
+	 * Sign up for a password account, when self sign up is enabled. When the server needs the e-mail
+	 * address verified the result is undefined, otherwise the account is signed in.
+	 * @param registration The details of the account.
+	 * @returns The token and the profile, or undefined when the e-mail address must be verified.
+	 */
+	public async register(
+		registration: IAuthenticationRegistration
+	): Promise<ILoginResult | undefined> {
+		Guards.object<IAuthenticationRegistration>(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(registration),
+			registration
+		);
+
+		const response = await this.fetch<IRegisterRequest, ILoginResponse>("/register", "POST", {
+			body: registration
+		});
+
+		// A sign up that must be verified is accepted without a body.
+		if (!Is.object(response?.body)) {
+			return undefined;
+		}
+
+		return {
+			accountId: response.body.accountId,
+			token: CookieHelper.getCookieFromHeaders(
+				response?.headers?.[HeaderTypes.SetCookie],
+				this._cookieName
+			),
+			expiry: response.body.expiry,
+			profile: response.body.profile,
+			profileReadOnly: response.body.profileReadOnly ?? false,
+			profileEditUrl: response.body.profileEditUrl,
+			passwordChangeUrl: response.body.passwordChangeUrl
+		};
+	}
+
+	/**
+	 * Verify the e-mail address of a sign up with the token from the verification link.
+	 * @param token The token from the verification link.
+	 * @returns A promise that resolves when the account has been verified.
+	 */
+	public async verifyRegistration(token: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(token), token);
+
+		await this.fetch<IRegisterVerifyRequest, INoContentResponse>("/register/verify", "POST", {
+			body: {
+				token
+			}
+		});
+	}
+
+	/**
+	 * Get the signed in account.
+	 * @returns The account details.
+	 */
+	public async me(): Promise<IAuthenticationAccountSummary> {
+		const response = await this.fetch<INoContentRequest, IMeResponse>("/me", "GET");
 		return response.body;
 	}
 }

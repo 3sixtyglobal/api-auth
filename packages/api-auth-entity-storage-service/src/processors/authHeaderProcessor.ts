@@ -17,6 +17,7 @@ import {
 	ComponentFactory,
 	Converter,
 	GeneralError,
+	Guards,
 	Is,
 	LfuCache
 } from "@3sixty/core";
@@ -31,6 +32,8 @@ import { CookieHelper, HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IAuthHeaderProcessorConstructorOptions } from "../models/IAuthHeaderProcessorConstructorOptions.js";
 import type { IAuthTokenContext } from "../models/IAuthTokenContext.js";
+import { AccountHelper } from "../utils/accountHelper.js";
+import { AuthTokenCache } from "../utils/authTokenCache.js";
 import { TokenHelper } from "../utils/tokenHelper.js";
 
 /**
@@ -42,6 +45,16 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	 * @internal
 	 */
 	public static readonly DEFAULT_COOKIE_NAME: string = "access_token";
+
+	/**
+	 * The default SameSite attribute of the token cookie.
+	 */
+	public static readonly DEFAULT_COOKIE_SAME_SITE: "Strict" | "Lax" | "None" = "None";
+
+	/**
+	 * The default other cookies to remove on logout.
+	 */
+	public static readonly DEFAULT_LOGOUT_COOKIE_NAMES: string[] = ["oauth_transaction"];
 
 	/**
 	 * Runtime name for the class.
@@ -85,6 +98,18 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	private readonly _cookieName: string;
 
 	/**
+	 * The SameSite attribute of the token cookie.
+	 * @internal
+	 */
+	private readonly _cookieSameSite: "Strict" | "Lax" | "None";
+
+	/**
+	 * The other cookies to remove on logout.
+	 * @internal
+	 */
+	private readonly _logoutCookieNames: string[];
+
+	/**
 	 * Include the stack with errors.
 	 * @internal
 	 */
@@ -109,6 +134,12 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	private readonly _tokenCache?: LfuCache<IAuthTokenContext>;
 
 	/**
+	 * The cache keys of the tokens of each account, so its tokens can be cleared when its sessions end.
+	 * @internal
+	 */
+	private readonly _accountCacheKeys: Map<string, Set<string>>;
+
+	/**
 	 * How long a cached token context may live, counted from when it was resolved.
 	 * @internal
 	 */
@@ -129,16 +160,28 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 
 		this._signingKeyName = options?.config?.signingKeyName ?? "auth-signing";
 		this._cookieName = options?.config?.cookieName ?? AuthHeaderProcessor.DEFAULT_COOKIE_NAME;
+		this._cookieSameSite =
+			options?.config?.cookieSameSite ?? AuthHeaderProcessor.DEFAULT_COOKIE_SAME_SITE;
+		Guards.arrayOneOf(
+			AuthHeaderProcessor.CLASS_NAME,
+			nameof(options?.config?.cookieSameSite),
+			this._cookieSameSite,
+			["Strict", "Lax", "None"]
+		);
+		this._logoutCookieNames =
+			options?.config?.logoutCookieNames ?? AuthHeaderProcessor.DEFAULT_LOGOUT_COOKIE_NAMES;
 		this._includeErrorStack = options?.config?.includeErrorStack ?? false;
 
 		this._tokenCacheTtlMs =
 			options?.config?.tokenCacheTtlMs ?? AuthHeaderProcessor._DEFAULT_TOKEN_CACHE_TTL_MS;
+		this._accountCacheKeys = new Map<string, Set<string>>();
 		if (this._tokenCacheTtlMs > 0) {
 			this._tokenCache = new LfuCache<IAuthTokenContext>({
 				capacity: options?.config?.tokenCacheCapacity,
 				ttiMs: this._tokenCacheTtlMs,
 				mutexTimeoutMs: options?.config?.tokenCacheMutexTimeoutMs
 			});
+			AuthTokenCache.register(this._tokenCache, this._accountCacheKeys);
 		}
 	}
 
@@ -167,7 +210,11 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	 * @returns A promise that resolves when the processor has stopped.
 	 */
 	public async stop(): Promise<void> {
-		this._tokenCache?.destroy();
+		if (Is.object(this._tokenCache)) {
+			AuthTokenCache.unregister(this._tokenCache);
+			this._tokenCache.destroy();
+		}
+		this._accountCacheKeys.clear();
 	}
 
 	/**
@@ -208,17 +255,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 				// in a single-tenant environment we fall back to the node organization ID.
 				contextIds[ContextIdKeys.Organization] =
 					tokenContext.tenantOrganizationId ?? this._nodeOrganizationId;
-				if (Is.stringValue(tokenContext.userIdentity)) {
-					contextIds[ContextIdKeys.Account] = tokenContext.userIdentity;
-				} else {
-					delete contextIds[ContextIdKeys.Account];
-				}
-				if (Is.stringValue(tokenContext.identity) && tokenContext.identity.startsWith("did:")) {
-					contextIds[ContextIdKeys.User] = tokenContext.identity;
-				} else {
-					delete contextIds[ContextIdKeys.User];
-				}
-				contextIds[ContextIdKeys.UserOrganization] = tokenContext.userOrganization;
+				contextIds[ContextIdKeys.Account] = tokenContext.accountId;
 
 				// If the tenant has a custom public origin, we set it in the context for downstream processors to use.
 				if (Is.stringValue(tokenContext.tenantPublicOrigin)) {
@@ -227,6 +264,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 
 				processorState.authToken = tokenAndLocation?.token;
 				processorState.authTokenLocation = tokenAndLocation?.location;
+				processorState.authSessionStart = tokenContext.sessionStart;
 			} catch (err) {
 				const error = BaseError.fromError(err);
 				HttpErrorHelper.buildResponse(
@@ -268,27 +306,52 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 				(responseAuthOperation === "login" || responseAuthOperation === "refresh") &&
 				Is.stringValue(responseAuthToken)
 			) {
-				response.headers ??= {};
-				response.headers[HeaderTypes.SetCookie] = CookieHelper.createCookie(
-					this._cookieName,
-					responseAuthToken,
-					{
+				this.appendSetCookie(
+					response,
+					CookieHelper.createCookie(this._cookieName, responseAuthToken, {
 						secure: true,
 						httpOnly: true,
-						sameSite: "None",
+						sameSite: this._cookieSameSite,
 						path: "/"
-					}
+					})
 				);
 			} else if (responseAuthOperation === "logout") {
-				response.headers ??= {};
-				response.headers[HeaderTypes.SetCookie] = CookieHelper.deleteCookie(this._cookieName, {
-					secure: true,
-					httpOnly: true,
-					sameSite: "None",
-					path: "/"
-				});
+				this.appendSetCookie(
+					response,
+					CookieHelper.deleteCookie(this._cookieName, {
+						secure: true,
+						httpOnly: true,
+						sameSite: this._cookieSameSite,
+						path: "/"
+					})
+				);
+				for (const cookieName of this._logoutCookieNames) {
+					this.appendSetCookie(
+						response,
+						CookieHelper.deleteCookie(cookieName, {
+							secure: true,
+							httpOnly: true,
+							sameSite: "Lax",
+							path: "/"
+						})
+					);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Add a cookie to the response, keeping any the route has already set.
+	 * @param response The outgoing response.
+	 * @param cookie The Set-Cookie value.
+	 * @internal
+	 */
+	private appendSetCookie(response: IHttpResponse, cookie: string): void {
+		response.headers ??= {};
+		const existing = response.headers[HeaderTypes.SetCookie];
+		response.headers[HeaderTypes.SetCookie] = Is.empty(existing)
+			? cookie
+			: [...(Is.array(existing) ? existing : [existing]), cookie];
 	}
 
 	/**
@@ -311,9 +374,14 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 		// Use hash of token so we don't store the raw token in memory.
 		const cacheKey = Converter.bytesToHex(Blake2b.sum256(Converter.utf8ToBytes(token)));
 
+		const generation = AuthTokenCache.generation();
+		let verified = false;
 		const tokenContext = await this._tokenCache.getOrSet(
 			cacheKey,
-			async () => this.verifyToken(nodeId, token, contextIds),
+			async () => {
+				verified = true;
+				return this.verifyToken(nodeId, token, contextIds);
+			},
 			Date.now() + this._tokenCacheTtlMs
 		);
 
@@ -321,6 +389,22 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 		if (Is.integer(tokenContext.expires) && tokenContext.expires <= Date.now()) {
 			this._tokenCache.delete(cacheKey);
 			return this.verifyToken(nodeId, token, contextIds);
+		}
+
+		if (generation !== AuthTokenCache.generation()) {
+			// Sessions ended while the token was verified, or while this request waited for another
+			// request verifying it, so the result may predate that and is neither kept nor used.
+			this._tokenCache.delete(cacheKey);
+			return this.verifyToken(nodeId, token, contextIds);
+		}
+
+		if (verified && Is.stringValue(tokenContext.accountId)) {
+			AuthTokenCache.track(
+				this._tokenCache,
+				this._accountCacheKeys,
+				tokenContext.accountId,
+				cacheKey
+			);
 		}
 
 		return tokenContext;
@@ -349,24 +433,10 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			nodeId,
 			this._signingKeyName,
 			token,
-			async (
-				sub: string,
-				org: string,
-				tid: string | undefined,
-				passwordVersion: number | undefined
-			) => {
+			async (sub: string, tid: string | undefined, passwordVersion: number | undefined) => {
 				const validParts = [];
 
 				tenantId = tid;
-
-				if (Is.stringValue(tenantId)) {
-					const tenant = await this._tenantAdminComponent?.get(tenantId);
-					if (tenant?.id === tenantId) {
-						validParts.push("tenant");
-						tenantOrganizationId = tenant.organizationId;
-						tenantPublicOrigin = tenant.publicOrigin;
-					}
-				}
 
 				// We use the tenant id from the token, if the user is not in that
 				// partition then the get will fail
@@ -375,16 +445,26 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 					[ContextIdKeys.Tenant]: tid
 				};
 
-				// Wrap the user lookup in the request context so partitioned storage uses the correct tenant.
-				user = await ContextIdStore.run(contextIdsForUserLookup, async () =>
-					this._userEntityStorage.get(sub, "userId")
-				);
+				const [tenant, tokenUser] = await Promise.all([
+					Is.stringValue(tid) ? this._tenantAdminComponent?.get(tid) : undefined,
+					// Wrap the user lookup in the request context so partitioned storage uses the correct tenant.
+					ContextIdStore.run(contextIdsForUserLookup, async () => this._userEntityStorage.get(sub))
+				]);
+				user = tokenUser;
 
-				if (user?.userId === sub && (passwordVersion ?? 0) === (user.passwordVersion ?? 0)) {
-					validParts.push("user");
+				if (Is.stringValue(tid) && tenant?.id === tid) {
+					validParts.push("tenant");
+					tenantOrganizationId = tenant.organizationId;
+					tenantPublicOrigin = tenant.publicOrigin;
 				}
-				if (user?.organization === org) {
-					validParts.push("organization");
+
+				// A disabled or unverified account is refused even with a token issued before.
+				if (
+					user?.accountId === sub &&
+					(passwordVersion ?? 0) === (user.passwordVersion ?? 0) &&
+					AccountHelper.canSignIn(user)
+				) {
+					validParts.push("user");
 				}
 
 				return validParts;
@@ -397,10 +477,9 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			tenantId,
 			tenantOrganizationId,
 			tenantPublicOrigin,
-			userIdentity: user?.userId,
-			identity: Is.stringValue(user?.identity) ? user.identity : undefined,
-			userOrganization: user?.organization,
-			expires: Is.integer(expiresSeconds) ? expiresSeconds * 1000 : undefined
+			accountId: user?.accountId,
+			expires: Is.integer(expiresSeconds) ? expiresSeconds * 1000 : undefined,
+			sessionStart: Coerce.integer(payload.sst)
 		};
 	}
 }

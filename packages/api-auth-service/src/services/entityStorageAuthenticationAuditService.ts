@@ -121,7 +121,7 @@ export class EntityStorageAuthenticationAuditService implements IAuthenticationA
 			organizationId: entry.organizationId ?? contextIds?.[ContextIdKeys.Organization],
 			tenantId: entry.tenantId ?? contextIds?.[ContextIdKeys.Tenant],
 			data: entry.data,
-			ipAddressHashes: this.hashIpAddresses(contextIds?.[HttpContextIdKeys.IpAddress]?.split("|")),
+			ipAddressHash: this.hashIpAddress(contextIds?.[HttpContextIdKeys.IpAddress]),
 			userAgent: contextIds?.[HttpContextIdKeys.UserAgent],
 			correlationId: contextIds?.[HttpContextIdKeys.CorrelationId]
 		};
@@ -376,18 +376,16 @@ export class EntityStorageAuthenticationAuditService implements IAuthenticationA
 	}
 
 	/**
-	 * Hash a list of IP addresses using SHA-256.
-	 * @param ipAddresses The IP addresses to hash.
-	 * @returns The hexadecimal hashes of the salted IPs.
+	 * Hash an IP address using SHA-256.
+	 * @param ipAddress The IP address to hash.
+	 * @returns The hexadecimal hash of the salted IP.
 	 * @internal
 	 */
-	private hashIpAddresses(ipAddresses: string[] | undefined): string[] | undefined {
-		if (!Is.stringValue(this._ipHashSalt) || !Is.array(ipAddresses)) {
+	private hashIpAddress(ipAddress: string | undefined): string | undefined {
+		if (!Is.stringValue(this._ipHashSalt) || !Is.stringValue(ipAddress)) {
 			return undefined;
 		}
-		return ipAddresses.map(ip => {
-			const hash = Sha256.sum256(Converter.utf8ToBytes(`${this._ipHashSalt}:${ip}`));
-			return Converter.bytesToHex(hash);
-		});
+		const hash = Sha256.sum256(Converter.utf8ToBytes(`${this._ipHashSalt}:${ipAddress}`));
+		return Converter.bytesToHex(hash);
 	}
 }

@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IAuthenticationUser } from "../IAuthenticationUser.js";
 
@@ -11,7 +12,7 @@ export interface IAdminUserUpdateRequest {
 	 */
 	pathParams: {
 		/**
-		 * The user email.
+		 * The user email, or the account id.
 		 */
 		email: string;
 	};
@@ -19,5 +20,5 @@ export interface IAdminUserUpdateRequest {
 	/**
 	 * The body of the request.
 	 */
-	body: Partial<Omit<IAuthenticationUser, "email">>;
+	body: Partial<Pick<IAuthenticationUser, "userIdentity" | "organizationIdentity">>;
 }

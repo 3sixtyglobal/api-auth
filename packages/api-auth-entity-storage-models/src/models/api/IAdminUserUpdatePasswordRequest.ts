@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 
 /**
@@ -10,7 +11,7 @@ export interface IAdminUserUpdatePasswordRequest {
 	 */
 	pathParams: {
 		/**
-		 * The user email.
+		 * The user email, or the account id.
 		 */
 		email: string;
 	};
@@ -23,10 +24,5 @@ export interface IAdminUserUpdatePasswordRequest {
 		 * The new password for the user.
 		 */
 		newPassword: string;
-
-		/**
-		 * The current password for the user.
-		 */
-		currentPassword?: string;
 	};
 }

@@ -1,41 +1,61 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { RandomHelper } from "@3sixty/core";
+import { EntitySchemaFactory, EntitySchemaHelper } from "@3sixty/entity";
+import { nameof } from "@3sixty/nameof";
+import type { AuthenticationPasswordReset } from "../src/entities/authenticationPasswordReset.js";
+import type { AuthenticationUser } from "../src/entities/authenticationUser.js";
+import type { AuthenticationUserV1 } from "../src/entities/authenticationUserV1.js";
 import { initSchema } from "../src/schema.js";
-import { migrateAuthenticationUser } from "./helpers/migrateAuthenticationUser.js";
 
 initSchema();
 
-describe("AuthenticationUser migration", () => {
-	const storedAccount = {
-		email: "user@example.com",
-		password: "stored-password-hash",
-		salt: "c2FsdA==",
-		identity: "did:user:123",
-		organization: "did:org:456",
-		passwordVersion: 2
-	};
+describe("initSchema", () => {
+	test("registers the account schema with the account id and dates", () => {
+		const schema = EntitySchemaFactory.get(nameof<AuthenticationUser>());
 
-	beforeEach(() => {
-		vi.restoreAllMocks();
-		vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
+		expect(EntitySchemaHelper.getVersion(schema)).toBe(2);
+		expect(schema.properties?.map(p => p.property)).toEqual([
+			"accountId",
+			"email",
+			"password",
+			"salt",
+			"authProviderId",
+			"providerAccountId",
+			"providerTenantId",
+			"passwordVersion",
+			"dateCreated",
+			"dateModified",
+			"dateLastLogin",
+			"dateDisabled",
+			"verified",
+			"passwordAlgorithm",
+			"passwordHashParameters"
+		]);
+		expect(EntitySchemaHelper.findVersionProperty(schema)).toBeUndefined();
 	});
 
-	test("gives a version 1 account its own id and keeps the identity", async () => {
-		const migrated = await migrateAuthenticationUser(storedAccount, 1);
+	test("registers the password reset token schema", () => {
+		const schema = EntitySchemaFactory.get(nameof<AuthenticationPasswordReset>());
 
-		expect(migrated.userId).toBe("account-1");
-		expect(migrated.identity).toBe("did:user:123");
-		expect(migrated.email).toBe("user@example.com");
-		expect(migrated.organization).toBe("did:org:456");
-		expect(migrated.passwordVersion).toBe(2);
+		expect(schema.properties?.map(p => p.property)).toEqual([
+			"id",
+			"accountId",
+			"expires",
+			"dateCreated",
+			"purpose",
+			"password",
+			"salt",
+			"passwordAlgorithm",
+			"passwordHashParameters",
+			"used"
+		]);
+		expect(EntitySchemaHelper.findVersionProperty(schema)).toBeUndefined();
 	});
 
-	test("drops the stored scope from a version 0 account and keeps the identity", async () => {
-		const migrated = await migrateAuthenticationUser({ ...storedAccount, scope: "read" }, 0);
+	test("keeps the version 1 schema so the node can migrate it", () => {
+		const schema = EntitySchemaFactory.get(nameof<AuthenticationUserV1>());
 
-		expect(migrated.userId).toBe("account-1");
-		expect(migrated.identity).toBe("did:user:123");
-		expect(migrated).not.toHaveProperty("scope");
+		expect(schema.properties?.map(p => p.property)).toContain("identity");
+		expect(schema.properties?.map(p => p.property)).toContain("organization");
 	});
 });

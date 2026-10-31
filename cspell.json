@@ -21,18 +21,25 @@
 	"words": [
 		"abbrev",
 		"autorelease",
+		"cryptosuite",
 		"cutoff",
+		"eddsa",
+		"edov",
 		"Fastify",
+		"ggpht",
+		"googleusercontent",
 		"hotfixes",
 		"iotaledger",
 		"livez",
 		"nameof",
 		"openapi",
+		"PKCE",
+		"pver",
 		"readyz",
 		"requestor",
 		"Stiftung",
-		"pver",
-		"teardown"
+		"teardown",
+		"xms"
 	],
 	"ignoreRegExpList": [
 		"/from\\s+(['\"]).*\\1/",

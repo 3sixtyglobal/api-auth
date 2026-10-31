@@ -32,6 +32,34 @@
 		"packages/api-auth-entity-storage-rest-client": {
 			"package-name": "api-auth-entity-storage-rest-client",
 			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-connector-entity-storage": {
+			"package-name": "api-auth-connector-entity-storage",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-oauth-models": {
+			"package-name": "api-auth-oauth-models",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-oauth-connector-google": {
+			"package-name": "api-auth-oauth-connector-google",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-oauth-connector-microsoft": {
+			"package-name": "api-auth-oauth-connector-microsoft",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-oauth-service": {
+			"package-name": "api-auth-oauth-service",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-account-service": {
+			"package-name": "api-auth-account-service",
+			"changelog-path": "docs/changelog.md"
+		},
+		"packages/api-auth-account-rest-client": {
+			"package-name": "api-auth-account-rest-client",
+			"changelog-path": "docs/changelog.md"
 		}
 	},
 	"plugins": [

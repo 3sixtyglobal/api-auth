@@ -1,0 +1,8 @@
+{
+	"error": {
+		"googleOAuthProviderConnector": {
+			"emailNotVerified": "Google has not verified the e-mail address of the account",
+			"domainNotAllowed": "Accounts from the domain \"{domain}\" may not sign in"
+		}
+	}
+}

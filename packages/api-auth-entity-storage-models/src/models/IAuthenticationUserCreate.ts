@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 
 /**
- * Fields accepted when an admin creates a user.
- * The DID and the organisation may be omitted. The service allocates the account id and fills the organisation.
+ * Fields accepted when an admin creates a user. The service allocates the account id.
  */
 export interface IAuthenticationUserCreate {
 	/**
@@ -17,12 +16,7 @@ export interface IAuthenticationUserCreate {
 	password: string;
 
 	/**
-	 * DID to store on the account. When omitted, the account is created without one.
+	 * True to create the account disabled.
 	 */
-	userIdentity?: string;
-
-	/**
-	 * Organisation identity. When omitted, the service uses the organisation on the request context.
-	 */
-	organizationIdentity?: string;
+	disabled?: boolean;
 }
