@@ -31,8 +31,7 @@ export interface IEntityStorageOrganizationRequestAdminServiceConstructorOptions
 	authorizationComponentType?: string;
 
 	/**
-	 * The entity storage for the registered organizations, when it exists accounts only join
-	 * registered organizations.
+	 * The entity storage for the registered organizations, which accounts may only join.
 	 * @default organization
 	 */
 	organizationEntityStorageType?: string;

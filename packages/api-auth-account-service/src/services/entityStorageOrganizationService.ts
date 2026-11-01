@@ -112,16 +112,10 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	private readonly _organizationEntityStorage: IEntityStorageConnector<Organization>;
 
 	/**
-	 * The entity storage type of the organizations, which hold the revocation index counters.
+	 * The entity storage for the requests to join an organization.
 	 * @internal
 	 */
-	private readonly _organizationEntityStorageType: string;
-
-	/**
-	 * The entity storage for the requests to join an organization, when it exists.
-	 * @internal
-	 */
-	private readonly _organizationRequestEntityStorage?: IEntityStorageConnector<OrganizationRequest>;
+	private readonly _organizationRequestEntityStorage: IEntityStorageConnector<OrganizationRequest>;
 
 	/**
 	 * The logging component, when it exists.
@@ -136,10 +130,10 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	private readonly _accountDataEntityStorage: IEntityStorageConnector<AccountData>;
 
 	/**
-	 * The identity component, when it exists.
+	 * The identity component.
 	 * @internal
 	 */
-	private readonly _identityComponent?: IIdentityComponent;
+	private readonly _identityComponent: IIdentityComponent;
 
 	/**
 	 * How long an organization identity proof may be used for after it was created, in seconds.
@@ -151,7 +145,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * The authorization component.
 	 * @internal
 	 */
-	private readonly _authorizationComponent?: IAuthorizationComponent;
+	private readonly _authorizationComponent: IAuthorizationComponent;
 
 	/**
 	 * The verification method added to a created organization DID.
@@ -178,10 +172,10 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	private readonly _authorizationModelId: string;
 
 	/**
-	 * The rate component, when it exists.
+	 * The rate component.
 	 * @internal
 	 */
-	private readonly _authenticationRateService?: IAuthenticationRateComponent;
+	private readonly _authenticationRateService: IAuthenticationRateComponent;
 
 	/**
 	 * The rate limits registered with the rate component, by action.
@@ -200,12 +194,10 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @param options The options for the service.
 	 */
 	constructor(options?: IEntityStorageOrganizationServiceConstructorOptions) {
-		this._organizationEntityStorageType =
-			options?.organizationEntityStorageType ?? OrganizationHelper.DEFAULT_ENTITY_STORAGE_TYPE;
 		this._organizationEntityStorage = EntityStorageConnectorFactory.get(
-			this._organizationEntityStorageType
+			options?.organizationEntityStorageType ?? "organization"
 		);
-		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.getIfExists<
+		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.get<
 			IEntityStorageConnector<OrganizationRequest>
 		>(options?.organizationRequestEntityStorageType ?? "organization-request");
 		this._logging = ComponentFactory.getIfExists<ILoggingComponent>(
@@ -214,12 +206,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		this._accountDataEntityStorage = EntityStorageConnectorFactory.get(
 			options?.accountDataEntityStorageType ?? "account-data"
 		);
-		this._identityComponent = ComponentFactory.getIfExists<IIdentityComponent>(
+		this._identityComponent = ComponentFactory.get<IIdentityComponent>(
 			options?.identityComponentType ?? "identity-service"
 		);
 		this._identityProofMaxAgeSeconds =
 			options?.config?.identityProofMaxAgeSeconds ?? IdentityProofHelper.DEFAULT_MAX_AGE_SECONDS;
-		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+		this._authorizationComponent = ComponentFactory.get<IAuthorizationComponent>(
 			options?.authorizationComponentType ?? "authorization"
 		);
 		this._verificationMethodId =
@@ -234,7 +226,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		this._authorizationModelId =
 			options?.config?.authorizationModelId ??
 			EntityStorageOrganizationService.DEFAULT_AUTHORIZATION_MODEL_ID;
-		this._authenticationRateService = ComponentFactory.getIfExists<IAuthenticationRateComponent>(
+		this._authenticationRateService = ComponentFactory.get<IAuthenticationRateComponent>(
 			options?.authenticationRateServiceType ?? "authentication-rate"
 		);
 		this._rateLimits = {
@@ -266,7 +258,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 */
 	public async start(nodeLoggingComponentType?: string): Promise<void> {
 		for (const [action, limit] of Object.entries(this._rateLimits)) {
-			await this._authenticationRateService?.registerAction(action, limit);
+			await this._authenticationRateService.registerAction(action, limit);
 		}
 	}
 
@@ -277,7 +269,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 */
 	public async stop(nodeLoggingComponentType?: string): Promise<void> {
 		for (const action of Object.keys(this._rateLimits)) {
-			await this._authenticationRateService?.unregisterAction(action);
+			await this._authenticationRateService.unregisterAction(action);
 		}
 	}
 
@@ -389,12 +381,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			if (Is.stringValue(firstMemberAccountId)) {
 				await PendingMembershipHelper.add(
 					this._accountDataEntityStorage,
+					this._organizationEntityStorage,
 					this._identityComponent,
 					this._verificationMethodId,
 					firstMemberAccountId,
 					identity,
-					undefined,
-					this._organizationEntityStorageType
+					undefined
 				);
 			}
 		} catch (error) {
@@ -572,7 +564,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		// A system call, such as from the node CLI, has no session.
 		if (Is.stringValue(callerAccountId)) {
 			RecentSignInHelper.guard(sessionStart, this._recentSignInSeconds);
-			await this._authenticationRateService?.check(
+			await this._authenticationRateService.check(
 				EntityStorageOrganizationService.RATE_ACTION_EXPORT_IDENTITY,
 				callerAccountId
 			);
@@ -589,10 +581,9 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 				{ identity: organization.identity }
 			);
 		}
-		const identityComponent = this.requireIdentityComponent();
 		let identity: IIdentityExport;
 		try {
-			identity = await identityComponent.identityExport(
+			identity = await this._identityComponent.identityExport(
 				organization.identity,
 				await this.nodeIdentity()
 			);
@@ -631,7 +622,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		await this.guardAdmin();
 		const organization = await this.getOrganization(id);
 
-		if (await this.hasMembers(organization.identity)) {
+		if (
+			await AccountDataHelper.hasOrganizationItem(
+				this._accountDataEntityStorage,
+				organization.identity
+			)
+		) {
 			throw new ConflictError(
 				EntityStorageOrganizationService.CLASS_NAME,
 				"organizationHasMembers",
@@ -657,35 +653,24 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @internal
 	 */
 	private async rejectPendingRequests(identity: string): Promise<void> {
-		const storage = this._organizationRequestEntityStorage;
-		if (Is.empty(storage)) {
-			return;
-		}
 		// Collected first, as rejecting a request takes it out of the pending pages being read.
 		const pending: IOrganizationRequest[] = [];
 		let cursor: string | undefined;
 		do {
 			const page = await OrganizationRequestHelper.query(
-				storage,
+				this._organizationRequestEntityStorage,
 				OrganizationRequestStatus.Pending,
 				identity,
 				cursor
 			);
-			// Storage may compare without case, so only exact matches are rejected.
-			pending.push(
-				...page.entities.filter(
-					request =>
-						request.organization === identity &&
-						request.status === OrganizationRequestStatus.Pending
-				)
-			);
+			pending.push(...page.entities);
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 
 		for (const request of pending) {
 			try {
 				// Only while still pending, so a request an admin answered meanwhile is kept.
-				await storage.set(
+				await this._organizationRequestEntityStorage.set(
 					{
 						...request,
 						status: OrganizationRequestStatus.Rejected,
@@ -747,35 +732,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		if (!Is.stringValue(callerAccountId)) {
 			return;
 		}
-		const identityComponent = this._identityComponent;
-		if (Is.empty(identityComponent)) {
-			throw new GeneralError(
-				EntityStorageOrganizationService.CLASS_NAME,
-				"identityComponentMissing"
-			);
-		}
 		await IdentityProofHelper.verifyOrganization(
-			identityComponent,
+			this._identityComponent,
 			identity,
 			proof,
 			this._identityProofMaxAgeSeconds
 		);
-	}
-
-	/**
-	 * Get the identity component.
-	 * @returns The component.
-	 * @throws GeneralError when it does not exist.
-	 * @internal
-	 */
-	private requireIdentityComponent(): IIdentityComponent {
-		if (Is.empty(this._identityComponent)) {
-			throw new GeneralError(
-				EntityStorageOrganizationService.CLASS_NAME,
-				"identityComponentMissing"
-			);
-		}
-		return this._identityComponent;
 	}
 
 	/**
@@ -853,12 +815,11 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			);
 		}
 		if (Is.stringValue(callerAccountId)) {
-			await this._authenticationRateService?.check(
+			await this._authenticationRateService.check(
 				EntityStorageOrganizationService.RATE_ACTION_IMPORT_IDENTITY,
 				callerAccountId
 			);
 		}
-		const identityComponent = this.requireIdentityComponent();
 		const controller = await this.nodeIdentity();
 
 		if (
@@ -885,7 +846,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 
 		// The import proves the keys match the document before anything is stored.
 		try {
-			await identityComponent.identityImport(exported, controller);
+			await this._identityComponent.identityImport(exported, controller);
 		} catch (error) {
 			// The node already holds the DID, which is a conflict rather than a failure.
 			if (BaseError.someErrorName(error, ConflictError.CLASS_NAME)) {
@@ -954,7 +915,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			// The document of an imported DID published on a ledger is kept, so the export can be
 			// imported again.
 			steps.push(async () =>
-				this.requireIdentityComponent().identityRemove(
+				this._identityComponent.identityRemove(
 					identity,
 					{ removeKeys: true, removeDocumentKey: true, retainDocument: held.imported },
 					held.controller
@@ -986,9 +947,8 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @internal
 	 */
 	private async removeHeldIdentity(identity: string): Promise<void> {
-		const identityComponent = this.requireIdentityComponent();
 		try {
-			await identityComponent.identityRemove(
+			await this._identityComponent.identityRemove(
 				identity,
 				{ removeKeys: true, removeDocumentKey: true, retainDocument: true },
 				await this.nodeIdentity()
@@ -1019,13 +979,19 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		const ids: string[] = [];
 		let cursor: string | undefined;
 		do {
-			const page = await AccountDataHelper.query(
-				this._accountDataEntityStorage,
-				identity,
+			const page = await this._accountDataEntityStorage.query(
+				{
+					conditions: [
+						{ property: "accountId", value: identity, comparison: ComparisonOperator.Equals },
+						{ property: "id", value: retiredId, comparison: ComparisonOperator.NotEquals }
+					],
+					logicalOperator: LogicalOperator.And
+				},
 				undefined,
+				["id"],
 				cursor
 			);
-			ids.push(...page.entities.map(item => item.id).filter(itemId => itemId !== retiredId));
+			ids.push(...page.entities.map(item => item.id as string));
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 		for (const itemId of ids) {
@@ -1040,23 +1006,22 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @internal
 	 */
 	private async createIdentity(): Promise<string> {
-		const identityComponent = this.requireIdentityComponent();
 		const nodeIdentity = await this.nodeIdentity();
 
-		const document = await identityComponent.identityCreate(undefined, nodeIdentity);
+		const document = await this._identityComponent.identityCreate(undefined, nodeIdentity);
 		if (!Is.stringValue(document.id) || !document.id.startsWith("did:")) {
 			throw new GeneralError(EntityStorageOrganizationService.CLASS_NAME, "identityCreateFailed");
 		}
 
 		try {
-			await identityComponent.verificationMethodCreate(
+			await this._identityComponent.verificationMethodCreate(
 				document.id,
 				DidVerificationMethodType.AssertionMethod,
 				this._verificationMethodId,
 				nodeIdentity
 			);
 		} catch (error) {
-			await identityComponent.identityRemove(
+			await this._identityComponent.identityRemove(
 				document.id,
 				{ removeKeys: true, removeDocumentKey: true },
 				nodeIdentity
@@ -1129,7 +1094,6 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		if (identities.length === 0) {
 			return new Map();
 		}
-		const wanted = new Set(identities);
 		let cursor: string | undefined;
 		do {
 			const page = await this._accountDataEntityStorage.query(
@@ -1148,14 +1112,9 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 				undefined,
 				cursor
 			);
-			// Storage may compare without case or accents, so only exact matches are used.
 			for (const item of page.entities as AccountData[]) {
 				const current = profiles.get(item.accountId);
-				if (
-					wanted.has(item.accountId) &&
-					item.type === AuthenticationAccountDataType.PublicProfile &&
-					(!Is.object(current) || (item.isDefault && !current.isDefault))
-				) {
+				if (!Is.object(current) || (item.isDefault && !current.isDefault)) {
 					profiles.set(item.accountId, item);
 				}
 			}
@@ -1191,18 +1150,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		) {
 			return true;
 		}
-		return this.callerIsAdmin();
-	}
-
-	/**
-	 * Check whether any account is a member of an organization, through the indexed organization
-	 * column of the organization items, reading a single item.
-	 * @param identity The DID of the organization.
-	 * @returns True when an account is a member.
-	 * @internal
-	 */
-	private async hasMembers(identity: string): Promise<boolean> {
-		return AccountDataHelper.hasOrganizationItem(this._accountDataEntityStorage, identity);
+		return AdminScopeHelper.callerIsAdmin(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole,
+			this._memberAdminRole
+		);
 	}
 
 	/**
@@ -1240,28 +1193,20 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	}
 
 	/**
-	 * Check whether the caller holds escalated privilege or the member admin role, calls with no
-	 * caller account, such as from the node CLI, are system calls.
-	 * @returns True when the caller is an admin.
-	 * @internal
-	 */
-	private async callerIsAdmin(): Promise<boolean> {
-		return AdminScopeHelper.callerIsAdmin(
-			this._authorizationComponent,
-			this._authorizationModelId,
-			this._escalatedPrivilegeRole,
-			this._memberAdminRole
-		);
-	}
-
-	/**
 	 * Ensure the caller is an admin.
 	 * @returns A promise that resolves when the caller is an admin.
 	 * @throws ForbiddenError when it is not.
 	 * @internal
 	 */
 	private async guardAdmin(): Promise<void> {
-		if (!(await this.callerIsAdmin())) {
+		if (
+			!(await AdminScopeHelper.callerIsAdmin(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole,
+				this._memberAdminRole
+			))
+		) {
 			throw new ForbiddenError(
 				EntityStorageOrganizationService.CLASS_NAME,
 				"organizationAdminRequired",

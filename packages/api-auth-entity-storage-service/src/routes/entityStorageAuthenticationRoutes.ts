@@ -22,7 +22,6 @@ import type {
 } from "@3sixty/api-auth-entity-storage-models";
 import type {
 	IAcceptedResponse,
-	IConflictResponse,
 	IForbiddenResponse,
 	IHttpRequestContext,
 	INoContentRequest,
@@ -34,7 +33,7 @@ import type {
 	ITooManyRequestsResponse,
 	IUnauthorizedResponse
 } from "@3sixty/api-models";
-import { Coerce, ComponentFactory, Guards, Is } from "@3sixty/core";
+import { Coerce, ComponentFactory, Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { HttpStatusCode } from "@3sixty/web";
 
@@ -96,7 +95,8 @@ export function generateRestRoutesAuthentication(
 						response: {
 							body: {
 								accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-								expiry: 1722514341067
+								expiry: 1722514341067,
+								roles: ["user"]
 							}
 						}
 					}
@@ -148,10 +148,10 @@ export function generateRestRoutesAuthentication(
 		skipAuth: true
 	};
 
-	const registerRoute: IRestRoute<IRegisterRequest, ILoginResponse | IRegisterAcceptedResponse> = {
+	const registerRoute: IRestRoute<IRegisterRequest, IRegisterAcceptedResponse> = {
 		operationId: "authenticationRegister",
 		summary:
-			"Sign up for a password account when self sign up is enabled, accepted whether or not the address is taken when the e-mail address must be verified, otherwise signed in",
+			"Sign up for a password account, accepted whether or not the address is taken, with a verification link sent by e-mail",
 		tag: tagsAuthentication[0].name,
 		method: "POST",
 		path: `${baseRouteName}/register`,
@@ -176,27 +176,11 @@ export function generateRestRoutesAuthentication(
 		},
 		responseType: [
 			{
-				type: nameof<ILoginResponse>(),
-				examples: [
-					{
-						id: "registerResponseExample",
-						description: "The response for the sign up request.",
-						response: {
-							body: {
-								accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-								expiry: 1722514341067,
-								profileReadOnly: false
-							}
-						}
-					}
-				]
-			},
-			{
 				// Documented as accepted, the response has no body or location.
 				type: nameof<IAcceptedResponse>()
 			},
 			{
-				type: nameof<IConflictResponse>()
+				type: nameof<IForbiddenResponse>()
 			},
 			{
 				type: nameof<ITooManyRequestsResponse>()
@@ -268,7 +252,8 @@ export function generateRestRoutesAuthentication(
 								profileEditUrl: "https://myaccount.google.com/personal-info",
 								passwordChangeUrl: "https://myaccount.google.com/signinoptions/password",
 								identity: "did:example:123456789abcdefghi",
-								organization: "did:example:organization"
+								organization: "did:example:organization",
+								roles: ["user"]
 							}
 						}
 					}
@@ -630,7 +615,8 @@ export async function authenticationLogin(
 			profile: result.profile,
 			profileReadOnly: result.profileReadOnly,
 			profileEditUrl: result.profileEditUrl,
-			passwordChangeUrl: result.passwordChangeUrl
+			passwordChangeUrl: result.passwordChangeUrl,
+			roles: result.roles
 		}
 	};
 }
@@ -676,14 +662,14 @@ export async function authenticationLoginWithProvider(
 			profile: result.profile,
 			profileReadOnly: result.profileReadOnly,
 			profileEditUrl: result.profileEditUrl,
-			passwordChangeUrl: result.passwordChangeUrl
+			passwordChangeUrl: result.passwordChangeUrl,
+			roles: result.roles
 		}
 	};
 }
 
 /**
- * Sign up for a password account, accepted when the e-mail address must be verified, otherwise
- * signed in.
+ * Sign up for a password account, accepted whether or not the address is taken.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
  * @param request The request.
@@ -693,32 +679,15 @@ export async function authenticationRegister(
 	httpRequestContext: IHttpRequestContext,
 	componentName: string,
 	request: IRegisterRequest
-): Promise<(ILoginResponse | IRegisterAcceptedResponse) & IRestRouteResponseOptions> {
+): Promise<IRegisterAcceptedResponse> {
 	Guards.object<IRegisterRequest>(ROUTES_SOURCE, nameof(request), request);
 	Guards.object<IRegisterRequest["body"]>(ROUTES_SOURCE, nameof(request.body), request.body);
 
 	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
-	const result = await component.register(request.body);
-	if (Is.undefined(result)) {
-		return {
-			statusCode: HttpStatusCode.accepted
-		};
-	}
-
-	// Need to give a hint to any auth processors about the operation
-	// in case they need to manipulate the response
-	httpRequestContext.processorState.authOperation = "login";
-	httpRequestContext.processorState.authToken = result.token;
+	await component.register(request.body);
 
 	return {
-		body: {
-			accountId: result.accountId,
-			expiry: result.expiry,
-			profile: result.profile,
-			profileReadOnly: result.profileReadOnly,
-			profileEditUrl: result.profileEditUrl,
-			passwordChangeUrl: result.passwordChangeUrl
-		}
+		statusCode: HttpStatusCode.accepted
 	};
 }
 

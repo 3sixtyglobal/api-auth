@@ -29,12 +29,12 @@ export interface IAuthenticationComponent extends IComponent {
 	loginWithProvider(authProviderId: string, credentials: unknown): Promise<ILoginResult>;
 
 	/**
-	 * Sign up for a password account, when self sign up is enabled. With e-mail verification the
-	 * result is undefined and a verification link is sent, otherwise the account is signed in.
+	 * Sign up for a password account, when the password authentication provider is registered. A
+	 * verification link is sent by e-mail, and the account can sign in once it has been verified.
 	 * @param registration The details of the account.
-	 * @returns The token and the profile, or undefined when the e-mail address must be verified.
+	 * @returns A promise that resolves when the sign up has been accepted.
 	 */
-	register(registration: IAuthenticationRegistration): Promise<ILoginResult | undefined>;
+	register(registration: IAuthenticationRegistration): Promise<void>;
 
 	/**
 	 * Verify the e-mail address of a self sign up with the token from the verification link.

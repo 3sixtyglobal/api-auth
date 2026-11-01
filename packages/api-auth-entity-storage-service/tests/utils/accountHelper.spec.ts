@@ -3,6 +3,7 @@
 import { GeneralError, NotFoundError } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { nameof } from "@3sixty/nameof";
+import type { AuthenticationPasswordReset } from "../../src/entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { initSchema } from "../../src/schema.js";
 import { AccountHelper } from "../../src/utils/accountHelper.js";
@@ -12,6 +13,9 @@ initSchema();
 
 describe("AccountHelper", () => {
 	let userStorage: MemoryEntityStorageConnector<AuthenticationUser>;
+	let resetStorage: MemoryEntityStorageConnector<AuthenticationPasswordReset>;
+	let organizationRequestAdmin: { className: () => string; removeForAccount: () => Promise<void> };
+	let defaultAuthorization: { component: never; modelId: string };
 
 	function account(): AuthenticationUser {
 		return {
@@ -33,11 +37,27 @@ describe("AccountHelper", () => {
 			entitySchema: nameof<AuthenticationUser>(),
 			config: { storageKey: "account-helper-user" }
 		});
+		resetStorage = new MemoryEntityStorageConnector<AuthenticationPasswordReset>({
+			entitySchema: nameof<AuthenticationPasswordReset>(),
+			config: { storageKey: "account-helper-password-reset" }
+		});
+		organizationRequestAdmin = {
+			className: () => "organization-request-admin",
+			removeForAccount: vi.fn()
+		};
+		defaultAuthorization = {
+			component: {
+				className: () => "authorization",
+				removeAllRolesForSubject: vi.fn()
+			} as never,
+			modelId: "system"
+		};
 		await userStorage.set(account());
 	});
 
 	afterEach(async () => {
 		await userStorage.teardown();
+		await resetStorage.teardown();
 		vi.restoreAllMocks();
 	});
 
@@ -93,9 +113,9 @@ describe("AccountHelper", () => {
 
 		await AccountHelper.removeAccount(
 			userStorage,
-			undefined,
+			resetStorage,
 			accountAdmin as never,
-			undefined,
+			organizationRequestAdmin as never,
 			"user-1",
 			{ component: authorization as never, modelId: "system" }
 		);
@@ -128,10 +148,11 @@ describe("AccountHelper", () => {
 
 		await AccountHelper.removeAccount(
 			userStorage,
-			undefined,
+			resetStorage,
 			accountAdmin as never,
-			undefined,
-			"user-1"
+			organizationRequestAdmin as never,
+			"user-1",
+			defaultAuthorization
 		);
 
 		expect(items.size).toBe(0);
@@ -150,10 +171,11 @@ describe("AccountHelper", () => {
 		await expect(
 			AccountHelper.removeAccount(
 				userStorage,
-				undefined,
+				resetStorage,
 				accountAdmin as never,
-				undefined,
-				"user-1"
+				organizationRequestAdmin as never,
+				"user-1",
+				defaultAuthorization
 			)
 		).rejects.toMatchObject({ name: "GeneralError" });
 		expect(await userStorage.get("user-1")).toBeDefined();
@@ -166,10 +188,20 @@ describe("AccountHelper", () => {
 			removeAllRolesForSubject: vi.fn()
 		};
 
-		await AccountHelper.removeAccount(userStorage, undefined, undefined, undefined, "user-1", {
-			component: authorization as never,
-			modelId: "system"
-		});
+		const accountAdmin = {
+			className: () => "account-admin",
+			query: vi.fn(async () => ({ entities: [] })),
+			remove: vi.fn()
+		};
+
+		await AccountHelper.removeAccount(
+			userStorage,
+			resetStorage,
+			accountAdmin as never,
+			organizationRequestAdmin as never,
+			"user-1",
+			{ component: authorization as never, modelId: "system" }
+		);
 
 		expect(authorization.removeAllRolesForSubject).toHaveBeenCalledWith("system", "user-1");
 	});

@@ -82,34 +82,34 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	private readonly _userEntityStorage: IEntityStorageConnector<AuthenticationUser>;
 
 	/**
-	 * The entity storage for password reset tokens, when it exists.
+	 * The entity storage for password reset tokens.
 	 * @internal
 	 */
-	private readonly _passwordResetEntityStorage?: IEntityStorageConnector<AuthenticationPasswordReset>;
+	private readonly _passwordResetEntityStorage: IEntityStorageConnector<AuthenticationPasswordReset>;
 
 	/**
 	 * The audit component.
 	 * @internal
 	 */
-	private readonly _authenticationAuditService?: IAuthenticationAuditComponent;
+	private readonly _authenticationAuditService: IAuthenticationAuditComponent;
 
 	/**
-	 * The account data admin component type, resolved when a user is removed.
+	 * The account data admin component.
 	 * @internal
 	 */
-	private readonly _authenticationAccountAdminComponentType: string;
+	private readonly _authenticationAccountAdmin: IAuthenticationAccountAdminComponent;
 
 	/**
-	 * The organization request admin component type, resolved when a user is removed.
+	 * The organization request admin component, which removes the requests of a removed user.
 	 * @internal
 	 */
-	private readonly _organizationRequestAdminComponentType: string;
+	private readonly _organizationRequestAdmin: IOrganizationRequestAdminComponent;
 
 	/**
 	 * The authorization component used to guard accounts with escalated privilege.
 	 * @internal
 	 */
-	private readonly _authorizationComponent?: IAuthorizationComponent;
+	private readonly _authorizationComponent: IAuthorizationComponent;
 
 	/**
 	 * The role that grants escalated privilege.
@@ -150,20 +150,22 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			options?.userEntityStorageType ?? "authentication-user"
 		);
 
-		this._passwordResetEntityStorage = EntityStorageConnectorFactory.getIfExists(
+		this._passwordResetEntityStorage = EntityStorageConnectorFactory.get(
 			options?.passwordResetEntityStorageType ?? "authentication-password-reset"
 		);
 
-		this._authenticationAuditService = ComponentFactory.getIfExists<IAuthenticationAuditComponent>(
+		this._authenticationAuditService = ComponentFactory.get<IAuthenticationAuditComponent>(
 			options?.authenticationAuditServiceType ?? "authentication-audit"
 		);
 
-		this._authenticationAccountAdminComponentType =
-			options?.authenticationAccountAdminComponentType ?? "authentication-account-admin";
-		this._organizationRequestAdminComponentType =
-			options?.organizationRequestAdminComponentType ?? "organization-request-admin";
+		this._authenticationAccountAdmin = ComponentFactory.get<IAuthenticationAccountAdminComponent>(
+			options?.authenticationAccountAdminComponentType ?? "authentication-account-admin"
+		);
+		this._organizationRequestAdmin = ComponentFactory.get<IOrganizationRequestAdminComponent>(
+			options?.organizationRequestAdminComponentType ?? "organization-request-admin"
+		);
 
-		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+		this._authorizationComponent = ComponentFactory.get<IAuthorizationComponent>(
 			options?.authorizationComponentType ?? "authorization"
 		);
 		this._escalatedPrivilegeRole =
@@ -295,22 +297,20 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 		);
 
 		try {
-			const accountAdmin = this.getAccountAdmin();
 			let item: IAuthenticationAccountData | undefined;
-			if (Is.object(accountAdmin)) {
-				// The id of an identity item is derived from its DID, so it is a single get.
-				try {
-					item = await accountAdmin.get(AuthenticationAccountHelper.identityItemId(identity));
-				} catch (error) {
-					if (!BaseError.isErrorName(error, NotFoundError.CLASS_NAME)) {
-						throw error;
-					}
+			// The id of an identity item is derived from its DID, so it is a single get.
+			try {
+				item = await this._authenticationAccountAdmin.get(
+					AuthenticationAccountHelper.identityItemId(identity)
+				);
+			} catch (error) {
+				if (!BaseError.isErrorName(error, NotFoundError.CLASS_NAME)) {
+					throw error;
 				}
 			}
 
 			const user =
-				Is.object(item) &&
-				item.type === AuthenticationAccountDataType.Identity &&
+				item?.type === AuthenticationAccountDataType.Identity &&
 				AuthenticationAccountHelper.getIdentity(item.data) === identity
 					? await this._userEntityStorage.get(item.accountId)
 					: undefined;
@@ -378,29 +378,21 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 			const updatedFields: string[] = [];
 			if (Is.stringValue(user.userIdentity) || Is.stringValue(user.organizationIdentity)) {
-				const accountAdmin = this.getAccountAdmin();
-				if (Is.empty(accountAdmin)) {
-					throw new GeneralError(
-						EntityStorageAuthenticationAdminService.CLASS_NAME,
-						"accountAdminMissing"
-					);
-				}
 				if (
 					Is.stringValue(user.userIdentity) &&
-					(await this.replaceIdentity(accountAdmin, existing.accountId, user.userIdentity))
+					(await this.replaceIdentity(existing.accountId, user.userIdentity))
 				) {
 					updatedFields.push("userIdentity");
 				}
 				if (Is.stringValue(user.organizationIdentity)) {
 					const current = await this.defaultItem(
-						accountAdmin,
 						existing.accountId,
 						AuthenticationAccountDataType.Organization
 					);
 					if (
 						AuthenticationAccountHelper.getOrganization(current?.data) !== user.organizationIdentity
 					) {
-						await accountAdmin.create(
+						await this._authenticationAccountAdmin.create(
 							existing.accountId,
 							AuthenticationAccountDataType.Organization,
 							AuthenticationAccountHelper.createOrganizationData(user.organizationIdentity),
@@ -456,10 +448,8 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			await AccountHelper.removeAccount(
 				this._userEntityStorage,
 				this._passwordResetEntityStorage,
-				this.getAccountAdmin(),
-				ComponentFactory.getIfExists<IOrganizationRequestAdminComponent>(
-					this._organizationRequestAdminComponentType
-				),
+				this._authenticationAccountAdmin,
+				this._organizationRequestAdmin,
 				user.accountId,
 				{ component: this._authorizationComponent, modelId: this._authorizationModelId }
 			);
@@ -632,13 +622,11 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			// and the write is refused when a concurrent change won, which is then made again on top.
 			const disabled = await AccountHelper.disable(this._userEntityStorage, user);
 
-			if (Is.object(this._passwordResetEntityStorage)) {
-				await PasswordResetHelper.removeForAccount(
-					this._passwordResetEntityStorage,
-					user.accountId,
-					"all"
-				);
-			}
+			await PasswordResetHelper.removeForAccount(
+				this._passwordResetEntityStorage,
+				user.accountId,
+				"all"
+			);
 
 			if (Is.object<AuthenticationUser>(disabled)) {
 				await this.audit(AuthAuditEvent.AccountLocked, user);
@@ -711,7 +699,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	 */
 	private async guardEscalatedPrivilegeTarget(accountId: string): Promise<void> {
 		if (
-			Is.empty(this._authorizationComponent) ||
 			!(await this._authorizationComponent.hasRoleForSubject(
 				this._authorizationModelId,
 				accountId,
@@ -805,17 +792,6 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	}
 
 	/**
-	 * Get the account data admin component, when it exists.
-	 * @returns The component.
-	 * @internal
-	 */
-	private getAccountAdmin(): IAuthenticationAccountAdminComponent | undefined {
-		return ComponentFactory.getIfExists<IAuthenticationAccountAdminComponent>(
-			this._authenticationAccountAdminComponentType
-		);
-	}
-
-	/**
 	 * Get the identity and organization of an account from its account data.
 	 * @param accountId The account id.
 	 * @returns The identity and organization, when the account has them.
@@ -824,13 +800,9 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	private async accountContext(
 		accountId: string
 	): Promise<Pick<IAuthenticationUser, "userIdentity" | "organizationIdentity">> {
-		const accountAdmin = this.getAccountAdmin();
-		if (Is.empty(accountAdmin)) {
-			return {};
-		}
 		const [identity, organization] = await Promise.all([
-			this.defaultItem(accountAdmin, accountId, AuthenticationAccountDataType.Identity),
-			this.defaultItem(accountAdmin, accountId, AuthenticationAccountDataType.Organization)
+			this.defaultItem(accountId, AuthenticationAccountDataType.Identity),
+			this.defaultItem(accountId, AuthenticationAccountDataType.Organization)
 		]);
 		return {
 			userIdentity: AuthenticationAccountHelper.getIdentity(identity?.data),
@@ -840,21 +812,19 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 	/**
 	 * Get the item of a type to use first for an account.
-	 * @param accountAdmin The account data admin component.
 	 * @param accountId The account id.
 	 * @param type The type of the item.
 	 * @returns The default item, otherwise the first, or undefined when there is none.
 	 * @internal
 	 */
 	private async defaultItem(
-		accountAdmin: IAuthenticationAccountAdminComponent,
 		accountId: string,
 		type: string
 	): Promise<IAuthenticationAccountData | undefined> {
 		let first: IAuthenticationAccountData | undefined;
 		let cursor: string | undefined;
 		do {
-			const page = await accountAdmin.query(accountId, type, cursor);
+			const page = await this._authenticationAccountAdmin.query(accountId, type, cursor);
 			const match = page.entities.find(item => item.isDefault);
 			if (Is.object(match)) {
 				return match;
@@ -868,30 +838,21 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	/**
 	 * Replace the identity of an account, an account holds only one. The previous identity is put
 	 * back when the new one cannot be stored.
-	 * @param accountAdmin The account data admin component.
 	 * @param accountId The account id.
 	 * @param identity The DID.
 	 * @returns True when the identity changed.
 	 * @internal
 	 */
-	private async replaceIdentity(
-		accountAdmin: IAuthenticationAccountAdminComponent,
-		accountId: string,
-		identity: string
-	): Promise<boolean> {
-		const current = await this.defaultItem(
-			accountAdmin,
-			accountId,
-			AuthenticationAccountDataType.Identity
-		);
+	private async replaceIdentity(accountId: string, identity: string): Promise<boolean> {
+		const current = await this.defaultItem(accountId, AuthenticationAccountDataType.Identity);
 		if (AuthenticationAccountHelper.getIdentity(current?.data) === identity) {
 			return false;
 		}
 		if (Is.object(current)) {
-			await accountAdmin.remove(current.id);
+			await this._authenticationAccountAdmin.remove(current.id);
 		}
 		try {
-			await accountAdmin.create(
+			await this._authenticationAccountAdmin.create(
 				accountId,
 				AuthenticationAccountDataType.Identity,
 				AuthenticationAccountHelper.createIdentityData(identity),
@@ -899,9 +860,14 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 			);
 		} catch (error) {
 			if (Is.object(current)) {
-				// The caller was allowed to remove it, so it is put back as the system.
-				await AccountHelper.runAsSystem(async () =>
-					accountAdmin.create(accountId, AuthenticationAccountDataType.Identity, current.data, true)
+				// The caller was allowed to remove it, so it is put back without the user.
+				await AccountHelper.runWithoutUser(async () =>
+					this._authenticationAccountAdmin.create(
+						accountId,
+						AuthenticationAccountDataType.Identity,
+						current.data,
+						true
+					)
 				);
 			}
 			throw error;
@@ -934,7 +900,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	): Promise<void> {
 		const contextIds = await ContextIdStore.getContextIds();
 		const actorAccountId = contextIds?.[ContextIdKeys.Account];
-		await this._authenticationAuditService?.create({
+		await this._authenticationAuditService.create({
 			// A system call keeps the e-mail address of the account as the actor, as before.
 			actorId: actorAccountId ?? user.email,
 			event,

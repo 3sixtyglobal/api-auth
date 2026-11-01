@@ -14,7 +14,7 @@ export interface IEntityStorageAuthenticationAdminServiceConstructorOptions {
 	userEntityStorageType?: string;
 
 	/**
-	 * The entity storage for password reset tokens, used to remove the tokens of a removed user when it exists.
+	 * The entity storage for password reset tokens, used to remove the tokens of a removed user.
 	 * @default authentication-password-reset
 	 */
 	passwordResetEntityStorageType?: string;
@@ -32,13 +32,13 @@ export interface IEntityStorageAuthenticationAdminServiceConstructorOptions {
 	authorizationComponentType?: string;
 
 	/**
-	 * The account data admin component, used to remove the data of a removed user when it exists.
+	 * The account data admin component, used to read and remove the data of a user.
 	 * @default authentication-account-admin
 	 */
 	authenticationAccountAdminComponentType?: string;
 
 	/**
-	 * The organization request admin component, used to remove the requests of a removed user when it exists.
+	 * The organization request admin component, used to remove the requests of a removed user.
 	 * @default organization-request-admin
 	 */
 	organizationRequestAdminComponentType?: string;

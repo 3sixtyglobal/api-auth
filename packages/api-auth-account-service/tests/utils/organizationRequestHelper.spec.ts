@@ -42,36 +42,6 @@ describe("OrganizationRequestHelper", () => {
 		await storage.teardown();
 	});
 
-	it("should only return exact matches, reading on past pages with none", async () => {
-		const own = request("own", "account-1", "did:example:org", OrganizationRequestStatus.Pending);
-		const other = request(
-			"other",
-			"ACCOUNT-1",
-			"did:example:org",
-			OrganizationRequestStatus.Pending
-		);
-		// Storage that compares without case returns the request of another account first, with a
-		// cursor to a page holding the match.
-		const query = vi.spyOn(storage, "query");
-		query.mockImplementation(async (conditions, sort, properties, cursor) => {
-			if (cursor === "next") {
-				return { entities: [own] };
-			}
-			return { entities: [other], cursor: "next" };
-		});
-
-		await expect(
-			OrganizationRequestHelper.findPending(storage, "account-1", "did:example:org")
-		).resolves.toEqual(own);
-		await expect(OrganizationRequestHelper.findAllPending(storage, "account-1")).resolves.toEqual([
-			own
-		]);
-		await expect(OrganizationRequestHelper.getLatest(storage, "account-1")).resolves.toEqual(own);
-		await expect(
-			OrganizationRequestHelper.findPending(storage, "account-1", "did:example:else")
-		).resolves.toBeUndefined();
-	});
-
 	it("should find every pending request and the latest request of an account", async () => {
 		await storage.set(
 			request("a", "account-1", "did:example:a", OrganizationRequestStatus.Pending)

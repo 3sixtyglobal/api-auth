@@ -35,7 +35,7 @@ export class MembershipRemovalHelper {
 	 * recorded when it issued the credentials of the organization items are revoked, never an index
 	 * read from a stored credential.
 	 * @param storage The entity storage for account data.
-	 * @param identityComponent The identity component that verifies and revokes credentials, when it exists.
+	 * @param identityComponent The identity component that verifies and revokes credentials.
 	 * @param accountId The account id.
 	 * @param organization The DID of the organization.
 	 * @param preloaded The account data and node the caller has already read, read here when omitted.
@@ -47,14 +47,14 @@ export class MembershipRemovalHelper {
 	 */
 	public static async leave(
 		storage: IEntityStorageConnector<AccountData>,
-		identityComponent: IIdentityComponent | undefined,
+		identityComponent: IIdentityComponent,
 		accountId: string,
 		organization: string,
 		preloaded?: {
-			identity: string | undefined;
+			identity?: string;
 			organizations: IAuthenticationAccountData[];
 			credentials: IAuthenticationAccountData[];
-			nodeIdentity: string | undefined;
+			nodeIdentity?: string;
 		}
 	): Promise<boolean> {
 		Guards.stringValue(MembershipRemovalHelper.CLASS_NAME, nameof(accountId), accountId);
@@ -65,7 +65,7 @@ export class MembershipRemovalHelper {
 			item => AuthenticationAccountHelper.getOrganization(item.data) === organization
 		);
 		const credentialItems: IAuthenticationAccountData[] = [];
-		if (Is.object(identityComponent) && Is.stringValue(loaded.identity)) {
+		if (Is.stringValue(loaded.identity)) {
 			for (const item of loaded.credentials) {
 				const credential = AuthenticationAccountHelper.getCredential(item.data);
 				if (
@@ -111,15 +111,15 @@ export class MembershipRemovalHelper {
 	 * issued, then remove its credentials, organizations and identity items, and its pending
 	 * requests to join an organization. The keys of the identity are not removed here.
 	 * @param storage The entity storage for account data.
-	 * @param requestStorage The entity storage for the requests to join an organization, when it exists.
-	 * @param identityComponent The identity component that verifies and revokes credentials, when it exists.
+	 * @param requestStorage The entity storage for the requests to join an organization.
+	 * @param identityComponent The identity component that verifies and revokes credentials.
 	 * @param accountId The account id.
 	 * @returns A promise that resolves when the items have been removed.
 	 */
 	public static async removeAll(
 		storage: IEntityStorageConnector<AccountData>,
-		requestStorage: IEntityStorageConnector<OrganizationRequest> | undefined,
-		identityComponent: IIdentityComponent | undefined,
+		requestStorage: IEntityStorageConnector<OrganizationRequest>,
+		identityComponent: IIdentityComponent,
 		accountId: string
 	): Promise<void> {
 		Guards.stringValue(MembershipRemovalHelper.CLASS_NAME, nameof(accountId), accountId);
@@ -146,11 +146,9 @@ export class MembershipRemovalHelper {
 		]) {
 			await MembershipRemovalHelper.removeAllOfType(storage, accountId, type);
 		}
-		if (Is.object(requestStorage)) {
-			const pending = await OrganizationRequestHelper.findAllPending(requestStorage, accountId);
-			for (const request of pending) {
-				await requestStorage.remove(request.id);
-			}
+		const pending = await OrganizationRequestHelper.findAllPending(requestStorage, accountId);
+		for (const request of pending) {
+			await requestStorage.remove(request.id);
 		}
 	}
 
@@ -182,10 +180,10 @@ export class MembershipRemovalHelper {
 		storage: IEntityStorageConnector<AccountData>,
 		accountId: string
 	): Promise<{
-		identity: string | undefined;
+		identity?: string;
 		organizations: IAuthenticationAccountData[];
 		credentials: IAuthenticationAccountData[];
-		nodeIdentity: string | undefined;
+		nodeIdentity?: string;
 	}> {
 		const [identity, organizations, credentials, contextIds] = await Promise.all([
 			OrganizationMembershipHelper.loadIdentity(storage, accountId),
@@ -220,8 +218,8 @@ export class MembershipRemovalHelper {
 	}
 
 	/**
-	 * Remove every item of a type of an account, reading every page before removing any, as only
-	 * exact matches are kept from a page, so a short or empty page can still have a cursor.
+	 * Remove every item of a type of an account, reading every page before removing any, as removing
+	 * changes the pages a cursor would return.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @param type The type of the items.

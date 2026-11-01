@@ -126,16 +126,21 @@ describe("EntityStorageAuthenticationRestClient", () => {
 	});
 
 	describe("register", () => {
-		test("sends POST to /register with the details and returns the login", async () => {
-			fetchMock.mockResolvedValueOnce(
-				jsonResponse({ accountId: "account-1", expiry: 1722514341067, profileReadOnly: false })
-			);
-
-			const result = await client.register({
-				email: "user@example.com",
-				password: "MyPassword123!",
-				givenName: "Jane"
+		test("sends POST to /register with the details and resolves when accepted", async () => {
+			fetchMock.mockResolvedValueOnce({
+				ok: true,
+				status: 202,
+				headers: new Headers(),
+				arrayBuffer: async () => new ArrayBuffer(0)
 			});
+
+			await expect(
+				client.register({
+					email: "user@example.com",
+					password: "MyPassword123!",
+					givenName: "Jane"
+				})
+			).resolves.toBeUndefined();
 
 			const [url, options] = fetchMock.mock.calls[0];
 			expect(url).toBe(`${ENDPOINT}/${PREFIX}/register`);
@@ -145,20 +150,6 @@ describe("EntityStorageAuthenticationRestClient", () => {
 				password: "MyPassword123!",
 				givenName: "Jane"
 			});
-			expect(result).toMatchObject({ accountId: "account-1", expiry: 1722514341067 });
-		});
-
-		test("returns undefined when the server accepts a sign up that must be verified", async () => {
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				status: 202,
-				headers: new Headers(),
-				arrayBuffer: async () => new ArrayBuffer(0)
-			});
-
-			await expect(
-				client.register({ email: "user@example.com", password: "MyPassword123!" })
-			).resolves.toBeUndefined();
 		});
 
 		test("throws when the details are missing", async () => {

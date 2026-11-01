@@ -20,7 +20,7 @@ export interface IEntityStorageOrganizationServiceConstructorOptions {
 
 	/**
 	 * The entity storage for the requests to join an organization, whose pending requests are
-	 * rejected when the organization is removed, when it exists.
+	 * rejected when the organization is removed.
 	 * @default organization-request
 	 */
 	organizationRequestEntityStorageType?: string;
@@ -38,7 +38,7 @@ export interface IEntityStorageOrganizationServiceConstructorOptions {
 	authorizationComponentType?: string;
 
 	/**
-	 * The rate component used to limit exporting and importing organization identities, when it exists.
+	 * The rate component used to limit exporting and importing organization identities.
 	 * @default authentication-rate
 	 */
 	authenticationRateServiceType?: string;

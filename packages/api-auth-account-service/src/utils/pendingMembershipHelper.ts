@@ -12,6 +12,7 @@ import { nameof } from "@3sixty/nameof";
 import { AccountDataHelper } from "./accountDataHelper.js";
 import { OrganizationMembershipHelper } from "./organizationMembershipHelper.js";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 
 /**
  * Helper class for adding accounts to organizations before they have an identity, the membership
@@ -27,34 +28,34 @@ export class PendingMembershipHelper {
 	 * Add an account to an organization, issuing the membership credential now when the account has
 	 * an identity, otherwise storing only the organization.
 	 * @param storage The entity storage for account data.
-	 * @param identityComponent The identity component that issues the credential, when it exists.
+	 * @param organizationStorage The entity storage for the registered organizations.
+	 * @param identityComponent The identity component that issues the credential.
 	 * @param verificationMethodId The verification method of the organization that signs the credential.
 	 * @param accountId The account to add.
 	 * @param organization The DID of the organization.
 	 * @param isDefault True to make it the default organization of the account.
-	 * @param organizationEntityStorageType The entity storage type of the registered organizations.
 	 * @returns The unique identifier of the organization item.
 	 */
 	public static async add(
 		storage: IEntityStorageConnector<AccountData>,
-		identityComponent: IIdentityComponent | undefined,
+		organizationStorage: IEntityStorageConnector<Organization>,
+		identityComponent: IIdentityComponent,
 		verificationMethodId: string,
 		accountId: string,
 		organization: string,
-		isDefault?: boolean,
-		organizationEntityStorageType?: string
+		isDefault?: boolean
 	): Promise<string> {
 		const identity = await OrganizationMembershipHelper.loadIdentity(storage, accountId);
-		if (Is.stringValue(identity) && Is.object(identityComponent)) {
+		if (Is.stringValue(identity)) {
 			return OrganizationMembershipHelper.join(
 				storage,
+				organizationStorage,
 				identityComponent,
 				verificationMethodId,
 				accountId,
 				organization,
 				isDefault,
-				{ identity },
-				organizationEntityStorageType
+				{ identity }
 			);
 		}
 
@@ -82,22 +83,23 @@ export class PendingMembershipHelper {
 	 * an identity. A failure for one organization does not stop the others, its membership stays
 	 * without a credential, so it is completed again the next time, and the failure is logged.
 	 * @param storage The entity storage for account data.
+	 * @param organizationStorage The entity storage for the registered organizations.
 	 * @param identityComponent The identity component that issues the credentials.
 	 * @param verificationMethodId The verification method of the organization that signs the credential.
 	 * @param accountId The account id.
 	 * @param identity The DID just bound to the account, read when omitted.
 	 * @param options The optional settings.
-	 * @param options.organizationEntityStorageType The entity storage type of the registered organizations.
 	 * @param options.logging The logging component that records a failure, when it exists.
 	 * @returns The organizations whose credential could not be issued.
 	 */
 	public static async complete(
 		storage: IEntityStorageConnector<AccountData>,
+		organizationStorage: IEntityStorageConnector<Organization>,
 		identityComponent: IIdentityComponent,
 		verificationMethodId: string,
 		accountId: string,
 		identity?: string,
-		options?: { organizationEntityStorageType?: string; logging?: ILoggingComponent }
+		options?: { logging?: ILoggingComponent }
 	): Promise<string[]> {
 		const organizations = await OrganizationMembershipHelper.loadOrganizations(storage, accountId);
 		const pending = new Set<string>();
@@ -121,13 +123,13 @@ export class PendingMembershipHelper {
 				// Joining only issues the credential when it is missing.
 				await OrganizationMembershipHelper.join(
 					storage,
+					organizationStorage,
 					identityComponent,
 					verificationMethodId,
 					accountId,
 					organization,
 					undefined,
-					{ identity: accountIdentity, organizations, credentials },
-					options?.organizationEntityStorageType
+					{ identity: accountIdentity, organizations, credentials }
 				);
 			} catch (error) {
 				failed.push(organization);

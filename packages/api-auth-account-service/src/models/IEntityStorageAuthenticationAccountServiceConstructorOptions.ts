@@ -25,14 +25,13 @@ export interface IEntityStorageAuthenticationAccountServiceConstructorOptions {
 	identityComponentType?: string;
 
 	/**
-	 * The rate component used to limit adopting, exporting and importing, when it exists.
+	 * The rate component used to limit adopting, exporting and importing.
 	 * @default authentication-rate
 	 */
 	authenticationRateServiceType?: string;
 
 	/**
-	 * The entity storage for the registered organizations, when it exists accounts only join
-	 * registered organizations.
+	 * The entity storage for the registered organizations, which accounts may only join.
 	 * @default organization
 	 */
 	organizationEntityStorageType?: string;

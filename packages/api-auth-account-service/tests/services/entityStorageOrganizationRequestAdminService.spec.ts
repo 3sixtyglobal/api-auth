@@ -14,6 +14,13 @@ import { EntityStorageOrganizationRequestAdminService } from "../../src/services
 import { AccountDataHelper } from "../../src/utils/accountDataHelper.js";
 import { OrganizationRequestHelper } from "../../src/utils/organizationRequestHelper.js";
 import { membershipCredential, organizationData } from "../helpers/accountDataValues.js";
+import {
+	createAuthorizationComponent,
+	createOrganizationStorage,
+	createRateComponent,
+	createUserStorage,
+	mockRequiredComponents
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -53,11 +60,19 @@ describe("organization requests", () => {
 			entitySchema: nameof<OrganizationRequest>(),
 			config: { storageKey: "organization-request" }
 		});
+		const organizations = await createOrganizationStorage("organization-requests", [
+			ORGANIZATION,
+			"did:example:other"
+		]);
+		const users = createUserStorage();
 		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(name => {
 			if (name === "organization-request") {
 				return requests;
 			}
-			return accountData;
+			if (name === "organization") {
+				return organizations;
+			}
+			return name === "authentication-user" ? users : accountData;
 		});
 		identityComponent = {
 			verifiableCredentialCreate: vi.fn().mockResolvedValue({
@@ -65,7 +80,11 @@ describe("organization requests", () => {
 				jwt: "membership.credential.jwt"
 			})
 		} as unknown as IIdentityComponent;
-		vi.spyOn(ComponentFactory, "get").mockReturnValue(identityComponent);
+		mockRequiredComponents({
+			"identity-service": identityComponent,
+			authorization: createAuthorizationComponent(),
+			"authentication-rate": createRateComponent()
+		});
 
 		service = new EntityStorageAuthenticationAccountService();
 		admin = new EntityStorageOrganizationRequestAdminService();
@@ -135,8 +154,8 @@ describe("organization requests", () => {
 				id: "did:example:user",
 				memberOf: { "@type": "Organization", id: ORGANIZATION }
 			},
-			// An unregistered organization has no counter, so no revocation index.
-			{ revocationIndex: undefined, types: ["OrganizationMembershipCredential"] },
+			// The registered organization allocates its first revocation index.
+			{ revocationIndex: 0, types: ["OrganizationMembershipCredential"] },
 			ORGANIZATION
 		);
 		await expect(admin.get(id)).resolves.toMatchObject({ status: "accepted" });

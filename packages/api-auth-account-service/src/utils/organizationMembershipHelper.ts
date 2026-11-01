@@ -15,6 +15,7 @@ import type { IDidVerifiableCredential } from "@3sixty/standards-w3c-did";
 import { AccountDataHelper } from "./accountDataHelper.js";
 import { OrganizationHelper } from "./organizationHelper.js";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 
 /**
  * Helper class for adding an account to an organization, used when a request is accepted and when
@@ -41,6 +42,8 @@ export class OrganizationMembershipHelper {
 	 * registered organization is given a revocation index from the counter of the organization, which
 	 * is recorded with the organization item so the credential is revoked when the membership ends.
 	 * @param accountDataStorage The entity storage for account data.
+	 * @param organizationStorage The entity storage for the registered organizations, which hold
+	 * the revocation index counters.
 	 * @param identityComponent The identity component that issues the credential.
 	 * @param verificationMethodId The verification method of the organization that signs the credential.
 	 * @param accountId The account to add.
@@ -51,13 +54,12 @@ export class OrganizationMembershipHelper {
 	 * @param preloaded.identity The DID of the account.
 	 * @param preloaded.organizations The organization items of the account.
 	 * @param preloaded.credentials The credentials of the account.
-	 * @param organizationEntityStorageType The entity storage type of the registered organizations,
-	 * which hold the revocation index counters.
 	 * @returns The unique identifier of the organization item.
 	 * @throws UnprocessableError when the account has no identity to issue the credential to.
 	 */
 	public static async join(
 		accountDataStorage: IEntityStorageConnector<AccountData>,
+		organizationStorage: IEntityStorageConnector<Organization>,
 		identityComponent: IIdentityComponent,
 		verificationMethodId: string,
 		accountId: string,
@@ -67,8 +69,7 @@ export class OrganizationMembershipHelper {
 			identity?: string;
 			organizations?: IAuthenticationAccountData[];
 			credentials?: IDidVerifiableCredential[];
-		},
-		organizationEntityStorageType: string = OrganizationHelper.DEFAULT_ENTITY_STORAGE_TYPE
+		}
 	): Promise<string> {
 		Guards.stringValue(OrganizationMembershipHelper.CLASS_NAME, nameof(accountId), accountId);
 		Guards.stringValue(OrganizationMembershipHelper.CLASS_NAME, nameof(organization), organization);
@@ -109,7 +110,7 @@ export class OrganizationMembershipHelper {
 			// An organization that is not registered, such as the organization of the tenant when the
 			// node has not registered it, has no counter, so its credentials have no revocation index.
 			revocationIndex = await OrganizationHelper.allocateRevocationIndex(
-				organizationEntityStorageType,
+				organizationStorage,
 				organization
 			);
 			const credential = await identityComponent.verifiableCredentialCreate(
@@ -223,8 +224,7 @@ export class OrganizationMembershipHelper {
 	}
 
 	/**
-	 * Read every organization item of an account. Every page is read, as only exact matches are
-	 * kept from a page, so a short or empty page can still have a cursor.
+	 * Read every organization item of an account.
 	 * @param accountDataStorage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @returns The organization items.
@@ -251,20 +251,20 @@ export class OrganizationMembershipHelper {
 	/**
 	 * Revoke a membership credential by the revocation index the node recorded when it issued it,
 	 * signing for the organization as the node.
-	 * @param identityComponent The identity component, when it exists.
+	 * @param identityComponent The identity component.
 	 * @param organization The DID of the organization.
 	 * @param revocationIndex The recorded index.
 	 * @param nodeIdentity The DID of the node, read from the context when omitted.
 	 * @returns True when the credential was revoked.
 	 */
 	public static async revokeIndex(
-		identityComponent: IIdentityComponent | undefined,
+		identityComponent: IIdentityComponent,
 		organization: string,
 		revocationIndex: number,
 		nodeIdentity?: string
 	): Promise<boolean> {
 		const controller = nodeIdentity ?? (await ContextIdStore.getContextIds())?.[ContextIdKeys.Node];
-		if (!Is.object(identityComponent) || !Is.stringValue(controller)) {
+		if (!Is.stringValue(controller)) {
 			return false;
 		}
 		try {

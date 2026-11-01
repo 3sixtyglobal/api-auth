@@ -44,4 +44,9 @@ export interface IAuthenticationAccountSummary {
 	 * The organization DID of the account, when it has one.
 	 */
 	organization?: string;
+
+	/**
+	 * The roles the account holds.
+	 */
+	roles: string[];
 }

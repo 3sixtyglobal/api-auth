@@ -12,6 +12,14 @@ import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationAccountAdminService } from "../../src/services/entityStorageAuthenticationAccountAdminService.js";
 import { EntityStorageAuthenticationAccountService } from "../../src/services/entityStorageAuthenticationAccountService.js";
 import { AccountDataHelper } from "../../src/utils/accountDataHelper.js";
+import { createFakeIdentityComponent } from "../helpers/fakeIdentityComponent.js";
+import {
+	createAuthorizationComponent,
+	createOrganizationStorage,
+	createRateComponent,
+	createUserStorage,
+	mockRequiredComponents
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -60,7 +68,7 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 	let service: EntityStorageAuthenticationAccountService;
 	let admin: EntityStorageAuthenticationAccountAdminService;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		storage = new MemoryEntityStorageConnector<AccountData>({
 			entitySchema: nameof<AccountData>(),
 			config: { storageKey: "account-data-avatar" }
@@ -69,10 +77,23 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 			entitySchema: nameof<OrganizationRequest>(),
 			config: { storageKey: "organization-request-avatar" }
 		});
-		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(
-			name => (name === "organization-request" ? requests : storage) as never
-		);
+		const organizations = await createOrganizationStorage("organization-avatar");
+		const users = createUserStorage();
+		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(name => {
+			if (name === "organization-request") {
+				return requests as never;
+			}
+			if (name === "organization") {
+				return organizations as never;
+			}
+			return (name === "authentication-user" ? users : storage) as never;
+		});
 		vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
+		mockRequiredComponents({
+			authorization: createAuthorizationComponent(),
+			"identity-service": createFakeIdentityComponent(),
+			"authentication-rate": createRateComponent()
+		});
 		service = new EntityStorageAuthenticationAccountService();
 		admin = new EntityStorageAuthenticationAccountAdminService();
 	});

@@ -29,6 +29,7 @@ import {
 	createFakeIdentityComponent,
 	type IFakeIdentityComponent
 } from "../helpers/fakeIdentityComponent.js";
+import { createRateComponent, createUserStorage } from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -130,6 +131,7 @@ describe("EntityStorageOrganizationService", () => {
 		EntityStorageConnectorFactory.register("organization", () => organizations);
 		EntityStorageConnectorFactory.register("account-data", () => accountData);
 		EntityStorageConnectorFactory.register("organization-request", () => requests);
+		EntityStorageConnectorFactory.register("authentication-user", () => createUserStorage());
 
 		identityComponent = {
 			className: () => "identity",
@@ -157,6 +159,7 @@ describe("EntityStorageOrganizationService", () => {
 		} as unknown as IAuthorizationComponent;
 		ComponentFactory.register("identity-service", () => identityComponent);
 		ComponentFactory.register("authorization", () => authorization);
+		ComponentFactory.register("authentication-rate", () => createRateComponent());
 
 		service = new EntityStorageOrganizationService();
 	});
@@ -164,9 +167,11 @@ describe("EntityStorageOrganizationService", () => {
 	afterEach(async () => {
 		ComponentFactory.unregister("identity-service");
 		ComponentFactory.unregister("authorization");
+		ComponentFactory.unregister("authentication-rate");
 		EntityStorageConnectorFactory.unregister("organization");
 		EntityStorageConnectorFactory.unregister("account-data");
 		EntityStorageConnectorFactory.unregister("organization-request");
+		EntityStorageConnectorFactory.unregister("authentication-user");
 		await organizations.teardown();
 		await accountData.teardown();
 		await requests.teardown();
@@ -760,6 +765,14 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		});
 		EntityStorageConnectorFactory.register("organization", () => organizations);
 		EntityStorageConnectorFactory.register("account-data", () => accountData);
+		EntityStorageConnectorFactory.register(
+			"organization-request",
+			() =>
+				new MemoryEntityStorageConnector<OrganizationRequest>({
+					entitySchema: nameof<OrganizationRequest>(),
+					config: { storageKey: "organization-request-export-test" }
+				})
+		);
 		identityComponent = createFakeIdentityComponent();
 		roles = { "global-1": ["global-admin"], "admin-1": ["user-admin"] };
 		const authorization = {
@@ -785,6 +798,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		ComponentFactory.unregister("authentication-rate");
 		EntityStorageConnectorFactory.unregister("organization");
 		EntityStorageConnectorFactory.unregister("account-data");
+		EntityStorageConnectorFactory.unregister("organization-request");
 		await organizations.teardown();
 		await accountData.teardown();
 	});
@@ -871,7 +885,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 	it("should carry the revocation index of an organization through its export and import", async () => {
 		const created = await run(undefined, async () => service.create({}));
 		for (let i = 0; i < 3; i++) {
-			await OrganizationHelper.allocateRevocationIndex("organization", created.identity);
+			await OrganizationHelper.allocateRevocationIndex(organizations, created.identity);
 		}
 		const exported = await run(undefined, async () => service.exportIdentity(created.id));
 		expect(exported.nextRevocationIndex).toBe(3);
@@ -883,17 +897,17 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		await run(undefined, async () => service.create({ identityImport: exported }));
 
 		await expect(
-			OrganizationHelper.allocateRevocationIndex("organization", created.identity)
+			OrganizationHelper.allocateRevocationIndex(organizations, created.identity)
 		).resolves.toBe(3);
 	});
 
 	it("should never go below the revocation index the DID reached on this node", async () => {
 		const created = await run(undefined, async () => service.create({}));
-		await OrganizationHelper.allocateRevocationIndex("organization", created.identity);
+		await OrganizationHelper.allocateRevocationIndex(organizations, created.identity);
 		// An export taken before more credentials were issued.
 		const stale = await run(undefined, async () => service.exportIdentity(created.id));
 		for (let i = 0; i < 4; i++) {
-			await OrganizationHelper.allocateRevocationIndex("organization", created.identity);
+			await OrganizationHelper.allocateRevocationIndex(organizations, created.identity);
 		}
 		await run(undefined, async () => service.remove(created.id));
 		identityComponent.held.delete(created.identity);
@@ -904,7 +918,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		await run(undefined, async () => service.create({ identityImport: stale }));
 
 		await expect(
-			OrganizationHelper.allocateRevocationIndex("organization", created.identity)
+			OrganizationHelper.allocateRevocationIndex(organizations, created.identity)
 		).resolves.toBe(5);
 	});
 
@@ -912,8 +926,8 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		const first = await run(undefined, async () =>
 			service.create({ identity: "did:example:existing", publicProfile: PUBLIC_PROFILE })
 		);
-		await OrganizationHelper.allocateRevocationIndex("organization", first.identity);
-		await OrganizationHelper.allocateRevocationIndex("organization", first.identity);
+		await OrganizationHelper.allocateRevocationIndex(organizations, first.identity);
+		await OrganizationHelper.allocateRevocationIndex(organizations, first.identity);
 		await run(undefined, async () => service.remove(first.id));
 		await expect(run(undefined, async () => service.get(first.identity))).rejects.toMatchObject({
 			name: "NotFoundError"
@@ -922,7 +936,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		await run(undefined, async () => service.create({ identity: "did:example:existing" }));
 
 		await expect(
-			OrganizationHelper.allocateRevocationIndex("organization", first.identity)
+			OrganizationHelper.allocateRevocationIndex(organizations, first.identity)
 		).resolves.toBe(2);
 	});
 

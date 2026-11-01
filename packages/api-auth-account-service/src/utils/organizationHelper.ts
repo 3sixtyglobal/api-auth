@@ -4,10 +4,7 @@ import { AuthenticationAccountHelper } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { Guards, Is, NotFoundError, RandomHelper } from "@3sixty/core";
 import { ComparisonOperator } from "@3sixty/entity";
-import {
-	EntityStorageConnectorFactory,
-	type IEntityStorageConnector
-} from "@3sixty/entity-storage-models";
+import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import type { AccountData } from "../entities/accountData.js";
 import type { Organization } from "../entities/organization.js";
@@ -23,21 +20,10 @@ export class OrganizationHelper {
 	public static readonly CLASS_NAME: string = nameof<OrganizationHelper>();
 
 	/**
-	 * The default entity storage type of the organizations.
-	 */
-	public static readonly DEFAULT_ENTITY_STORAGE_TYPE: string = "organization";
-
-	/**
 	 * The type of the account data item, owned by the DID of a removed organization, that keeps the
 	 * revocation index it reached.
 	 */
 	public static readonly RETIRED_REVOCATION_INDEX_TYPE: string = "organization-revocation-index";
-
-	/**
-	 * The number of organizations read at a time when looking for an exact match.
-	 * @internal
-	 */
-	private static readonly _FIND_PAGE_SIZE: number = 10;
 
 	/**
 	 * The longest search name stored, the length of its column.
@@ -56,38 +42,14 @@ export class OrganizationHelper {
 		identity: string
 	): Promise<Organization | undefined> {
 		Guards.stringValue(OrganizationHelper.CLASS_NAME, nameof(identity), identity);
-		let cursor: string | undefined;
-		do {
-			const page = await storage.query(
-				{ property: "identity", value: identity, comparison: ComparisonOperator.Equals },
-				undefined,
-				undefined,
-				cursor,
-				OrganizationHelper._FIND_PAGE_SIZE
-			);
-			// Storage may compare without case, so only an exact match is returned.
-			const match = (page.entities as Organization[]).find(item => item.identity === identity);
-			if (Is.object(match)) {
-				return match;
-			}
-			cursor = page.cursor;
-		} while (Is.stringValue(cursor));
-		return undefined;
-	}
-
-	/**
-	 * Find a registered organization by its DID when the organization storage is configured.
-	 * @param storageType The entity storage type of the organizations.
-	 * @param identity The DID of the organization.
-	 * @returns The organization, or undefined when it is not registered or there is no storage.
-	 */
-	public static async findRegistered(
-		storageType: string,
-		identity: string
-	): Promise<Organization | undefined> {
-		const storage =
-			EntityStorageConnectorFactory.getIfExists<IEntityStorageConnector<Organization>>(storageType);
-		return Is.empty(storage) ? undefined : OrganizationHelper.findByIdentity(storage, identity);
+		const result = await storage.query(
+			{ property: "identity", value: identity, comparison: ComparisonOperator.Equals },
+			undefined,
+			undefined,
+			undefined,
+			1
+		);
+		return result.entities[0] as Organization | undefined;
 	}
 
 	/**
@@ -184,20 +146,14 @@ export class OrganizationHelper {
 	/**
 	 * Allocate the revocation index of a membership credential an organization issues, from a
 	 * counter held with the organization, so every credential it issues has its own index.
-	 * @param storageType The entity storage type of the organizations.
+	 * @param storage The entity storage for the organizations.
 	 * @param identity The DID of the organization.
-	 * @returns The index, or undefined when the organization is not registered or the storage is not
-	 * configured.
+	 * @returns The index, or undefined when the organization is not registered.
 	 */
 	public static async allocateRevocationIndex(
-		storageType: string,
+		storage: IEntityStorageConnector<Organization>,
 		identity: string
 	): Promise<number | undefined> {
-		const storage =
-			EntityStorageConnectorFactory.getIfExists<IEntityStorageConnector<Organization>>(storageType);
-		if (Is.empty(storage)) {
-			return undefined;
-		}
 		let allocated: number | undefined;
 		const updated = await OrganizationHelper.updateOrganization(storage, identity, organization => {
 			allocated = Is.integer(organization.nextRevocationIndex)
@@ -308,20 +264,17 @@ export class OrganizationHelper {
 	}
 
 	/**
-	 * Ensure an organization DID is registered, when the organization storage is configured, so
-	 * accounts can only join registered organizations. The organization of the tenant, or of the
-	 * node when single tenant, is always accepted.
-	 * @param storageType The entity storage type of the organizations.
+	 * Ensure an organization DID is registered, so accounts can only join registered organizations.
+	 * The organization of the tenant, or of the node when single tenant, is always accepted.
+	 * @param storage The entity storage for the organizations.
 	 * @param identity The DID of the organization.
-	 * @returns A promise that resolves when the organization is registered or the storage is not configured.
+	 * @returns A promise that resolves when the organization is registered.
 	 * @throws NotFoundError when the organization is not registered.
 	 */
-	public static async guardRegistered(storageType: string, identity: string): Promise<void> {
-		const storage =
-			EntityStorageConnectorFactory.getIfExists<IEntityStorageConnector<Organization>>(storageType);
-		if (Is.empty(storage)) {
-			return;
-		}
+	public static async guardRegistered(
+		storage: IEntityStorageConnector<Organization>,
+		identity: string
+	): Promise<void> {
 		const contextIds = await ContextIdStore.getContextIds();
 		if (
 			contextIds?.[ContextIdKeys.Organization] !== identity &&

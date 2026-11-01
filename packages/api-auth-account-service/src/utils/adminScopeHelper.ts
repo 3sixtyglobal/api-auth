@@ -31,13 +31,13 @@ export class AdminScopeHelper {
 	/**
 	 * Check whether the caller holds escalated privilege, calls with no caller account are system
 	 * calls and hold it. Roles are held by account ids, so a DID grants no privilege.
-	 * @param authorizationComponent The authorization component, no caller account holds it without one.
+	 * @param authorizationComponent The authorization component.
 	 * @param authorizationModelId The authorization model ID used to look up roles.
 	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @returns True when the caller holds escalated privilege.
 	 */
 	public static async callerIsEscalated(
-		authorizationComponent: IAuthorizationComponent | undefined,
+		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		escalatedPrivilegeRole: string
 	): Promise<boolean> {
@@ -56,13 +56,13 @@ export class AdminScopeHelper {
 	/**
 	 * Get a check of whether the caller holds escalated privilege that looks the role up at most once,
 	 * for use within a single call so a role change is seen by the next call.
-	 * @param authorizationComponent The authorization component, no caller account holds it without one.
+	 * @param authorizationComponent The authorization component.
 	 * @param authorizationModelId The authorization model ID used to look up roles.
 	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @returns The check.
 	 */
 	public static callerIsEscalatedOnce(
-		authorizationComponent: IAuthorizationComponent | undefined,
+		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		escalatedPrivilegeRole: string
 	): () => Promise<boolean> {
@@ -86,7 +86,7 @@ export class AdminScopeHelper {
 	 * @returns True when the caller is an admin.
 	 */
 	public static async callerIsAdmin(
-		authorizationComponent: IAuthorizationComponent | undefined,
+		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		escalatedPrivilegeRole: string,
 		adminRole: string
@@ -111,7 +111,7 @@ export class AdminScopeHelper {
 	/**
 	 * Check whether the caller may change an account, an account holding escalated privilege may
 	 * only be changed by a caller holding it.
-	 * @param authorizationComponent The authorization component, every account may be changed without one.
+	 * @param authorizationComponent The authorization component.
 	 * @param authorizationModelId The authorization model ID used to look up roles.
 	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @param accountId The account being changed.
@@ -120,7 +120,7 @@ export class AdminScopeHelper {
 	 * @returns True when the caller may change the account.
 	 */
 	public static async callerMayChange(
-		authorizationComponent: IAuthorizationComponent | undefined,
+		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		escalatedPrivilegeRole: string,
 		accountId: string,
@@ -172,12 +172,12 @@ export class AdminScopeHelper {
 	 * @internal
 	 */
 	private static async hasRole(
-		authorizationComponent: IAuthorizationComponent | undefined,
+		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		accountId: string,
 		role: string
 	): Promise<boolean> {
-		if (!Is.object(authorizationComponent) || !Is.stringValue(accountId)) {
+		if (!Is.stringValue(accountId)) {
 			return false;
 		}
 		return authorizationComponent.hasRoleForSubject(authorizationModelId, accountId, role);

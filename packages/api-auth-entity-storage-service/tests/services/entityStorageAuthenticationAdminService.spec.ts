@@ -23,6 +23,7 @@ import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-m
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import { HttpStatusCode } from "@3sixty/web";
+import type { AuthenticationPasswordReset } from "../../src/entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationAdminService } from "../../src/services/entityStorageAuthenticationAdminService.js";
@@ -40,6 +41,7 @@ const HASHED = {
 describe("EntityStorageAuthenticationAdminService", () => {
 	let mockAuthenticationAuditService: IAuthenticationAuditComponent;
 	let userEntityStorage: MemoryEntityStorageConnector<AuthenticationUser>;
+	let passwordResetEntityStorage: MemoryEntityStorageConnector<AuthenticationPasswordReset>;
 	let service: EntityStorageAuthenticationAdminService;
 
 	beforeEach(() => {
@@ -59,8 +61,45 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			entitySchema: nameof<AuthenticationUser>(),
 			config: { storageKey: "authentication-user" }
 		});
+		passwordResetEntityStorage = new MemoryEntityStorageConnector<AuthenticationPasswordReset>({
+			entitySchema: nameof<AuthenticationPasswordReset>(),
+			config: { storageKey: "authentication-password-reset" }
+		});
 
-		vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(userEntityStorage);
+		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(storageName => {
+			if (storageName === "authentication-password-reset") {
+				return passwordResetEntityStorage;
+			}
+			return userEntityStorage;
+		});
+		const requiredComponents: { [name: string]: unknown } = {
+			"authentication-audit": mockAuthenticationAuditService,
+			"authentication-account-admin": {
+				className: () => "AccountAdmin",
+				get: vi.fn(),
+				create: vi.fn(),
+				query: vi.fn().mockResolvedValue({ entities: [] }),
+				remove: vi.fn()
+			},
+			"organization-request-admin": {
+				className: () => "OrganizationRequestAdmin",
+				removeForAccount: vi.fn()
+			},
+			authorization: {
+				className: () => "authorization",
+				hasRoleForSubject: vi.fn().mockResolvedValue(false),
+				removeAllRolesForSubject: vi.fn()
+			}
+		};
+		vi.spyOn(ComponentFactory, "get").mockImplementation(componentName => {
+			// A test replaces a component by returning it from getIfExists.
+			const component =
+				ComponentFactory.getIfExists(componentName) ?? requiredComponents[componentName];
+			if (component === undefined) {
+				throw new Error(`Unexpected component ${componentName}`);
+			}
+			return component as never;
+		});
 		vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
 			if (componentName === "authentication-audit") {
 				return mockAuthenticationAuditService;
@@ -77,6 +116,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 
 	afterEach(async () => {
 		await userEntityStorage.teardown();
+		await passwordResetEntityStorage.teardown();
 	});
 
 	it("should return the class name", () => {
@@ -483,6 +523,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				return organizationRequestAdmin;
 			}
 		});
+		service = new EntityStorageAuthenticationAdminService();
 
 		await service.remove("user@example.com");
 
@@ -985,17 +1026,14 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			});
 		});
 
-		it("should fail to update the identity without the account data component", async () => {
-			vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
-
-			await expect(
-				service.update({ email: "user@example.com", userIdentity: "did:example:new" })
-			).rejects.toMatchObject({
-				message: "entityStorageAuthenticationAdminService.updateUserFailed",
-				cause: expect.objectContaining({
-					message: "entityStorageAuthenticationAdminService.accountAdminMissing"
-				})
+		it("should fail to construct without the account data component", () => {
+			vi.spyOn(ComponentFactory, "get").mockImplementation(componentName => {
+				throw new GeneralError("Factory", "noGet", { name: componentName });
 			});
+
+			expect(() => new EntityStorageAuthenticationAdminService()).toThrow(
+				expect.objectContaining({ message: "factory.noGet" })
+			);
 		});
 	});
 
@@ -1020,7 +1058,12 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				config: { storageKey: "authentication-user-tenant" }
 			});
 
-			vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(userEntityStorage);
+			vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(storageName => {
+				if (storageName === "authentication-password-reset") {
+					return passwordResetEntityStorage;
+				}
+				return userEntityStorage;
+			});
 
 			service = new EntityStorageAuthenticationAdminService({
 				config: {

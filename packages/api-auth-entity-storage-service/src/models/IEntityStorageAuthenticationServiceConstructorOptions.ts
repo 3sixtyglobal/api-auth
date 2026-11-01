@@ -14,7 +14,7 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	userEntityStorageType?: string;
 
 	/**
-	 * The entity storage for password reset tokens.
+	 * The entity storage for password reset and sign up verification tokens, which must be registered.
 	 * @default authentication-password-reset
 	 */
 	passwordResetEntityStorageType?: string;
@@ -26,7 +26,7 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	vaultConnectorType?: string;
 
 	/**
-	 * The audit service.
+	 * The audit service, which must be registered.
 	 * @default authentication-audit
 	 */
 	authenticationAuditServiceType?: string;
@@ -44,27 +44,29 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	tenantAdminComponentType?: string;
 
 	/**
-	 * The account data admin component, used to store the profile a provider holds when it exists.
+	 * The account data admin component, used to store the profile a provider holds. It must be
+	 * registered by the time the service starts.
 	 * @default authentication-account-admin
 	 */
 	authenticationAccountAdminComponentType?: string;
 
 	/**
 	 * The account data component, used to remove the identity of a removed account and the keys the
-	 * node holds for it when it exists.
+	 * node holds for it. It must be registered by the time the service starts.
 	 * @default authentication-account
 	 */
 	authenticationAccountComponentType?: string;
 
 	/**
-	 * The authorization component, used to give new accounts the default roles and remove the roles
-	 * of a removed account when it exists.
+	 * The authorization component, which must be registered. It gives new accounts the default roles,
+	 * returns the roles of an account when it signs in and removes the roles of a removed account.
 	 * @default authorization
 	 */
 	authorizationComponentType?: string;
 
 	/**
-	 * The organization request admin component, used to remove the requests of a removed account when it exists.
+	 * The organization request admin component, used to remove the requests of a removed account. It
+	 * must be registered by the time the service starts.
 	 * @default organization-request-admin
 	 */
 	organizationRequestAdminComponentType?: string;
@@ -77,15 +79,14 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	messagingComponentType?: string;
 
 	/**
-	 * The task scheduler, used when it exists to send e-mails after the response so the response time
-	 * does not reveal whether an account exists, and to remove expired sign ups and tokens.
+	 * The task scheduler, used to send e-mails after the response so the response time does not
+	 * reveal whether an account exists, and to remove expired sign ups and tokens.
 	 * @default task-scheduler
 	 */
 	taskSchedulerComponentType?: string;
 
 	/**
-	 * The platform component, used when it exists to remove expired sign ups and tokens in every
-	 * tenant.
+	 * The platform component, used to remove expired sign ups and tokens in every tenant.
 	 * @default platform
 	 */
 	platformComponentType?: string;

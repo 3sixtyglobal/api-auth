@@ -6,6 +6,7 @@ import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
 	ComponentFactory,
 	ConflictError,
+	GeneralError,
 	NotFoundError,
 	UnauthorizedError,
 	UnprocessableError
@@ -30,6 +31,13 @@ import {
 	organizationData,
 	verifyTestCredential
 } from "../helpers/accountDataValues.js";
+import {
+	createAuthorizationComponent,
+	createOrganizationStorage,
+	createRateComponent,
+	createUserStorage,
+	mockRequiredComponents
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -109,6 +117,7 @@ function createIdentityComponent(): IIdentityComponent {
 describe("EntityStorageAuthenticationAccountService", () => {
 	let storage: MemoryEntityStorageConnector<AccountData>;
 	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
+	let organizations: MemoryEntityStorageConnector<Organization>;
 	let service: EntityStorageAuthenticationAccountService;
 	let admin: EntityStorageAuthenticationAccountAdminService;
 	let identityComponent: IIdentityComponent;
@@ -119,7 +128,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 		check: ReturnType<typeof vi.fn>;
 	};
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		storage = new MemoryEntityStorageConnector<AccountData>({
 			entitySchema: nameof<AccountData>(),
 			config: { storageKey: "account-data" }
@@ -128,9 +137,22 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			entitySchema: nameof<OrganizationRequest>(),
 			config: { storageKey: "organization-request-account" }
 		});
-		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(
-			name => (name === "organization-request" ? requests : storage) as never
-		);
+		organizations = await createOrganizationStorage("organization-account", [
+			"did:example:org",
+			"did:example:org-1",
+			"did:example:org-2",
+			"did:example:org-3"
+		]);
+		const users = createUserStorage();
+		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(name => {
+			if (name === "organization-request") {
+				return requests as never;
+			}
+			if (name === "organization") {
+				return organizations as never;
+			}
+			return (name === "authentication-user" ? users : storage) as never;
+		});
 		identityComponent = createIdentityComponent();
 		rateService = {
 			className: () => "rate",
@@ -147,6 +169,11 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			}
 			return undefined;
 		});
+		mockRequiredComponents({
+			authorization: createAuthorizationComponent(),
+			"authentication-rate": rateService,
+			"identity-service": identityComponent
+		});
 		service = new EntityStorageAuthenticationAccountService();
 		admin = new EntityStorageAuthenticationAccountAdminService();
 	});
@@ -155,6 +182,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 		vi.restoreAllMocks();
 		await storage.teardown();
 		await requests.teardown();
+		await organizations.teardown();
 	});
 
 	it("should store and read items of the types the account may set", async () => {
@@ -311,37 +339,6 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			// The variant is not the identity of the account.
 			await expect(service.query("identity")).resolves.toMatchObject({ entities: [] });
 		});
-	});
-
-	it("should only return exact matches when storage compares without case", async () => {
-		const id = await admin.create("account-1", "public-profile", { name: "Alice" }, true);
-		const now = new Date().toISOString();
-		const variant: AccountData = {
-			id: "variant",
-			accountId: "ACCOUNT-1",
-			type: "PUBLICPROFILE",
-			data: { name: "Mallory" },
-			isDefault: true,
-			dateCreated: now,
-			dateModified: now
-		};
-		const own = await storage.get(id);
-		const spy = vi
-			.spyOn(storage, "query")
-			.mockResolvedValue({ entities: [variant, own as AccountData] });
-
-		await asAccount("account-1", async () => {
-			await expect(service.query("public-profile")).resolves.toMatchObject({ entities: [{ id }] });
-		});
-		await expect(
-			AccountDataHelper.getDefault(storage, "account-1", "public-profile")
-		).resolves.toMatchObject({ id });
-
-		// Clearing a default leaves the variant alone.
-		const setSpy = vi.spyOn(storage, "set");
-		await AccountDataHelper.create(storage, "account-1", "public-profile", { name: "Bob" }, true);
-		expect(setSpy.mock.calls.map(call => call[0].id)).not.toContain("variant");
-		spy.mockRestore();
 	});
 
 	it("should update and remove its own items", async () => {
@@ -629,22 +626,12 @@ describe("EntityStorageAuthenticationAccountService", () => {
 		});
 
 		it("should refuse a DID held by the node or an organization", async () => {
-			const organizations = new MemoryEntityStorageConnector<Organization>({
-				entitySchema: nameof<Organization>(),
-				config: { storageKey: "organization" }
-			});
 			await organizations.set({
 				id: "org-1",
 				identity: "did:example:registered",
 				searchName: "",
 				dateCreated: new Date().toISOString(),
 				dateModified: new Date().toISOString()
-			});
-			vi.spyOn(EntityStorageConnectorFactory, "getIfExists").mockImplementation(name => {
-				if (name === "organization") {
-					return organizations;
-				}
-				return undefined;
 			});
 
 			await ContextIdStore.run(
@@ -898,7 +885,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			);
 		});
 
-		it("should fail when the identity component is missing or does not return a DID", async () => {
+		it("should fail when the identity component does not return a DID", async () => {
 			vi.mocked(identityComponent.identityCreate).mockResolvedValueOnce({
 				"@context": "https://www.w3.org/ns/did/v1",
 				id: "not-a-did"
@@ -910,16 +897,13 @@ describe("EntityStorageAuthenticationAccountService", () => {
 					message: "entityStorageAuthenticationAccountService.identityCreateFailed"
 				});
 			});
+		});
 
-			vi.mocked(ComponentFactory.getIfExists).mockReturnValue(undefined);
-			service = new EntityStorageAuthenticationAccountService();
-			await asAccount("account-1", async () => {
-				await expect(
-					service.adoptIdentity(undefined, undefined, nowSeconds())
-				).rejects.toMatchObject({
-					message: "entityStorageAuthenticationAccountService.identityComponentMissing"
-				});
+		it("should fail to construct without the identity component", async () => {
+			vi.mocked(ComponentFactory.get).mockImplementation(() => {
+				throw new GeneralError("Factory", "noGet");
 			});
+			expect(() => new EntityStorageAuthenticationAccountService()).toThrow(GeneralError);
 		});
 	});
 
@@ -978,18 +962,49 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 	let storage: MemoryEntityStorageConnector<AccountData>;
 	let admin: EntityStorageAuthenticationAccountAdminService;
 
-	beforeEach(() => {
+	let organizations: MemoryEntityStorageConnector<Organization>;
+	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
+
+	beforeEach(async () => {
 		storage = new MemoryEntityStorageConnector<AccountData>({
 			entitySchema: nameof<AccountData>(),
 			config: { storageKey: "account-data-admin" }
 		});
-		vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(storage);
+		requests = new MemoryEntityStorageConnector<OrganizationRequest>({
+			entitySchema: nameof<OrganizationRequest>(),
+			config: { storageKey: "organization-request-admin" }
+		});
+		organizations = await createOrganizationStorage("organization-admin", [
+			"did:example:org",
+			"did:example:org-1",
+			"did:example:org-2",
+			"did:example:org-3",
+			"did:example:x",
+			"did:example:other"
+		]);
+		const users = createUserStorage();
+		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(name => {
+			if (name === "organization") {
+				return organizations as never;
+			}
+			if (name === "organization-request") {
+				return requests as never;
+			}
+			return (name === "authentication-user" ? users : storage) as never;
+		});
+		mockRequiredComponents({
+			authorization: createAuthorizationComponent(),
+			"identity-service": createIdentityComponent(),
+			"authentication-rate": createRateComponent()
+		});
 		admin = new EntityStorageAuthenticationAccountAdminService();
 	});
 
 	afterEach(async () => {
 		vi.restoreAllMocks();
 		await storage.teardown();
+		await organizations.teardown();
+		await requests.teardown();
 	});
 
 	it("should manage the items of any account", async () => {
@@ -1177,9 +1192,9 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 	});
 
 	it("should handle a variant of a known type as the known type", async () => {
-		await admin.create("account-1", "Organization", organizationData("did:example:1"));
+		await admin.create("account-1", "Organization", organizationData("did:example:org-1"));
 		await expect(admin.query("account-1", " organization")).resolves.toMatchObject({
-			entities: [{ type: "organization", data: organizationData("did:example:1") }]
+			entities: [{ type: "organization", data: organizationData("did:example:org-1") }]
 		});
 
 		await admin.create("account-1", "Vc ", credentialData("vc-1"));

@@ -14,7 +14,6 @@
 		},
 		"entityStorageAuthenticationAccountService": {
 			"reservedType": "The account data type \"{type}\" can only be set by an administrator",
-			"identityComponentMissing": "The identity component is not available",
 			"identityCreateFailed": "Creating the identity failed",
 			"readOnly": "The account data of type \"{type}\" is owned by the authentication provider and cannot be changed",
 			"identityRequired": "The account needs an identity before it can join an organization",
@@ -57,7 +56,6 @@
 			"organizationHasMembers": "The organization \"{conflictId}\" still has members, remove them first",
 			"organizationAdminRequired": "The caller must hold the role \"{escalatedRole}\" or \"{adminRole}\" to manage organizations",
 			"organizationIdentityInUse": "The identity \"{conflictId}\" is held by an account and cannot be registered as an organization",
-			"identityComponentMissing": "The identity component is not available",
 			"identityCreateFailed": "Creating the identity of the organization failed",
 			"identityImportExclusive": "An organization identity export cannot be given with an identity or proof",
 			"nextRevocationIndexInvalid": "The next revocation index of an organization identity export must be a whole number of zero or more",
@@ -76,7 +74,6 @@
 			"organizationProfileManaged": "The profiles of an organization are changed through the organization endpoints",
 			"ownAccountNotPermitted": "The identity and organization of the caller's own account can only be changed by a caller holding the role \"{roleName}\"",
 			"migrationTypeNotPermitted": "The node migration records can only be changed by a caller holding the role \"{roleName}\"",
-			"identityComponentMissing": "The identity component is not available",
 			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege.",
 			"identityRemoveFailed": "Removing the identity \"{identity}\" from the node failed",
 			"userNotFound": "The user \"{notFoundId}\" could not be found",

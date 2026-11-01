@@ -26,6 +26,7 @@ import {
 	GeneralError,
 	Guards,
 	Is,
+	JsonHelper,
 	Mutex,
 	NotFoundError,
 	RandomHelper,
@@ -41,6 +42,7 @@ import type { ILoggingComponent } from "@3sixty/logging-models";
 import { nameof } from "@3sixty/nameof";
 import type { IDidVerifiableCredential, IProof } from "@3sixty/standards-w3c-did";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 import type { OrganizationRequest } from "../entities/organizationRequest.js";
 import type { IEntityStorageAuthenticationAccountServiceConstructorOptions } from "../models/IEntityStorageAuthenticationAccountServiceConstructorOptions.js";
 import { AccountDataHelper } from "../utils/accountDataHelper.js";
@@ -154,22 +156,22 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	private readonly _organizationRequestEntityStorage: IEntityStorageConnector<OrganizationRequest>;
 
 	/**
-	 * The entity storage type of the registered organizations, resolved when an account asks to join one.
+	 * The entity storage for the registered organizations.
 	 * @internal
 	 */
-	private readonly _organizationEntityStorageType: string;
+	private readonly _organizationEntityStorage: IEntityStorageConnector<Organization>;
 
 	/**
-	 * The identity component, when it exists.
+	 * The identity component.
 	 * @internal
 	 */
-	private readonly _identityComponent?: IIdentityComponent;
+	private readonly _identityComponent: IIdentityComponent;
 
 	/**
-	 * The rate component, when it exists.
+	 * The rate component.
 	 * @internal
 	 */
-	private readonly _authenticationRateService?: IAuthenticationRateComponent;
+	private readonly _authenticationRateService: IAuthenticationRateComponent;
 
 	/**
 	 * The rate limits registered with the rate component, by action.
@@ -236,12 +238,13 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.get(
 			options?.organizationRequestEntityStorageType ?? "organization-request"
 		);
-		this._organizationEntityStorageType =
-			options?.organizationEntityStorageType ?? OrganizationHelper.DEFAULT_ENTITY_STORAGE_TYPE;
-		this._identityComponent = ComponentFactory.getIfExists<IIdentityComponent>(
+		this._organizationEntityStorage = EntityStorageConnectorFactory.get(
+			options?.organizationEntityStorageType ?? "organization"
+		);
+		this._identityComponent = ComponentFactory.get<IIdentityComponent>(
 			options?.identityComponentType ?? "identity-service"
 		);
-		this._authenticationRateService = ComponentFactory.getIfExists<IAuthenticationRateComponent>(
+		this._authenticationRateService = ComponentFactory.get<IAuthenticationRateComponent>(
 			options?.authenticationRateServiceType ?? "authentication-rate"
 		);
 		const config = options?.config;
@@ -310,7 +313,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 */
 	public async start(nodeLoggingComponentType?: string): Promise<void> {
 		for (const [action, limit] of Object.entries(this._rateLimits)) {
-			await this._authenticationRateService?.registerAction(action, limit);
+			await this._authenticationRateService.registerAction(action, limit);
 		}
 	}
 
@@ -321,7 +324,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 */
 	public async stop(nodeLoggingComponentType?: string): Promise<void> {
 		for (const action of Object.keys(this._rateLimits)) {
-			await this._authenticationRateService?.unregisterAction(action);
+			await this._authenticationRateService.unregisterAction(action);
 		}
 	}
 
@@ -345,15 +348,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		const accountId = await this.signedInAccount();
 		RecentSignInHelper.guard(sessionStart, this._recentSignInSeconds);
 
-		const identityComponent = this._identityComponent;
-		if (Is.empty(identityComponent)) {
-			throw new GeneralError(
-				EntityStorageAuthenticationAccountService.CLASS_NAME,
-				"identityComponentMissing"
-			);
-		}
-
-		await this._authenticationRateService?.check(
+		await this._authenticationRateService.check(
 			EntityStorageAuthenticationAccountService.RATE_ACTION_ADOPT_IDENTITY,
 			accountId
 		);
@@ -363,12 +358,20 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		await Mutex.lock(lockKey, { throwOnTimeout: true });
 		try {
 			const documentId = Is.stringValue(identity)
-				? await this.adoptExisting(identityComponent, accountId, identity, proof)
-				: await this.adoptCreated(identityComponent, accountId);
+				? await this.adoptExisting(accountId, identity, proof)
+				: await this.adoptCreated(accountId);
 
 			// Organizations the account was added to before it had an identity get their credential, a
 			// failure leaves that membership without one rather than failing the adoption.
-			await this.completePendingMemberships(identityComponent, accountId, documentId);
+			await PendingMembershipHelper.complete(
+				this._accountDataEntityStorage,
+				this._organizationEntityStorage,
+				this._identityComponent,
+				this._verificationMethodId,
+				accountId,
+				documentId,
+				{ logging: this._logging }
+			);
 			return documentId;
 		} finally {
 			Mutex.unlock(lockKey);
@@ -389,13 +392,20 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			nameof(accountId),
 			accountId
 		);
-		const identityComponent = this.requireIdentityComponent();
 
 		const lockKey = AccountDataHelper.identityLockKey(accountId);
 		await Mutex.lock(lockKey, { throwOnTimeout: true });
 		try {
-			const documentId = await this.adoptCreated(identityComponent, accountId);
-			await this.completePendingMemberships(identityComponent, accountId, documentId);
+			const documentId = await this.adoptCreated(accountId);
+			await PendingMembershipHelper.complete(
+				this._accountDataEntityStorage,
+				this._organizationEntityStorage,
+				this._identityComponent,
+				this._verificationMethodId,
+				accountId,
+				documentId,
+				{ logging: this._logging }
+			);
 			return documentId;
 		} finally {
 			Mutex.unlock(lockKey);
@@ -415,28 +425,22 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	public async exportIdentity(sessionStart?: number): Promise<IAccountIdentityExport> {
 		const accountId = await this.signedInAccount();
 		RecentSignInHelper.guard(sessionStart, this._recentSignInSeconds);
-		const identityComponent = this.requireIdentityComponent();
-		await this._authenticationRateService?.check(
+		await this._authenticationRateService.check(
 			EntityStorageAuthenticationAccountService.RATE_ACTION_EXPORT_IDENTITY,
 			accountId
 		);
-		return this.exportAccountIdentity(accountId, identityComponent);
+		return this.exportAccountIdentity(accountId);
 	}
 
 	/**
 	 * Export the identity of an account with its private keys and the credentials it holds, for the
 	 * account itself and the account admin service, which check the caller first.
 	 * @param accountId The account.
-	 * @param identityComponent The identity component that holds the keys, the configured one when
-	 * omitted.
 	 * @returns The export, which contains private keys and must be protected.
 	 * @throws NotFoundError when the account has no identity.
 	 * @throws UnprocessableError when the node does not hold the keys of the identity.
 	 */
-	public async exportAccountIdentity(
-		accountId: string,
-		identityComponent: IIdentityComponent = this.requireIdentityComponent()
-	): Promise<IAccountIdentityExport> {
+	public async exportAccountIdentity(accountId: string): Promise<IAccountIdentityExport> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountService.CLASS_NAME,
 			nameof(accountId),
@@ -444,7 +448,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		);
 		const identity = await this.requireIdentity(accountId);
 		const [exported, credentials] = await Promise.all([
-			this.exportOwnIdentity(identityComponent, identity),
+			this.exportOwnIdentity(identity),
 			MembershipRemovalHelper.loadCredentialItems(this._accountDataEntityStorage, accountId)
 		]);
 		return {
@@ -482,12 +486,11 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		// Checked before anything else, so the wrong kind of file is refused at once.
 		ExportFileHelper.guard(exported, ExportFileType.AccountIdentity);
 		RecentSignInHelper.guard(sessionStart, this._recentSignInSeconds);
-		const identityComponent = this.requireIdentityComponent();
-		await this._authenticationRateService?.check(
+		await this._authenticationRateService.check(
 			EntityStorageAuthenticationAccountService.RATE_ACTION_IMPORT_IDENTITY,
 			accountId
 		);
-		return this.importAccountIdentity(accountId, exported, identityComponent);
+		return this.importAccountIdentity(accountId, exported);
 	}
 
 	/**
@@ -495,16 +498,13 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * admin service, which check the caller first. See importIdentity for what is imported.
 	 * @param accountId The account.
 	 * @param exported The export of the identity and its credentials.
-	 * @param identityComponent The identity component that holds the keys, the configured one when
-	 * omitted.
 	 * @returns The DID and what was imported.
 	 * @throws UnprocessableError when the export is not valid or not self-controlled.
 	 * @throws ConflictError when the account already has an identity, or the DID is held.
 	 */
 	public async importAccountIdentity(
 		accountId: string,
-		exported: IAccountIdentityExport,
-		identityComponent: IIdentityComponent = this.requireIdentityComponent()
+		exported: IAccountIdentityExport
 	): Promise<IAccountIdentityImportResult> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountService.CLASS_NAME,
@@ -521,16 +521,18 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			await AccountDataHelper.guardNoIdentity(this._accountDataEntityStorage, accountId);
 
 			const created: string[] = [];
-			await this.withDidLock(identity, async () => {
+			const didLockKey = AccountDataHelper.didLockKey(identity);
+			await Mutex.lock(didLockKey, { throwOnTimeout: true });
+			try {
 				await AccountDataHelper.guardIdentityAvailable(
 					this._accountDataEntityStorage,
-					this._organizationEntityStorageType,
+					this._organizationEntityStorage,
 					identity
 				);
 
 				// The import proves the keys match the document before anything is stored.
 				try {
-					await identityComponent.identityImport(exported.identity, identity);
+					await this._identityComponent.identityImport(exported.identity, identity);
 				} catch (error) {
 					// The node already holds the DID, which is a conflict rather than a failure.
 					if (BaseError.someErrorName(error, ConflictError.CLASS_NAME)) {
@@ -562,25 +564,34 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 						)
 					);
 				} catch (error) {
-					await this.rollbackImport(identityComponent, accountId, identity, created);
+					await this.rollbackImport(accountId, identity, created);
 					throw error;
 				}
-			});
+			} finally {
+				Mutex.unlock(didLockKey);
+			}
 
 			try {
 				result = await this.importCredentials(
-					identityComponent,
 					accountId,
 					identity,
 					exported.credentials ?? [],
 					created
 				);
 			} catch (error) {
-				await this.rollbackImport(identityComponent, accountId, identity, created);
+				await this.rollbackImport(accountId, identity, created);
 				throw error;
 			}
 
-			await this.completePendingMemberships(identityComponent, accountId, identity);
+			await PendingMembershipHelper.complete(
+				this._accountDataEntityStorage,
+				this._organizationEntityStorage,
+				this._identityComponent,
+				this._verificationMethodId,
+				accountId,
+				identity,
+				{ logging: this._logging }
+			);
 		} finally {
 			Mutex.unlock(lockKey);
 		}
@@ -657,7 +668,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 */
 	public async exportProfile(): Promise<IAccountProfileExport> {
 		const accountId = await this.signedInAccount();
-		await this._authenticationRateService?.check(
+		await this._authenticationRateService.check(
 			EntityStorageAuthenticationAccountService.RATE_ACTION_EXPORT_PROFILE,
 			accountId
 		);
@@ -679,7 +690,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		const accountId = await this.signedInAccount();
 		// Checked before anything else, so the wrong kind of file is refused at once.
 		ExportFileHelper.guard(profile, ExportFileType.AccountProfile);
-		await this._authenticationRateService?.check(
+		await this._authenticationRateService.check(
 			EntityStorageAuthenticationAccountService.RATE_ACTION_IMPORT_PROFILE,
 			accountId
 		);
@@ -754,7 +765,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 
 		// The reads are independent, so they are made together and checked in order after.
 		const [, hasIdentity, isMember, pending] = await Promise.all([
-			OrganizationHelper.guardRegistered(this._organizationEntityStorageType, organization),
+			OrganizationHelper.guardRegistered(this._organizationEntityStorage, organization),
 			this.hasIdentity(accountId, contextIds[ContextIdKeys.User]),
 			AdminScopeHelper.isMember(this._accountDataEntityStorage, accountId, organization),
 			OrganizationRequestHelper.findPending(
@@ -1037,7 +1048,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 
 	/**
 	 * Adopt a DID owned by the caller.
-	 * @param identityComponent The identity component.
 	 * @param accountId The account id.
 	 * @param identity The DID to adopt.
 	 * @param proof The proof by the DID over the identity proof document.
@@ -1045,7 +1055,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async adoptExisting(
-		identityComponent: IIdentityComponent,
 		accountId: string,
 		identity: string,
 		proof?: IProof
@@ -1054,15 +1063,17 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		// identity lock of the account, so they are not repeated when the identity is stored.
 		await AccountDataHelper.guardNoIdentity(this._accountDataEntityStorage, accountId);
 		// The DID is locked as well, so another account can not bind it between the check and the write.
-		await this.withDidLock(identity, async () => {
+		const didLockKey = AccountDataHelper.didLockKey(identity);
+		await Mutex.lock(didLockKey, { throwOnTimeout: true });
+		try {
 			// A DID the node holds, such as its own or an organization, can not be adopted.
 			await AccountDataHelper.guardIdentityAvailable(
 				this._accountDataEntityStorage,
-				this._organizationEntityStorageType,
+				this._organizationEntityStorage,
 				identity
 			);
 			await IdentityProofHelper.verify(
-				identityComponent,
+				this._identityComponent,
 				accountId,
 				identity,
 				proof,
@@ -1072,25 +1083,23 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 				accountChecked: true,
 				availabilityChecked: true
 			});
-		});
+		} finally {
+			Mutex.unlock(didLockKey);
+		}
 		return identity;
 	}
 
 	/**
 	 * Create a self-controlled DID and adopt it.
-	 * @param identityComponent The identity component.
 	 * @param accountId The account id.
 	 * @returns The DID.
 	 * @internal
 	 */
-	private async adoptCreated(
-		identityComponent: IIdentityComponent,
-		accountId: string
-	): Promise<string> {
+	private async adoptCreated(accountId: string): Promise<string> {
 		// Checked first, so a DID is not created for an account that already has one.
 		await AccountDataHelper.guardNoIdentity(this._accountDataEntityStorage, accountId);
 
-		const created = await identityComponent.identityCreate(undefined, undefined, {
+		const created = await this._identityComponent.identityCreate(undefined, undefined, {
 			selfControlled: true
 		});
 		const documentId = created.id;
@@ -1113,7 +1122,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 				}
 			);
 		} catch (error) {
-			await identityComponent.identityRemove(
+			await this._identityComponent.identityRemove(
 				documentId,
 				{ removeKeys: true, removeDocumentKey: true },
 				documentId
@@ -1124,60 +1133,15 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	}
 
 	/**
-	 * Run a method holding the lock of a DID, taken after the lock of the account.
-	 * @param identity The DID.
-	 * @param method The method to run.
-	 * @returns A promise that resolves when the method has run.
-	 * @internal
-	 */
-	private async withDidLock(identity: string, method: () => Promise<void>): Promise<void> {
-		const lockKey = AccountDataHelper.didLockKey(identity);
-		await Mutex.lock(lockKey, { throwOnTimeout: true });
-		try {
-			await method();
-		} finally {
-			Mutex.unlock(lockKey);
-		}
-	}
-
-	/**
-	 * Issue the membership credentials of the organizations the account was added to before it had
-	 * an identity, a failure leaves that membership without one.
-	 * @param identityComponent The identity component.
-	 * @param accountId The account id.
-	 * @param identity The DID just bound to the account.
-	 * @returns A promise that resolves when the credentials have been issued.
-	 * @internal
-	 */
-	private async completePendingMemberships(
-		identityComponent: IIdentityComponent,
-		accountId: string,
-		identity: string
-	): Promise<void> {
-		await PendingMembershipHelper.complete(
-			this._accountDataEntityStorage,
-			identityComponent,
-			this._verificationMethodId,
-			accountId,
-			identity,
-			{ organizationEntityStorageType: this._organizationEntityStorageType, logging: this._logging }
-		);
-	}
-
-	/**
 	 * Export the identity of an account, which is self-controlled so is its own controller.
-	 * @param identityComponent The identity component.
 	 * @param identity The DID.
 	 * @returns The export.
 	 * @throws UnprocessableError when the node does not hold the keys of the identity.
 	 * @internal
 	 */
-	private async exportOwnIdentity(
-		identityComponent: IIdentityComponent,
-		identity: string
-	): Promise<IIdentityExport> {
+	private async exportOwnIdentity(identity: string): Promise<IIdentityExport> {
 		try {
-			return await identityComponent.identityExport(identity, identity);
+			return await this._identityComponent.identityExport(identity, identity);
 		} catch (error) {
 			throw new UnprocessableError(
 				EntityStorageAuthenticationAccountService.CLASS_NAME,
@@ -1192,7 +1156,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * Undo an identity import that failed, removing the items it created that still belong to the
 	 * account and the identity from the node. Each step is attempted on its own, a failure is logged
 	 * and the error of the import is the one reported.
-	 * @param identityComponent The identity component.
 	 * @param accountId The account id.
 	 * @param identity The imported DID.
 	 * @param created The ids of the items the import created.
@@ -1200,7 +1163,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async rollbackImport(
-		identityComponent: IIdentityComponent,
 		accountId: string,
 		identity: string,
 		created: string[]
@@ -1215,7 +1177,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		}
 		try {
 			// A ledger document stays published, so the export can be imported again.
-			await identityComponent.identityRemove(
+			await this._identityComponent.identityRemove(
 				identity,
 				{ removeKeys: true, removeDocumentKey: true, retainDocument: true },
 				identity
@@ -1293,22 +1255,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	}
 
 	/**
-	 * Get the identity component.
-	 * @returns The component.
-	 * @throws GeneralError when it does not exist.
-	 * @internal
-	 */
-	private requireIdentityComponent(): IIdentityComponent {
-		if (Is.empty(this._identityComponent)) {
-			throw new GeneralError(
-				EntityStorageAuthenticationAccountService.CLASS_NAME,
-				"identityComponentMissing"
-			);
-		}
-		return this._identityComponent;
-	}
-
-	/**
 	 * Get the DID of an account.
 	 * @param accountId The account id.
 	 * @returns The DID.
@@ -1375,7 +1321,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * account to the registered organizations whose revocable membership credentials it holds. A
 	 * membership credential without a revocation status is stored as a credential only, as ending
 	 * the membership could not revoke it.
-	 * @param identityComponent The identity component.
 	 * @param accountId The account id.
 	 * @param identity The imported DID.
 	 * @param credentials The credentials of the export.
@@ -1384,7 +1329,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async importCredentials(
-		identityComponent: IIdentityComponent,
 		accountId: string,
 		identity: string,
 		credentials: unknown[],
@@ -1395,12 +1339,13 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			OrganizationMembershipHelper.loadOrganizations(this._accountDataEntityStorage, accountId),
 			ContextIdStore.getContextIds()
 		]);
-		// Credentials are compared as JSON, so they are not stored twice.
+		// Credentials are compared as canonical JSON, so the order of their properties does not matter
+		// and they are not stored twice.
 		const stored = new Set<string>();
 		for (const item of existingCredentials) {
 			const credential = AuthenticationAccountHelper.getCredential(item.data);
 			if (Is.object(credential)) {
-				stored.add(this.credentialKey(credential));
+				stored.add(JsonHelper.canonicalize(credential));
 			}
 		}
 		const joined = new Set<string>();
@@ -1411,7 +1356,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			}
 		}
 		// Each issuer is looked up once.
-		const registered = new Map<string, Promise<boolean>>();
+		const registered = new Map<string, Promise<Organization | undefined>>();
 		const tenantOrganization = contextIds?.[ContextIdKeys.Organization];
 		const organizations: string[] = [];
 		let credentialsImported = 0;
@@ -1428,9 +1373,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 				...(await Promise.all(
 					credentials
 						.slice(start, start + concurrency)
-						.map(async credential =>
-							this.verifyCredentialFor(identityComponent, credential, identity)
-						)
+						.map(async credential => this.verifyCredentialFor(credential, identity))
 				))
 			);
 		}
@@ -1477,13 +1420,13 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		state: {
 			stored: Set<string>;
 			joined: Set<string>;
-			registered: Map<string, Promise<boolean>>;
-			tenantOrganization: string | undefined;
+			registered: Map<string, Promise<Organization | undefined>>;
+			tenantOrganization?: string;
 			organizations: string[];
 		},
 		created: string[]
 	): Promise<void> {
-		const key = this.credentialKey(credential);
+		const key = JsonHelper.canonicalize(credential);
 		if (!state.stored.has(key)) {
 			created.push(
 				await AccountDataHelper.create(
@@ -1527,19 +1470,8 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	}
 
 	/**
-	 * Get the key a credential is compared by, its JSON.
-	 * @param credential The credential.
-	 * @returns The key.
-	 * @internal
-	 */
-	private credentialKey(credential: IDidVerifiableCredential): string {
-		return JSON.stringify(credential);
-	}
-
-	/**
 	 * Verify a credential in full and check it is issued to an identity, a value that is not a JSON
 	 * credential that could be stored as account data, such as a JWT, is not valid.
-	 * @param identityComponent The identity component.
 	 * @param credential The credential from the export.
 	 * @param identity The DID the credential must be issued to.
 	 * @returns The credential, the organization it shows membership of, when its issuer, and the
@@ -1548,7 +1480,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async verifyCredentialFor(
-		identityComponent: IIdentityComponent,
 		credential: unknown,
 		identity: string
 	): Promise<
@@ -1561,7 +1492,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		}
 		let result: Awaited<ReturnType<IIdentityComponent["verifiableCredentialVerify"]>>;
 		try {
-			result = await identityComponent.verifiableCredentialVerify(jsonCredential);
+			result = await this._identityComponent.verifiableCredentialVerify(jsonCredential);
 		} catch {
 			// A credential that does not verify is skipped.
 			return undefined;
@@ -1604,7 +1535,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 */
 	private async isRegisteredOrganization(
 		organization: string,
-		memo: Map<string, Promise<boolean>>,
+		memo: Map<string, Promise<Organization | undefined>>,
 		tenantOrganization: string | undefined
 	): Promise<boolean> {
 		if (tenantOrganization === organization) {
@@ -1612,22 +1543,10 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		}
 		let lookup = memo.get(organization);
 		if (Is.empty(lookup)) {
-			lookup = this.findRegisteredOrganization(organization);
+			lookup = OrganizationHelper.findByIdentity(this._organizationEntityStorage, organization);
 			memo.set(organization, lookup);
 		}
-		return lookup;
-	}
-
-	/**
-	 * Check whether an organization is registered on the node.
-	 * @param organization The DID of the organization.
-	 * @returns True when it is.
-	 * @internal
-	 */
-	private async findRegisteredOrganization(organization: string): Promise<boolean> {
-		return Is.object(
-			await OrganizationHelper.findRegistered(this._organizationEntityStorageType, organization)
-		);
+		return Is.object(await lookup);
 	}
 
 	/**
@@ -1639,9 +1558,6 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async removeNodeIdentity(identity: string): Promise<void> {
-		if (Is.empty(this._identityComponent)) {
-			return;
-		}
 		try {
 			await this._identityComponent.identityRemove(
 				identity,

@@ -103,8 +103,8 @@ console.log(policy.minPasswordLength); // 8
 // limit, so an attacker cannot lock an account out for everyone.
 const loginResult = await authService.login('alice@example.org', 'correct-horse-battery-staple');
 
-// Any other registered provider creates the account on the first login, unless
-// providerSignUpEnabled is false, gives it the default roles and stores its profile read only.
+// Any other registered provider creates the account on the first login, gives it the default roles
+// and stores its profile read only. A provider is enabled by registering it with the factory.
 // Provider logins are rate limited per client address, or per provider account without a trusted
 // client address, and concurrent first logins on one node create a single account.
 // The photo the provider holds is stored as the avatar account data item, marked read only, and only
@@ -120,6 +120,7 @@ const providerResult = await authService.loginWithProvider('google', {
 console.log(providerResult.profile?.['@type']); // Person
 console.log(providerResult.profileReadOnly); // true, edit it at providerResult.profileEditUrl
 console.log(providerResult.passwordChangeUrl); // where the provider changes the password
+console.log(loginResult.roles); // the roles in authorizationModelId
 
 // Changing your own password always needs the current password, an admin or a reset link does not.
 // It ends the other sessions of the account and returns a new token for this one, keeping its start.
@@ -142,15 +143,14 @@ console.log(refreshResult.expiry > 0); // true
 // from the provider configuration, for the provider tenant stored at the last sign in.
 const me = await authService.me();
 console.log(me.authProviderId); // google
+console.log(me.roles); // ['user'], so an app can show what the account may do
 
 await authService.stop('default');
 ```
 
 `PUT /authentication/password` answers 200 OK with `{ token, expiry }`, and 403 Forbidden when the current password does not match. The new token carries the new password version, so the other sessions of the account end while this one continues until the end of its maximum length. A request signed in by cookie gets the new token as the cookie and no `token` in the body, a bearer request takes it from the body. A password set by an admin or with a reset link ends every session of the account.
 
-Self sign up is off by default, enable it with `selfRegistrationEnabled`. A sign up must verify its e-mail address: `register` resolves to `undefined`, and the route answers 202 Accepted without a body, whether or not the address already has an account. A new account is stored unverified without roles and sent a verification link, while the owner of an address that already has an account is told of the sign up instead. Verifying the link gives the account the default roles, until then it cannot sign in. Resetting the password with a link sent to the address also verifies the account and gives it the default roles. An unverified sign up older than the link expiry is replaced by a new sign up for the address. A repeated sign up for an address that is still waiting for verification sends a new link and stops the earlier links working, and verifying a link sets the password given with that sign up, so whoever signed up first for an address cannot keep their password. The verification tokens are stored hashed, used once and kept in the password reset storage with the password hash of their sign up, which is never returned. The default roles may not include the escalated privilege role.
-
-Accounts created by the first login through any other authentication provider are controlled separately by `providerSignUpEnabled`, on by default. When it is off, a first provider login for an unknown account fails with the same 401 as any other failed login and creates nothing.
+Password sign up is enabled when the `entity-storage` provider is registered with the authentication provider factory, otherwise `register` and `verifyRegistration` are refused with a 403, `selfRegistrationDisabled`. A sign up must verify its e-mail address: `register` resolves when the sign up is accepted, and the route answers 202 Accepted without a body, whether or not the address already has an account. A new account is stored unverified without roles and sent a verification link, while the owner of an address that already has an account is told of the sign up instead. Verifying the link gives the account the default roles, until then it cannot sign in. Resetting the password with a link sent to the address also verifies the account and gives it the default roles. An unverified sign up older than the link expiry is replaced by a new sign up for the address. A repeated sign up for an address that is still waiting for verification sends a new link and stops the earlier links working, and verifying a link sets the password given with that sign up, so whoever signed up first for an address cannot keep their password. The verification tokens are stored hashed, used once and kept in the password reset storage with the password hash of their sign up, which is never returned. The default roles may not include the escalated privilege role.
 
 The limits per client address, for provider logins, sign ups, verifying a sign up, asking for and using a password reset link, and logins with `loginRateLimitPerClient`, are only applied when `clientAddressRateLimitEnabled` is set. Only set it when the client address can be trusted, such as behind configured trusted proxies, as otherwise every client may share the address of a proxy or send a false one. When it is off, those limits are applied per provider account, per e-mail address or per token instead, or skipped for logins per client, and the limits per e-mail address still apply. A limit per e-mail address lets anyone use up the attempts of an address, a limit per token or provider account does not stop one client trying many, so set `clientAddressRateLimitEnabled` wherever the client address can be trusted.
 
@@ -166,10 +166,11 @@ import { EntityStorageAuthenticationService } from '@3sixty/api-auth-entity-stor
 const authService = new EntityStorageAuthenticationService({
   messagingComponentType: 'messaging',
   config: {
-    selfRegistrationEnabled: true,
     defaultRoles: ['user'],
     registrationVerificationUrl: 'https://app.example.org/verify',
+    passwordResetUrl: 'https://app.example.org/reset-password',
     emailSender: 'no-reply@example.org',
+    emailLocale: 'en',
     emailCompanyName: 'Example Ltd',
     registrationVerificationEmailTemplateId: 'registration-verify',
     registrationExistsEmailTemplateId: 'registration-exists',
@@ -178,12 +179,11 @@ const authService = new EntityStorageAuthenticationService({
 });
 
 // Sends https://app.example.org/verify?token=... to the address.
-const result = await authService.register({
+await authService.register({
   email: 'carol@example.org',
   password: 'Correct-Horse-Battery-42',
   givenName: 'Carol'
 });
-console.log(result); // undefined
 
 // Until the link is followed, signing in with the password fails with a 401 UnauthorizedError
 // whose message is entityStorageAuthenticationService.accountNotVerified.
@@ -192,11 +192,9 @@ console.log(result); // undefined
 await authService.verifyRegistration('token-from-the-link');
 ```
 
-Set `registrationVerificationEnabled` to `false` to keep the behaviour of earlier versions, where a sign up is given the default roles and signed in at once, and an address with an account is refused with a conflict.
+Forgotten passwords can be reset with a link sent by e-mail. The link holds a single use token, stored only as a hash, and expires after `passwordResetExpiryMinutes`. Asking for a link completes the same way whether or not the account exists. The reset address, the verification address, the `emailSender` and the messaging component are required, and the service fails to construct without them. The e-mails are sent in `emailLocale`, `en` by default. Every e-mail template is also given `companyName` from `emailCompanyName`, empty when not set. Disabled accounts are sent no link and cannot complete a reset, an unverified account is verified by completing one, and a password change by the account, an admin or a reset removes the links of the account.
 
-Forgotten passwords can be reset with a link sent by e-mail, which is off by default. The link holds a single use token, stored only as a hash, and expires after `passwordResetExpiryMinutes`. Asking for a link completes the same way whether or not the account exists. The reset address, the `emailSender` and the messaging component are required when it is enabled, as they are for sign up verification, and the service fails to construct without them. Every e-mail template is also given `companyName` from `emailCompanyName`, empty when not set. Disabled accounts are sent no link and cannot complete a reset, an unverified account is verified by completing one, and a password change by the account, an admin or a reset removes the links of the account.
-
-When a task scheduler component (`task-scheduler`) exists, the account lookup and the e-mails of a password reset or a sign up run after the response, on the next scheduler run, so the response time does not reveal whether an account exists. Without one they run before the response. The password of a sign up is hashed before the work is queued, so the queue never holds it, and at most `deferredQueueLimit` requests wait, 1000 by default, further ones are refused with 429 Too Many Requests until the queue has run. The scheduler also removes expired reset and verification links, and unverified sign ups older than the verification link expiry with no unexpired link, every `cleanupIntervalMinutes`, 60 by default, in every tenant through the platform component when it exists.
+The service needs a task scheduler component (`task-scheduler`) and a platform component (`platform`), and fails to construct without them. The account lookup and the e-mails of a password reset or a sign up are queued and run after the response, on the next scheduler run once the service has started, and when it stops, so the response time does not reveal whether an account exists. The password of a sign up is hashed before the work is queued, so the queue never holds it. The scheduler also removes expired reset and verification links, and unverified sign ups older than the verification link expiry with no unexpired link, every `cleanupIntervalMinutes`, 60 by default, in every tenant through the platform component.
 
 New passwords are hashed with Argon2id (19456 KiB, 2 iterations and 1 lane by default, set with `passwordHashOptions`) and the algorithm and parameters are stored with the account. Passwords stored with the earlier Blake2b hash still sign in and are hashed again with Argon2id on the next successful login, without ending the sessions of the account. E-mail addresses are trimmed and stored in lower case, and accounts stored before then are still found by the address as stored.
 
@@ -206,8 +204,8 @@ import { EntityStorageAuthenticationService } from '@3sixty/api-auth-entity-stor
 const authService = new EntityStorageAuthenticationService({
   messagingComponentType: 'messaging',
   config: {
-    passwordResetEnabled: true,
     passwordResetUrl: 'https://app.example.org/reset-password',
+    registrationVerificationUrl: 'https://app.example.org/verify',
     emailSender: 'no-reply@example.org',
     passwordResetEmailTemplateId: 'password-reset',
     passwordResetExpiryMinutes: 30

@@ -19,28 +19,33 @@ export interface IEntityStorageAuthenticationAccountAdminServiceConstructorOptio
 	authorizationComponentType?: string;
 
 	/**
+	 * The rate component used to limit exporting and importing.
+	 * @default authentication-rate
+	 */
+	authenticationRateServiceType?: string;
+
+	/**
 	 * The identity component used to verify identity proofs and issue membership credentials.
 	 * @default identity-service
 	 */
 	identityComponentType?: string;
 
 	/**
-	 * The entity storage for the registered organizations, when it exists accounts only join
-	 * registered organizations.
+	 * The entity storage for the registered organizations, which accounts may only join.
 	 * @default organization
 	 */
 	organizationEntityStorageType?: string;
 
 	/**
 	 * The entity storage for the requests to join an organization, whose pending requests are
-	 * removed with the identity of an account, when it exists.
+	 * removed with the identity of an account.
 	 * @default organization-request
 	 */
 	organizationRequestEntityStorageType?: string;
 
 	/**
-	 * The entity storage for the users, when it exists an account id must belong to a user to manage
-	 * its identity and profile.
+	 * The entity storage for the users, an account id must belong to a user to manage its identity
+	 * and profile.
 	 * @default authentication-user
 	 */
 	userEntityStorageType?: string;

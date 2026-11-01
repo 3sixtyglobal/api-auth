@@ -246,12 +246,7 @@ export class AccountProfileHelper {
 				undefined,
 				AccountProfileHelper.EXCLUDED_TYPES
 			);
-			// Rows stored before types were normalised may hold a variant of an excluded type.
-			items.push(
-				...page.entities.filter(
-					item => !AccountDataHelper.isType(item.type, ...AccountProfileHelper.EXCLUDED_TYPES)
-				)
-			);
+			items.push(...page.entities);
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 		// The sort is stable, so items created in the same millisecond keep the order storage gives.

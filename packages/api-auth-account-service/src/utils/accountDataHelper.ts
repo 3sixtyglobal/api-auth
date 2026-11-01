@@ -22,6 +22,7 @@ import { nameof } from "@3sixty/nameof";
 import { AccountContextCache } from "./accountContextCache.js";
 import { OrganizationHelper } from "./organizationHelper.js";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 
 /**
  * Helper class for storing account data, shared by the account and admin services.
@@ -187,14 +188,14 @@ export class AccountDataHelper {
 	 * Ensure a DID may be bound to an account, it must not be the node, the organization of the
 	 * tenant or node, a registered organization, or held by an account.
 	 * @param storage The entity storage for account data.
-	 * @param organizationStorageType The entity storage type of the registered organizations.
+	 * @param organizationStorage The entity storage for the registered organizations.
 	 * @param identity The DID.
 	 * @returns A promise that resolves when the DID is available.
 	 * @throws ConflictError when the DID is held.
 	 */
 	public static async guardIdentityAvailable(
 		storage: IEntityStorageConnector<AccountData>,
-		organizationStorageType: string,
+		organizationStorage: IEntityStorageConnector<Organization>,
 		identity: string
 	): Promise<void> {
 		Guards.stringValue(AccountDataHelper.CLASS_NAME, nameof(identity), identity);
@@ -202,7 +203,7 @@ export class AccountDataHelper {
 		if (
 			contextIds?.[ContextIdKeys.Node] === identity ||
 			contextIds?.[ContextIdKeys.Organization] === identity ||
-			Is.object(await OrganizationHelper.findRegistered(organizationStorageType, identity))
+			Is.object(await OrganizationHelper.findByIdentity(organizationStorage, identity))
 		) {
 			throw new ConflictError(AccountDataHelper.CLASS_NAME, "identityHeldByNode", identity);
 		}
@@ -295,8 +296,7 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Count the items of an account, optionally of a type. Storage may compare without case, so the
-	 * count can only be higher than the exact count.
+	 * Count the items of an account, optionally of a type.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @param type The type of the items, all types when omitted.
@@ -334,8 +334,7 @@ export class AccountDataHelper {
 		id: string
 	): Promise<number | undefined> {
 		const item = await storage.get(id);
-		return Is.object<AccountData>(item) &&
-			item.type === AuthenticationAccountDataType.Organization &&
+		return item?.type === AuthenticationAccountDataType.Organization &&
 			Is.integer(item.revocationIndex)
 			? item.revocationIndex
 			: undefined;
@@ -601,16 +600,7 @@ export class AccountDataHelper {
 			limit
 		);
 
-		// Storage may compare without case or accents, so only exact matches are returned.
-		const entities = (result.entities as AccountData[])
-			.filter(
-				item =>
-					(!Is.stringValue(accountId) || item.accountId === accountId) &&
-					(Is.stringValue(queryType)
-						? item.type === queryType
-						: !normalisedExcludeTypes.includes(item.type))
-			)
-			.map(item => AccountDataHelper.toData(item));
+		const entities = (result.entities as AccountData[]).map(item => AccountDataHelper.toData(item));
 		return { entities, cursor: result.cursor };
 	}
 
@@ -643,11 +633,7 @@ export class AccountDataHelper {
 				cursor,
 				AccountDataHelper._FIND_PAGE_SIZE
 			);
-			// Storage may compare without case or accents, so only exact matches are used.
-			const matches = (page.entities as AccountData[]).filter(
-				item => item.accountId === accountId && item.type === type
-			);
-			for (const item of matches) {
+			for (const item of page.entities as AccountData[]) {
 				if (item.isDefault) {
 					return AccountDataHelper.toData(item);
 				}
@@ -659,8 +645,7 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Read every item of a type of an account. Every page is read, as only exact matches are kept
-	 * from a page, so a short or empty page can still have a cursor.
+	 * Read every item of a type of an account.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @param type The type of the items.
@@ -746,30 +731,14 @@ export class AccountDataHelper {
 			});
 		}
 
-		// Usually a single item is read, more only when storage compares without case or accents
-		// and returns near matches first.
-		let cursor: string | undefined;
-		do {
-			const page = await storage.query(
-				{ conditions, logicalOperator: LogicalOperator.And },
-				undefined,
-				["accountId", "type", "organization"],
-				cursor,
-				1
-			);
-			if (
-				page.entities.some(
-					item =>
-						item.organization === organization &&
-						item.type === AuthenticationAccountDataType.Organization &&
-						(!Is.stringValue(accountId) || item.accountId === accountId)
-				)
-			) {
-				return true;
-			}
-			cursor = page.cursor;
-		} while (Is.stringValue(cursor));
-		return false;
+		const result = await storage.query(
+			{ conditions, logicalOperator: LogicalOperator.And },
+			undefined,
+			["id"],
+			undefined,
+			1
+		);
+		return result.entities.length > 0;
 	}
 
 	/**
@@ -807,12 +776,7 @@ export class AccountDataHelper {
 				undefined,
 				cursor
 			);
-			// Storage may compare without case or accents, so only exact matches are cleared.
-			defaults.push(
-				...(page.entities as AccountData[]).filter(
-					item => item.isDefault && item.accountId === accountId && item.type === type
-				)
-			);
+			defaults.push(...(page.entities as AccountData[]));
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 		for (const item of defaults) {

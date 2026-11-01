@@ -22,12 +22,6 @@ export class OrganizationRequestHelper {
 	public static readonly COUNT_CAP: number = 1000;
 
 	/**
-	 * The number of requests read at a time when looking for the first exact match.
-	 * @internal
-	 */
-	private static readonly _FIND_PAGE_SIZE: number = 10;
-
-	/**
 	 * Get a request.
 	 * @param storage The entity storage for the requests.
 	 * @param id The unique identifier of the request.
@@ -62,25 +56,14 @@ export class OrganizationRequestHelper {
 		accountId: string
 	): Promise<IOrganizationRequest | undefined> {
 		Guards.stringValue(OrganizationRequestHelper.CLASS_NAME, nameof(accountId), accountId);
-		let cursor: string | undefined;
-		do {
-			const page = await storage.query(
-				{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
-				[{ property: "dateModified", sortDirection: SortDirection.Descending }],
-				undefined,
-				cursor,
-				OrganizationRequestHelper._FIND_PAGE_SIZE
-			);
-			// Storage may compare without case, so only an exact match is returned.
-			const match = (page.entities as IOrganizationRequest[]).find(
-				request => request.accountId === accountId
-			);
-			if (Is.object(match)) {
-				return match;
-			}
-			cursor = page.cursor;
-		} while (Is.stringValue(cursor));
-		return undefined;
+		const result = await storage.query(
+			{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
+			[{ property: "dateModified", sortDirection: SortDirection.Descending }],
+			undefined,
+			undefined,
+			1
+		);
+		return result.entities[0] as IOrganizationRequest | undefined;
 	}
 
 	/**
@@ -106,10 +89,7 @@ export class OrganizationRequestHelper {
 				undefined,
 				cursor
 			);
-			// Storage may compare without case, so only exact matches are used.
-			const requests = (page.entities as IOrganizationRequest[]).filter(
-				request => request.accountId === accountId
-			);
+			const requests = page.entities as IOrganizationRequest[];
 			latest ??= requests[0];
 			const pending = requests.find(
 				request => request.status === OrganizationRequestStatus.Pending
@@ -208,7 +188,7 @@ export class OrganizationRequestHelper {
 	/**
 	 * Count the requests of a status up to a cap. Storage count is not used, as some storage reads
 	 * every match to count, so the matches are read a page at a time and the reading stops past the
-	 * cap. Only exact matches are counted, as storage may compare without case.
+	 * cap.
 	 * @param storage The entity storage for the requests.
 	 * @param status The status of the requests to count.
 	 * @param organization The organization of the requests to count, all when omitted.
@@ -240,16 +220,12 @@ export class OrganizationRequestHelper {
 			const page = await storage.query(
 				{ conditions, logicalOperator: LogicalOperator.And },
 				undefined,
-				["id", "status", "organization"],
+				["id"],
 				cursor,
 				// One past the cap, so reaching it shows there are more.
 				cap + 1 - count
 			);
-			count += page.entities.filter(
-				request =>
-					request.status === status &&
-					(!Is.stringValue(organization) || request.organization === organization)
-			).length;
+			count += page.entities.length;
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor) && count <= cap);
 
@@ -257,8 +233,7 @@ export class OrganizationRequestHelper {
 	}
 
 	/**
-	 * Read the pending requests of an account, keeping only exact matches, as storage may compare
-	 * without case, and reading on past a page with none.
+	 * Read the pending requests of an account.
 	 * @param storage The entity storage for the requests.
 	 * @param accountId The account id.
 	 * @param organization The DID of the organization, any organization when omitted.
@@ -301,22 +276,10 @@ export class OrganizationRequestHelper {
 				undefined,
 				undefined,
 				cursor,
-				firstOnly ? OrganizationRequestHelper._FIND_PAGE_SIZE : undefined
+				firstOnly ? 1 : undefined
 			);
-			// Storage may compare without case, so only exact matches are used, and so the request of
-			// another account is never returned.
-			matches.push(
-				...(page.entities as IOrganizationRequest[]).filter(
-					request =>
-						request.accountId === accountId &&
-						request.status === OrganizationRequestStatus.Pending &&
-						(!Is.stringValue(organization) || request.organization === organization)
-				)
-			);
-			if (firstOnly && matches.length > 0) {
-				return matches;
-			}
-			cursor = page.cursor;
+			matches.push(...(page.entities as IOrganizationRequest[]));
+			cursor = firstOnly ? undefined : page.cursor;
 		} while (Is.stringValue(cursor));
 		return matches;
 	}

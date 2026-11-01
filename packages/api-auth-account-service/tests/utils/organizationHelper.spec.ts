@@ -1,7 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
-import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import type { Organization } from "../../src/entities/organization.js";
 import { initSchema } from "../../src/schema.js";
@@ -19,28 +18,23 @@ describe("OrganizationHelper", () => {
 			entitySchema: nameof<Organization>(),
 			config: { storageKey: "organization-helper" }
 		});
-		EntityStorageConnectorFactory.register("organization", () => organizations);
 		await OrganizationHelper.register(organizations, ORGANIZATION, "example");
 	});
 
 	afterEach(async () => {
-		EntityStorageConnectorFactory.unregister("organization");
 		await organizations.teardown();
 	});
 
-	it("should allocate no index for an organization that is not registered or without storage", async () => {
+	it("should allocate no index for an organization that is not registered", async () => {
 		await expect(
-			OrganizationHelper.allocateRevocationIndex("organization", "did:example:tenant")
-		).resolves.toBeUndefined();
-		await expect(
-			OrganizationHelper.allocateRevocationIndex("missing", ORGANIZATION)
+			OrganizationHelper.allocateRevocationIndex(organizations, "did:example:tenant")
 		).resolves.toBeUndefined();
 	});
 
 	it("should write the organization with a plain set, without conditions or a revision", async () => {
 		const spy = vi.spyOn(organizations, "set");
 		await expect(
-			OrganizationHelper.allocateRevocationIndex("organization", ORGANIZATION)
+			OrganizationHelper.allocateRevocationIndex(organizations, ORGANIZATION)
 		).resolves.toBe(0);
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(spy.mock.calls[0]).toHaveLength(1);
@@ -52,7 +46,7 @@ describe("OrganizationHelper", () => {
 			organizations,
 			ORGANIZATION
 		)) as Organization;
-		await OrganizationHelper.allocateRevocationIndex("organization", ORGANIZATION);
+		await OrganizationHelper.allocateRevocationIndex(organizations, ORGANIZATION);
 
 		await OrganizationHelper.storeSearchName(organizations, stale, { name: "Renamed" });
 		await expect(

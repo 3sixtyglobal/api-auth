@@ -3,7 +3,6 @@
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { UnprocessableError } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
-import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import type { AccountData } from "../../src/entities/accountData.js";
@@ -23,12 +22,17 @@ initSchema();
 
 describe("OrganizationMembershipHelper", () => {
 	let storage: MemoryEntityStorageConnector<AccountData>;
+	let organizations: MemoryEntityStorageConnector<Organization>;
 	let identityComponent: IIdentityComponent;
 
 	beforeEach(async () => {
 		storage = new MemoryEntityStorageConnector<AccountData>({
 			entitySchema: nameof<AccountData>(),
 			config: { storageKey: "account-data-membership" }
+		});
+		organizations = new MemoryEntityStorageConnector<Organization>({
+			entitySchema: nameof<Organization>(),
+			config: { storageKey: "organization-membership" }
 		});
 		identityComponent = {
 			verifiableCredentialCreate: vi
@@ -48,11 +52,13 @@ describe("OrganizationMembershipHelper", () => {
 
 	afterEach(async () => {
 		await storage.teardown();
+		await organizations.teardown();
 	});
 
 	it("should add an account to an organization directly with a membership credential", async () => {
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -60,6 +66,7 @@ describe("OrganizationMembershipHelper", () => {
 		);
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -75,8 +82,8 @@ describe("OrganizationMembershipHelper", () => {
 			"did:example:org-1"
 		]);
 		expect(OrganizationMembershipHelper.CREDENTIAL_TYPE).toBe("OrganizationMembershipCredential");
-		const organizations = await AccountDataHelper.query(storage, "account-1", "organization");
-		expect(organizations.entities.map(e => [e.data, e.isDefault])).toEqual([
+		const memberships = await AccountDataHelper.query(storage, "account-1", "organization");
+		expect(memberships.entities.map(e => [e.data, e.isDefault])).toEqual([
 			[organizationData("did:example:org-1"), true],
 			[organizationData("did:example:org-2"), false]
 		]);
@@ -151,6 +158,7 @@ describe("OrganizationMembershipHelper", () => {
 	it("should leave an existing membership alone, other than making it the default", async () => {
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -158,6 +166,7 @@ describe("OrganizationMembershipHelper", () => {
 		);
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -165,6 +174,7 @@ describe("OrganizationMembershipHelper", () => {
 		);
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -181,6 +191,7 @@ describe("OrganizationMembershipHelper", () => {
 		await expect(
 			OrganizationMembershipHelper.join(
 				storage,
+				organizations,
 				identityComponent,
 				"trust-assertion",
 				"account-2",
@@ -209,6 +220,7 @@ describe("OrganizationMembershipHelper", () => {
 
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -216,6 +228,7 @@ describe("OrganizationMembershipHelper", () => {
 		);
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -223,8 +236,8 @@ describe("OrganizationMembershipHelper", () => {
 		);
 
 		expect(identityComponent.verifiableCredentialCreate).toHaveBeenCalledTimes(1);
-		const organizations = await AccountDataHelper.query(storage, "account-1", "organization");
-		expect(organizations.entities).toHaveLength(1);
+		const memberships = await AccountDataHelper.query(storage, "account-1", "organization");
+		expect(memberships.entities).toHaveLength(1);
 		await expect(
 			OrganizationMembershipHelper.hasCredential(
 				storage,
@@ -247,6 +260,7 @@ describe("OrganizationMembershipHelper", () => {
 
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -323,6 +337,7 @@ describe("OrganizationMembershipHelper", () => {
 		await expect(
 			OrganizationMembershipHelper.join(
 				storage,
+				organizations,
 				identityComponent,
 				"trust-assertion",
 				"account-1",
@@ -375,6 +390,7 @@ describe("OrganizationMembershipHelper", () => {
 
 		await OrganizationMembershipHelper.join(
 			storage,
+			organizations,
 			identityComponent,
 			"trust-assertion",
 			"account-1",
@@ -395,6 +411,7 @@ describe("OrganizationMembershipHelper", () => {
 		await expect(
 			OrganizationMembershipHelper.join(
 				storage,
+				organizations,
 				identityComponent,
 				"trust-assertion",
 				"account-2",
@@ -407,27 +424,16 @@ describe("OrganizationMembershipHelper", () => {
 	});
 
 	describe("revocation", () => {
-		let organizations: MemoryEntityStorageConnector<Organization>;
-
 		beforeEach(async () => {
-			organizations = new MemoryEntityStorageConnector<Organization>({
-				entitySchema: nameof<Organization>(),
-				config: { storageKey: "organization-membership" }
-			});
-			EntityStorageConnectorFactory.register("organization", () => organizations);
 			await OrganizationHelper.register(organizations, "did:example:org-1");
 			identityComponent.verifiableCredentialRevoke = vi.fn();
-		});
-
-		afterEach(async () => {
-			EntityStorageConnectorFactory.unregister("organization");
-			await organizations.teardown();
 		});
 
 		it("should issue the credential of a registered organization with an index it records", async () => {
 			await AccountDataHelper.createIdentity(storage, "account-2", "did:example:user-2");
 			const id1 = await OrganizationMembershipHelper.join(
 				storage,
+				organizations,
 				identityComponent,
 				"trust-assertion",
 				"account-1",
@@ -435,6 +441,7 @@ describe("OrganizationMembershipHelper", () => {
 			);
 			const id2 = await OrganizationMembershipHelper.join(
 				storage,
+				organizations,
 				identityComponent,
 				"trust-assertion",
 				"account-2",
@@ -466,6 +473,7 @@ describe("OrganizationMembershipHelper", () => {
 			await ContextIdStore.run({ [ContextIdKeys.Node]: "did:example:node" }, async () =>
 				OrganizationMembershipHelper.join(
 					storage,
+					organizations,
 					identityComponent,
 					"trust-assertion",
 					"account-1",
@@ -480,43 +488,5 @@ describe("OrganizationMembershipHelper", () => {
 				"did:example:node"
 			);
 		});
-	});
-
-	it("should read every organization when a page holds no exact match", async () => {
-		await AccountDataHelper.create(
-			storage,
-			"account-1",
-			"organization",
-			organizationData("did:example:org-1")
-		);
-		await AccountDataHelper.create(
-			storage,
-			"account-1",
-			"organization",
-			organizationData("did:example:org-2")
-		);
-		const query = storage.query.bind(storage);
-		let calls = 0;
-		vi.spyOn(storage, "query").mockImplementation(async (...args) => {
-			calls++;
-			// The first page holds only a near match, with a cursor to the rest.
-			return calls === 1
-				? {
-						entities: [
-							{ accountId: "ACCOUNT-1", type: "organization", data: organizationData("did:x:y") }
-						],
-						cursor: "1"
-					}
-				: query(args[0], args[1], args[2], undefined, args[4]);
-		});
-
-		const organizations = await OrganizationMembershipHelper.loadOrganizations(
-			storage,
-			"account-1"
-		);
-		expect(organizations.map(item => item.data)).toEqual([
-			organizationData("did:example:org-1"),
-			organizationData("did:example:org-2")
-		]);
 	});
 });

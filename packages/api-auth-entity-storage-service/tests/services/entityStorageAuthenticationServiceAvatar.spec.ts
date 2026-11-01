@@ -98,12 +98,40 @@ describe("EntityStorageAuthenticationService provider avatar", () => {
 			if (componentName === "authentication-rate") {
 				return rateService;
 			}
-			throw new Error(`Unexpected component ${componentName}`);
-		});
-		vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
+			if (componentName === "authorization") {
+				return {
+					className: () => "authorization",
+					addRoleForSubject: vi.fn(),
+					getRolesForSubject: vi.fn().mockResolvedValue(["user"])
+				};
+			}
 			if (componentName === "authentication-account-admin") {
 				return accountAdmin;
 			}
+			if (componentName === "authentication-audit") {
+				return { className: () => "audit", create: vi.fn() };
+			}
+			if (
+				componentName === "authentication-account" ||
+				componentName === "organization-request-admin"
+			) {
+				return { className: () => componentName };
+			}
+			if (componentName === "task-scheduler") {
+				return { className: () => componentName, addTask: vi.fn(), removeTask: vi.fn() };
+			}
+			if (componentName === "messaging") {
+				return { className: () => componentName, sendCustomEmail: vi.fn() };
+			}
+			if (componentName === "platform") {
+				return {
+					className: () => componentName,
+					execute: vi.fn(async (method: () => Promise<void>) => method())
+				};
+			}
+			throw new Error(`Unexpected component ${componentName}`);
+		});
+		vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
 			if (componentName === "logging") {
 				return logging;
 			}
@@ -124,7 +152,13 @@ describe("EntityStorageAuthenticationService provider avatar", () => {
 		vi.spyOn(TokenHelper, "createToken").mockResolvedValue({ token: "jwt-token", expiry: 1 });
 		vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
 
-		service = new EntityStorageAuthenticationService();
+		service = new EntityStorageAuthenticationService({
+			config: {
+				emailSender: "noreply@example.com",
+				passwordResetUrl: "https://app.example.com/reset",
+				registrationVerificationUrl: "https://app.example.com/verify"
+			}
+		});
 		await service.start();
 	});
 

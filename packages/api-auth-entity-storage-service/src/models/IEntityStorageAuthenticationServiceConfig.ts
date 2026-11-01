@@ -146,9 +146,9 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	passwordResetRateLimit?: IAuthenticationRateActionConfig;
 
 	/**
-	 * The sender of the password reset and sign up e-mails, required when either is enabled.
+	 * The sender of the password reset and sign up e-mails.
 	 */
-	emailSender?: string;
+	emailSender: string;
 
 	/**
 	 * The company name given to every e-mail template as the companyName value, empty when not set.
@@ -156,15 +156,9 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	emailCompanyName?: string;
 
 	/**
-	 * Whether forgotten passwords can be reset with a link sent by e-mail.
-	 * @default false
-	 */
-	passwordResetEnabled?: boolean;
-
-	/**
 	 * The address of the page that resets the password, the token is added as the token query parameter.
 	 */
-	passwordResetUrl?: string;
+	passwordResetUrl: string;
 
 	/**
 	 * How long a password reset link can be used for, in minutes.
@@ -179,40 +173,15 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	passwordResetEmailTemplateId?: string;
 
 	/**
-	 * The locale of the password reset e-mail.
+	 * The locale of the password reset and sign up e-mails.
 	 * @default en
 	 */
-	passwordResetEmailLocale?: string;
-
-	/**
-	 * Whether people may sign up for a password account themselves. Concurrent sign ups for one
-	 * address are serialised in each node only, so nodes sharing the storage may create two accounts
-	 * for an address that signs up on both at once.
-	 * @default false
-	 */
-	selfRegistrationEnabled?: boolean;
-
-	/**
-	 * Whether the first login through an authentication provider creates the account. When false,
-	 * a provider login for an unknown account fails like any other failed login. Concurrent first
-	 * logins are serialised in each node only, so nodes sharing the storage may create two accounts
-	 * for a provider account that first signs in on both at once.
-	 * @default true
-	 */
-	providerSignUpEnabled?: boolean;
-
-	/**
-	 * Whether a sign up must verify its e-mail address before it can sign in. The sign up then
-	 * responds 202 Accepted whether or not the address is taken. Set false to keep the behaviour of
-	 * earlier versions, signing in at once.
-	 * @default true
-	 */
-	registrationVerificationEnabled?: boolean;
+	emailLocale?: string;
 
 	/**
 	 * The address of the page that verifies a sign up, the token is added as the token query parameter.
 	 */
-	registrationVerificationUrl?: string;
+	registrationVerificationUrl: string;
 
 	/**
 	 * How long a sign up verification link can be used for, in minutes. An unverified sign up older
@@ -234,12 +203,6 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	registrationExistsEmailTemplateId?: string;
 
 	/**
-	 * The locale of the sign up e-mails.
-	 * @default passwordResetEmailLocale
-	 */
-	registrationVerificationEmailLocale?: string;
-
-	/**
 	 * The roles given to accounts created by a provider login or a sign up.
 	 * @default ["user"]
 	 */
@@ -258,16 +221,8 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	escalatedPrivilegeRole?: string;
 
 	/**
-	 * The most sign ups and password reset requests waiting to be handled after their responses.
-	 * Further requests are refused with 429 Too Many Requests until the queue has room, so the queue
-	 * cannot use up the memory of the node.
-	 * @default 1000
-	 */
-	deferredQueueLimit?: number;
-
-	/**
 	 * How often expired password reset and verification tokens, and unverified sign ups whose links
-	 * have all expired, are removed, in minutes, when a task scheduler exists.
+	 * have all expired, are removed, in minutes.
 	 * @default 60
 	 */
 	cleanupIntervalMinutes?: number;

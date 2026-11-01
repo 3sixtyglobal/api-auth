@@ -40,4 +40,9 @@ export interface ILoginResult {
 	 * The address where the password is changed, when the authentication provider manages it.
 	 */
 	passwordChangeUrl?: string;
+
+	/**
+	 * The roles the account holds.
+	 */
+	roles: string[];
 }

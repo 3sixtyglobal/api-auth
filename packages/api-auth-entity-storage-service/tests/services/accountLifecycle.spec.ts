@@ -1,11 +1,12 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type {
-	IAuthenticationAccountAdminComponent,
-	IAuthenticationAccountComponent,
-	IAuthenticationAuditComponent,
-	IAuthenticationRateComponent,
-	IOrganizationRequestAdminComponent
+import {
+	AuthenticationProviderFactory,
+	type IAuthenticationAccountAdminComponent,
+	type IAuthenticationAccountComponent,
+	type IAuthenticationAuditComponent,
+	type IAuthenticationRateComponent,
+	type IOrganizationRequestAdminComponent
 } from "@3sixty/api-auth-models";
 import { ForbiddenError, HttpContextIdKeys, HttpErrorHelper } from "@3sixty/api-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
@@ -27,6 +28,8 @@ import { type IVaultConnector, VaultConnectorFactory } from "@3sixty/vault-model
 import { HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationPasswordReset } from "../../src/entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
+import type { IEntityStorageAuthenticationServiceConfig } from "../../src/models/IEntityStorageAuthenticationServiceConfig.js";
+import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../../src/models/IEntityStorageAuthenticationServiceConstructorOptions.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationAdminService } from "../../src/services/entityStorageAuthenticationAdminService.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
@@ -52,15 +55,18 @@ describe("account lifecycle", () => {
 	let messaging: IMessagingComponent;
 	let logging: ILoggingComponent;
 	let components: { [name: string]: unknown };
+	let scheduledTasks: { [id: string]: () => Promise<void> };
 
 	function createService(
-		config?: ConstructorParameters<typeof EntityStorageAuthenticationService>[0]
+		config?: Omit<IEntityStorageAuthenticationServiceConstructorOptions, "config"> & {
+			config?: Partial<IEntityStorageAuthenticationServiceConfig>;
+		}
 	): EntityStorageAuthenticationService {
 		return new EntityStorageAuthenticationService({
 			...config,
 			config: {
-				passwordResetEnabled: true,
 				passwordResetUrl: "https://app.example.com/reset?lang=en",
+				registrationVerificationUrl: "https://app.example.com/verify",
 				emailSender: "no-reply@example.com",
 				minPasswordLength: 10,
 				...config?.config
@@ -70,6 +76,14 @@ describe("account lifecycle", () => {
 
 	async function createUser(email: string, accountId: string): Promise<AuthenticationUser> {
 		return PasswordHelper.createUser(userStorage, "entity-storage", accountId, email, PASSWORD);
+	}
+
+	async function runDeferredWork(): Promise<void> {
+		for (const [id, callback] of Object.entries(scheduledTasks)) {
+			if (id.startsWith("authentication-deferred-")) {
+				await callback();
+			}
+		}
 	}
 
 	beforeEach(() => {
@@ -112,9 +126,44 @@ describe("account lifecycle", () => {
 			query: vi.fn()
 		};
 
+		scheduledTasks = {};
 		components = {
 			"authentication-rate": rate,
 			"authentication-audit": audit,
+			authorization: {
+				className: () => "authorization",
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"]),
+				hasRoleForSubject: vi.fn().mockResolvedValue(false),
+				removeAllRolesForSubject: vi.fn()
+			},
+			"authentication-account": {
+				className: () => "account",
+				removeIdentity: vi.fn()
+			},
+			"authentication-account-admin": {
+				className: () => "account-admin",
+				query: vi.fn().mockResolvedValue({ entities: [] }),
+				create: vi.fn(),
+				update: vi.fn(),
+				remove: vi.fn()
+			},
+			"organization-request-admin": {
+				className: () => "organization-request-admin",
+				removeForAccount: vi.fn()
+			},
+			"task-scheduler": {
+				className: () => "scheduler",
+				addTask: vi.fn(async (id: string, times: unknown, callback: () => Promise<void>) => {
+					scheduledTasks[id] = callback;
+				}),
+				removeTask: vi.fn(),
+				tasksInfo: vi.fn()
+			},
+			platform: {
+				className: () => "platform",
+				execute: vi.fn(async (method: () => Promise<void>) => method())
+			},
 			messaging,
 			logging
 		};
@@ -144,6 +193,9 @@ describe("account lifecycle", () => {
 			await ContextIdStore.run(NODE_CONTEXT, async () =>
 				service.forgotPassword("user@example.com")
 			);
+			// The e-mail is sent after the response, by the queued work.
+			expect(messaging.sendCustomEmail).not.toHaveBeenCalled();
+			await service.stop();
 
 			expect(messaging.sendCustomEmail).toHaveBeenCalledTimes(1);
 			const [sender, recipients, templateId, data, locale] = vi.mocked(messaging.sendCustomEmail)
@@ -171,6 +223,7 @@ describe("account lifecycle", () => {
 			const service = createService();
 
 			await expect(service.forgotPassword("missing@example.com")).resolves.toBeUndefined();
+			await service.stop();
 
 			expect(messaging.sendCustomEmail).not.toHaveBeenCalled();
 			expect((await resetStorage.query()).entities).toHaveLength(0);
@@ -183,6 +236,7 @@ describe("account lifecycle", () => {
 			await ContextIdStore.run(NODE_CONTEXT, async () =>
 				service.forgotPassword("user@example.com")
 			);
+			await service.stop();
 
 			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][3]).toMatchObject({
 				companyName: "Example Ltd",
@@ -196,6 +250,7 @@ describe("account lifecycle", () => {
 
 			await service.forgotPassword("user@example.com");
 			await service.forgotPassword("user@example.com");
+			await service.stop();
 
 			expect((await resetStorage.query()).entities).toHaveLength(1);
 		});
@@ -206,22 +261,23 @@ describe("account lifecycle", () => {
 			const service = createService();
 
 			await service.forgotPassword("user@example.com");
+			await service.stop();
 
 			expect(messaging.sendCustomEmail).not.toHaveBeenCalled();
 		});
 
-		test("fails to construct when e-mail is enabled without messaging, sender or address", async () => {
+		test("fails to construct without messaging, sender or addresses", async () => {
 			expect(() => createService({ config: { emailSender: undefined } })).toThrow("guard.string");
-			expect(() =>
-				createService({
-					config: { passwordResetEnabled: false, selfRegistrationEnabled: true }
-				})
-			).toThrow("guard.string");
+			expect(() => createService({ config: { passwordResetUrl: undefined } })).toThrow(
+				"guard.string"
+			);
+			expect(() => createService({ config: { registrationVerificationUrl: undefined } })).toThrow(
+				"guard.string"
+			);
 
 			ComponentFactory.unregister("messaging");
 			delete components.messaging;
 			expect(() => createService()).toThrow();
-			expect(() => createService({ config: { passwordResetEnabled: false } })).not.toThrow();
 		});
 
 		test("logs and completes when the e-mail cannot be sent", async () => {
@@ -230,6 +286,7 @@ describe("account lifecycle", () => {
 			const service = createService();
 
 			await expect(service.forgotPassword("user@example.com")).resolves.toBeUndefined();
+			await service.stop();
 
 			expect(logging.log).toHaveBeenCalledWith(
 				expect.objectContaining({ level: "warn", message: "passwordResetEmailFailed" })
@@ -258,15 +315,6 @@ describe("account lifecycle", () => {
 			);
 
 			expect(vi.mocked(rate.check).mock.calls).toEqual([["password-forgot", "user@example.com"]]);
-		});
-
-		test("is refused when password reset is not enabled", async () => {
-			const service = createService({ config: { passwordResetEnabled: false } });
-
-			await expect(service.forgotPassword("user@example.com")).rejects.toMatchObject({
-				name: ForbiddenError.CLASS_NAME,
-				message: "entityStorageAuthenticationService.passwordResetDisabled"
-			});
 		});
 	});
 
@@ -632,15 +680,31 @@ describe("account lifecycle", () => {
 		});
 	});
 
-	test("fails when password reset is enabled without its storage", async () => {
+	test("fails to construct without the password reset storage", async () => {
 		EntityStorageConnectorFactory.unregister("authentication-password-reset");
-		const service = createService();
-		EntityStorageConnectorFactory.register("authentication-password-reset", () => resetStorage);
+		try {
+			expect(() => createService()).toThrow(GeneralError);
+		} finally {
+			EntityStorageConnectorFactory.register("authentication-password-reset", () => resetStorage);
+		}
+	});
 
-		await expect(service.forgotPassword("user@example.com")).rejects.toMatchObject({
-			name: GeneralError.CLASS_NAME,
-			message: "entityStorageAuthenticationService.passwordResetStorageMissing"
-		});
+	test("fails to construct without a component registered before it", async () => {
+		for (const name of [
+			"authentication-account",
+			"authentication-account-admin",
+			"organization-request-admin",
+			"authorization",
+			"task-scheduler",
+			"platform"
+		]) {
+			ComponentFactory.unregister(name);
+			try {
+				expect(() => createService()).toThrow(GeneralError);
+			} finally {
+				ComponentFactory.register(name, () => components[name] as never);
+			}
+		}
 	});
 
 	test("lets an escalated caller query every account", async () => {
@@ -671,6 +735,7 @@ describe("account lifecycle", () => {
 				accountId: "user-1"
 			});
 			await service.forgotPassword("User@Example.com");
+			await runDeferredWork();
 			expect(messaging.sendCustomEmail).toHaveBeenCalledTimes(1);
 		});
 
@@ -933,7 +998,8 @@ describe("account lifecycle", () => {
 		test("are verified by resetting the password with a link sent to the address", async () => {
 			const authorization = {
 				className: () => "authorization",
-				addRoleForSubject: vi.fn()
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"])
 			} as unknown as IAuthorizationComponent;
 			ComponentFactory.register("authorization", () => authorization);
 			components.authorization = authorization;
@@ -943,6 +1009,7 @@ describe("account lifecycle", () => {
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await service.forgotPassword("unverified@example.com");
+			await runDeferredWork();
 			const [, recipients, templateId, data] = vi.mocked(messaging.sendCustomEmail).mock.calls[0];
 			expect(recipients).toEqual(["unverified@example.com"]);
 			expect(templateId).toBe("password-reset");
@@ -956,7 +1023,8 @@ describe("account lifecycle", () => {
 				message: "entityStorageAuthenticationService.loginFailed"
 			});
 			await expect(service.login("unverified@example.com", NEW_PASSWORD)).resolves.toMatchObject({
-				accountId: "user-2"
+				accountId: "user-2",
+				roles: ["user"]
 			});
 		});
 
@@ -1137,45 +1205,16 @@ describe("account lifecycle", () => {
 				(tasks.scheduler as { removeTask: ReturnType<typeof vi.fn> }).removeTask
 			).toHaveBeenCalledTimes(2);
 		});
-
-		test("refuses work after the response once the queue is full", async () => {
-			const tasks = scheduler();
-			ComponentFactory.register("task-scheduler", () => tasks.scheduler as never);
-			components["task-scheduler"] = tasks.scheduler;
-			const service = createService({ config: { deferredQueueLimit: 1 } });
-			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
-
-			await service.forgotPassword("one@example.com");
-			await expect(service.forgotPassword("two@example.com")).rejects.toMatchObject({
-				name: "TooManyRequestsError",
-				message: "entityStorageAuthenticationService.deferredQueueFull"
-			});
-
-			await tasks.run("authentication-deferred-");
-			await expect(service.forgotPassword("two@example.com")).resolves.toBeUndefined();
-		});
 	});
 
 	describe("sign up", () => {
 		let authorization: IAuthorizationComponent;
 
-		function createRegistrationService(
-			config?: Parameters<typeof createService>[0]
-		): EntityStorageAuthenticationService {
-			return createService({
-				...config,
-				config: {
-					selfRegistrationEnabled: true,
-					registrationVerificationUrl: "https://app.example.com/verify",
-					...config?.config
-				}
-			});
-		}
-
 		beforeEach(() => {
 			authorization = {
 				className: () => "authorization",
 				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"]),
 				removeAllRolesForSubject: vi.fn()
 			} as unknown as IAuthorizationComponent;
 			ComponentFactory.register("authorization", () => authorization);
@@ -1183,12 +1222,13 @@ describe("account lifecycle", () => {
 		});
 
 		test("creates an unverified account without roles and e-mails a verification link", async () => {
-			const service = createRegistrationService();
+			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await expect(
 				service.register({ email: "New@Example.com", password: PASSWORD })
 			).resolves.toBeUndefined();
+			await runDeferredWork();
 
 			const created = await AccountHelper.findByEmail(
 				userStorage,
@@ -1215,6 +1255,7 @@ describe("account lifecycle", () => {
 				message: "entityStorageAuthenticationService.passwordResetInvalid"
 			});
 			const again = await service.register({ email: "new@example.com", password: PASSWORD });
+			await runDeferredWork();
 			expect(again).toBeUndefined();
 			const resent = vi.mocked(messaging.sendCustomEmail).mock.calls[1];
 			const newToken = new URL(resent[3].verifyUrl).searchParams.get("token") ?? "";
@@ -1238,7 +1279,7 @@ describe("account lifecycle", () => {
 
 		test("gives the account the password of the sign up whose link is verified", async () => {
 			const ATTACKER_PASSWORD = "Attacker-Horse-Battery-Staple-3";
-			const service = createRegistrationService();
+			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 			const linkOf = (call: number): string =>
 				new URL(
@@ -1247,8 +1288,10 @@ describe("account lifecycle", () => {
 
 			// The attacker signs up first with the victim's address, then the victim signs up.
 			await service.register({ email: "victim@example.com", password: ATTACKER_PASSWORD });
+			await runDeferredWork();
 			const attackerToken = linkOf(0);
 			await service.register({ email: "victim@example.com", password: PASSWORD });
+			await runDeferredWork();
 			const victimToken = linkOf(1);
 
 			// Only the latest link is kept, and the hash is stored with it but never sent.
@@ -1276,12 +1319,13 @@ describe("account lifecycle", () => {
 
 		test("tells the owner of an address that has an account and creates nothing", async () => {
 			await createUser("user@example.com", "user-1");
-			const service = createRegistrationService();
+			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await expect(
 				service.register({ email: "user@example.com", password: NEW_PASSWORD })
 			).resolves.toBeUndefined();
+			await runDeferredWork();
 
 			expect((await userStorage.query()).entities).toHaveLength(1);
 			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][2]).toBe("registration-exists");
@@ -1296,10 +1340,11 @@ describe("account lifecycle", () => {
 		test("replaces an unverified sign up once its link has expired", async () => {
 			const stale = await createUser("user@example.com", "user-1");
 			await userStorage.set({ ...stale, verified: false, dateCreated: "2020-01-01T00:00:00.000Z" });
-			const service = createRegistrationService();
+			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await service.register({ email: "user@example.com", password: NEW_PASSWORD });
+			await runDeferredWork();
 
 			expect(await userStorage.get("user-1")).toBeUndefined();
 			const replaced = await AccountHelper.findByEmail(
@@ -1311,15 +1356,22 @@ describe("account lifecycle", () => {
 			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][2]).toBe("registration-verify");
 		});
 
-		test("refuses verification when sign up is not enabled", async () => {
+		test("refuses verification when the password provider is not registered", async () => {
 			const service = createService();
-
-			await expect(service.verifyRegistration("token")).rejects.toMatchObject({
-				name: ForbiddenError.CLASS_NAME
-			});
+			AuthenticationProviderFactory.unregister(
+				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			);
+			try {
+				await expect(service.verifyRegistration("token")).rejects.toMatchObject({
+					name: ForbiddenError.CLASS_NAME,
+					message: "entityStorageAuthenticationService.selfRegistrationDisabled"
+				});
+			} finally {
+				registerTestPasswordProvider();
+			}
 		});
 
-		test("works after the response when a task scheduler exists", async () => {
+		test("works after the response", async () => {
 			let runDeferred: (() => Promise<void>) | undefined;
 			const scheduler = {
 				className: () => "scheduler",
@@ -1334,7 +1386,7 @@ describe("account lifecycle", () => {
 			ComponentFactory.register("task-scheduler", () => scheduler as never);
 			components["task-scheduler"] = scheduler;
 			await createUser("user@example.com", "user-1");
-			const service = createRegistrationService();
+			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 			const hashPassword = vi.spyOn(PasswordHelper, "hashPassword");
 
@@ -1359,18 +1411,6 @@ describe("account lifecycle", () => {
 
 			await service.stop();
 			expect(scheduler.removeTask).toHaveBeenCalled();
-		});
-
-		test("signs in at once when verification is turned off", async () => {
-			const service = createRegistrationService({
-				config: { registrationVerificationEnabled: false }
-			});
-			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
-
-			await expect(
-				service.register({ email: "new@example.com", password: PASSWORD })
-			).resolves.toMatchObject({ token: "jwt" });
-			expect(authorization.addRoleForSubject).toHaveBeenCalled();
 		});
 	});
 
@@ -1411,9 +1451,7 @@ describe("account lifecycle", () => {
 			await createUser("user@example.com", "user-1");
 			const service = createService({
 				config: {
-					loginRateLimitPerClient: true,
-					selfRegistrationEnabled: true,
-					registrationVerificationUrl: "https://app.example.com/verify"
+					loginRateLimitPerClient: true
 				}
 			});
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());

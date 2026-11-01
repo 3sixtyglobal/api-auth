@@ -18,6 +18,7 @@ import type {
 	IProvidersResponse,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
+	IRegisterAcceptedResponse,
 	IRegisterRequest,
 	IRegisterVerifyRequest,
 	IUpdatePasswordRequest,
@@ -26,7 +27,7 @@ import type {
 import type { IAuthenticationProviderDetails } from "@3sixty/api-auth-models";
 import { BaseRestClient } from "@3sixty/api-core";
 import type { INoContentRequest, INoContentResponse } from "@3sixty/api-models";
-import { Guards, Is } from "@3sixty/core";
+import { Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { CookieHelper, HeaderTypes } from "@3sixty/web";
 import type { IEntityStorageAuthenticationRestClientConstructorOptions } from "./models/entityStorageAuthenticationRestClientConstructorOptions.js";
@@ -104,7 +105,8 @@ export class EntityStorageAuthenticationRestClient
 			profile: response.body.profile,
 			profileReadOnly: response.body.profileReadOnly ?? false,
 			profileEditUrl: response.body.profileEditUrl,
-			passwordChangeUrl: response.body.passwordChangeUrl
+			passwordChangeUrl: response.body.passwordChangeUrl,
+			roles: response.body.roles
 		};
 	}
 
@@ -150,7 +152,8 @@ export class EntityStorageAuthenticationRestClient
 			profile: response.body.profile,
 			profileReadOnly: response.body.profileReadOnly ?? false,
 			profileEditUrl: response.body.profileEditUrl,
-			passwordChangeUrl: response.body.passwordChangeUrl
+			passwordChangeUrl: response.body.passwordChangeUrl,
+			roles: response.body.roles
 		};
 	}
 
@@ -306,41 +309,21 @@ export class EntityStorageAuthenticationRestClient
 	}
 
 	/**
-	 * Sign up for a password account, when self sign up is enabled. When the server needs the e-mail
-	 * address verified the result is undefined, otherwise the account is signed in.
+	 * Sign up for a password account. A verification link is sent by e-mail, and the account can
+	 * sign in once it has been verified.
 	 * @param registration The details of the account.
-	 * @returns The token and the profile, or undefined when the e-mail address must be verified.
+	 * @returns A promise that resolves when the sign up has been accepted.
 	 */
-	public async register(
-		registration: IAuthenticationRegistration
-	): Promise<ILoginResult | undefined> {
+	public async register(registration: IAuthenticationRegistration): Promise<void> {
 		Guards.object<IAuthenticationRegistration>(
 			EntityStorageAuthenticationRestClient.CLASS_NAME,
 			nameof(registration),
 			registration
 		);
 
-		const response = await this.fetch<IRegisterRequest, ILoginResponse>("/register", "POST", {
+		await this.fetch<IRegisterRequest, IRegisterAcceptedResponse>("/register", "POST", {
 			body: registration
 		});
-
-		// A sign up that must be verified is accepted without a body.
-		if (!Is.object(response?.body)) {
-			return undefined;
-		}
-
-		return {
-			accountId: response.body.accountId,
-			token: CookieHelper.getCookieFromHeaders(
-				response?.headers?.[HeaderTypes.SetCookie],
-				this._cookieName
-			),
-			expiry: response.body.expiry,
-			profile: response.body.profile,
-			profileReadOnly: response.body.profileReadOnly ?? false,
-			profileEditUrl: response.body.profileEditUrl,
-			passwordChangeUrl: response.body.passwordChangeUrl
-		};
 	}
 
 	/**

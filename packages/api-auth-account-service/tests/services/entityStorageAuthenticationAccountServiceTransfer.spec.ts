@@ -30,6 +30,11 @@ import {
 	createFakeIdentityComponent,
 	type IFakeIdentityComponent
 } from "../helpers/fakeIdentityComponent.js";
+import {
+	createAuthorizationComponent,
+	createRateComponent,
+	createUserStorage
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -73,7 +78,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
 	let organizations: MemoryEntityStorageConnector<Organization>;
 	let identityComponent: IFakeIdentityComponent;
-	let rateService: { className: () => string; check: ReturnType<typeof vi.fn> };
+	let rateService: ReturnType<typeof createRateComponent>;
 	let service: EntityStorageAuthenticationAccountService;
 	let admin: EntityStorageAuthenticationAccountAdminService;
 
@@ -93,10 +98,14 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 		EntityStorageConnectorFactory.register("account-data", () => accountData);
 		EntityStorageConnectorFactory.register("organization-request", () => requests);
 		EntityStorageConnectorFactory.register("organization", () => organizations);
+		const userStorage = createUserStorage();
+		EntityStorageConnectorFactory.register("authentication-user", () => userStorage);
 		identityComponent = createFakeIdentityComponent();
-		rateService = { className: () => "rate", check: vi.fn() };
+		rateService = createRateComponent();
+		const authorization = createAuthorizationComponent();
 		ComponentFactory.register("identity-service", () => identityComponent);
 		ComponentFactory.register("authentication-rate", () => rateService);
+		ComponentFactory.register("authorization", () => authorization);
 
 		service = new EntityStorageAuthenticationAccountService();
 		admin = new EntityStorageAuthenticationAccountAdminService();
@@ -106,9 +115,11 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 	afterEach(async () => {
 		ComponentFactory.unregister("identity-service");
 		ComponentFactory.unregister("authentication-rate");
+		ComponentFactory.unregister("authorization");
 		EntityStorageConnectorFactory.unregister("account-data");
 		EntityStorageConnectorFactory.unregister("organization-request");
 		EntityStorageConnectorFactory.unregister("organization");
+		EntityStorageConnectorFactory.unregister("authentication-user");
 		await accountData.teardown();
 		await requests.teardown();
 		await organizations.teardown();
@@ -900,10 +911,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 				}))
 			} as unknown as IEntityStorageConnector;
 			EntityStorageConnectorFactory.register("authentication-user", () => userStorage);
-		});
-
-		afterEach(() => {
-			EntityStorageConnectorFactory.unregister("authentication-user");
+			admin = new EntityStorageAuthenticationAccountAdminService();
 		});
 
 		it("should refuse an account that does not exist before changing anything", async () => {

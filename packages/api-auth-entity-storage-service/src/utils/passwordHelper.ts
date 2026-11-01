@@ -261,7 +261,7 @@ export class PasswordHelper {
 	 */
 	public static async updatePassword(
 		userEntityStorage: IEntityStorageConnector<AuthenticationUser>,
-		authenticationAuditService: IAuthenticationAuditComponent | undefined,
+		authenticationAuditService: IAuthenticationAuditComponent,
 		user: AuthenticationUser,
 		newPassword: string,
 		currentPassword?: string,
@@ -321,7 +321,7 @@ export class PasswordHelper {
 			);
 		}
 
-		await authenticationAuditService?.create({
+		await authenticationAuditService.create({
 			actorId: settings?.actorAccountId ?? user.email,
 			event: AuthAuditEvent.PasswordChanged,
 			data: {

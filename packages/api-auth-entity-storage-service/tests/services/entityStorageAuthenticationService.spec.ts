@@ -19,7 +19,10 @@ import {
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
+import type { IEntityStorageAuthenticationServiceConfig } from "../../src/models/IEntityStorageAuthenticationServiceConfig.js";
+import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../../src/models/IEntityStorageAuthenticationServiceConstructorOptions.js";
 import { initSchema } from "../../src/schema.js";
+import { EntityStorageAuthenticationAdminService } from "../../src/services/entityStorageAuthenticationAdminService.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
 import { PasswordHelper } from "../../src/utils/passwordHelper.js";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";
@@ -28,11 +31,39 @@ import { registerTestPasswordProvider } from "../helpers/testPasswordProvider.js
 initSchema();
 registerTestPasswordProvider();
 
+/**
+ * Create the service, with sign ups signed in at once unless a test turns verification on, as the
+ * password provider is registered and these tests send no e-mail.
+ * @param options The options for the service.
+ * @returns The service.
+ */
+function createService(
+	options?: Omit<IEntityStorageAuthenticationServiceConstructorOptions, "config"> & {
+		config?: Partial<IEntityStorageAuthenticationServiceConfig>;
+	}
+): EntityStorageAuthenticationService {
+	return new EntityStorageAuthenticationService({
+		...options,
+		config: {
+			emailSender: "noreply@example.com",
+			passwordResetUrl: "https://app.example.com/reset",
+			registrationVerificationUrl: "https://app.example.com/verify",
+			...options?.config
+		}
+	});
+}
+
 describe("EntityStorageAuthenticationService", () => {
 	let mockAuthenticationAuditService: IAuthenticationAuditComponent;
 	let mockAuthenticationRateService: IAuthenticationRateComponent;
 	let mockUserEntityStorage: IEntityStorageConnector;
 	let mockVaultConnector: IVaultConnector;
+	let mockAuthorization: {
+		className: () => string;
+		addRoleForSubject: ReturnType<typeof vi.fn>;
+		getRolesForSubject: ReturnType<typeof vi.fn>;
+		removeAllRolesForSubject?: ReturnType<typeof vi.fn>;
+	};
 	let service: EntityStorageAuthenticationService;
 
 	beforeEach(() => {
@@ -75,12 +106,45 @@ describe("EntityStorageAuthenticationService", () => {
 
 		vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(mockUserEntityStorage);
 		vi.spyOn(VaultConnectorFactory, "get").mockReturnValue(mockVaultConnector);
+		mockAuthorization = {
+			className: () => "authorization",
+			addRoleForSubject: vi.fn(),
+			getRolesForSubject: vi.fn().mockResolvedValue(["user"]),
+			removeAllRolesForSubject: vi.fn()
+		};
+		const requiredComponents: { [name: string]: unknown } = {
+			"authentication-rate": mockAuthenticationRateService,
+			"authentication-audit": mockAuthenticationAuditService,
+			"authentication-account": { className: () => "account", removeIdentity: vi.fn() },
+			"authentication-account-admin": {
+				className: () => "accountAdmin",
+				query: vi.fn().mockResolvedValue({ entities: [] }),
+				create: vi.fn(),
+				update: vi.fn()
+			},
+			"organization-request-admin": { className: () => "organizationRequestAdmin" },
+			"task-scheduler": {
+				className: () => "scheduler",
+				addTask: vi.fn(),
+				removeTask: vi.fn()
+			},
+			platform: {
+				className: () => "platform",
+				execute: vi.fn(async (method: () => Promise<void>) => method())
+			},
+			messaging: { className: () => "messaging", sendCustomEmail: vi.fn() }
+		};
 		vi.spyOn(ComponentFactory, "get").mockImplementation(componentName => {
-			if (componentName === "authentication-rate") {
-				return mockAuthenticationRateService;
+			if (componentName === "authorization") {
+				return mockAuthorization;
 			}
-
-			throw new Error(`Unexpected component ${componentName}`);
+			// A test replaces a component by returning it from getIfExists.
+			const component =
+				ComponentFactory.getIfExists(componentName) ?? requiredComponents[componentName];
+			if (component === undefined) {
+				throw new Error(`Unexpected component ${componentName}`);
+			}
+			return component as never;
 		});
 		vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(componentName => {
 			if (componentName === "authentication-audit") {
@@ -90,7 +154,7 @@ describe("EntityStorageAuthenticationService", () => {
 			return undefined;
 		});
 
-		service = new EntityStorageAuthenticationService();
+		service = createService();
 	});
 
 	it("should return the class name", () => {
@@ -125,7 +189,8 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			token: "jwt-token",
 			expiry: 123456789,
-			profileReadOnly: false
+			profileReadOnly: false,
+			roles: ["user"]
 		});
 		expect(TokenHelper.createToken).toHaveBeenCalledWith(
 			mockVaultConnector,
@@ -371,7 +436,7 @@ describe("EntityStorageAuthenticationService", () => {
 			maxPasswordLength: 128
 		});
 
-		const configured = new EntityStorageAuthenticationService({
+		const configured = createService({
 			config: { minPasswordLength: 8, maxPasswordLength: 64 }
 		});
 		await expect(configured.passwordPolicy()).resolves.toEqual({
@@ -431,7 +496,7 @@ describe("EntityStorageAuthenticationService", () => {
 	});
 
 	it("should register login rate action on start when configured", async () => {
-		service = new EntityStorageAuthenticationService({
+		service = createService({
 			config: {
 				loginRateLimit: {
 					maxAttempts: 5,
@@ -468,7 +533,7 @@ describe("EntityStorageAuthenticationService", () => {
 	});
 
 	it("should refuse a rate limited login as a failed login without trying the password", async () => {
-		service = new EntityStorageAuthenticationService({
+		service = createService({
 			config: {
 				loginRateLimit: {
 					maxAttempts: 2,
@@ -753,7 +818,7 @@ describe("EntityStorageAuthenticationService", () => {
 			{
 				requireCurrentPassword: true,
 				passwordHashOptions: undefined,
-				passwordResetEntityStorage: undefined
+				passwordResetEntityStorage: mockUserEntityStorage
 			}
 		);
 		expect(mockAuthenticationRateService.clear).toHaveBeenCalledWith("password-change", "user-1");
@@ -950,7 +1015,7 @@ describe("EntityStorageAuthenticationService", () => {
 				expiry: 123456789
 			});
 
-			service = new EntityStorageAuthenticationService();
+			service = createService();
 			await service.start();
 		});
 
@@ -970,7 +1035,8 @@ describe("EntityStorageAuthenticationService", () => {
 				expiry: 123456789,
 				profile: { "@context": "https://schema.org", "@type": "Person", givenName: "Ada" },
 				profileReadOnly: true,
-				profileEditUrl: "https://accounts.example.com/profile"
+				profileEditUrl: "https://accounts.example.com/profile",
+				roles: ["user"]
 			});
 			expect(authenticate).toHaveBeenCalledWith({ code: "code-1" });
 			const stored = await userEntityStorage.get("account-1");
@@ -1098,6 +1164,8 @@ describe("EntityStorageAuthenticationService", () => {
 				}
 				return undefined;
 			});
+			service = createService();
+			await service.start();
 			authenticate.mockResolvedValue({
 				providerAccountId: "google-subject-1",
 				email: "user@example.com",
@@ -1192,6 +1260,9 @@ describe("EntityStorageAuthenticationService", () => {
 				}
 				return undefined;
 			});
+			getIfExists.mockClear();
+			service = createService();
+			await service.start();
 			authenticate.mockResolvedValue({
 				providerAccountId: "google-subject-1",
 				email: "user@example.com",
@@ -1243,7 +1314,12 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 
 		it("should give a new account the default roles", async () => {
-			const authorization = { className: () => "authorization", addRoleForSubject: vi.fn() };
+			const authorization = {
+				className: () => "authorization",
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"])
+			};
+			mockAuthorization = authorization;
 			vi.mocked(ComponentFactory.getIfExists).mockImplementation(componentName => {
 				if (componentName === "authorization") {
 					return authorization;
@@ -1251,18 +1327,25 @@ describe("EntityStorageAuthenticationService", () => {
 				return undefined;
 			});
 			vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
-			service = new EntityStorageAuthenticationService();
+			service = createService();
 			await service.start();
 
 			await service.loginWithProvider("google", { code: "code-1" });
-			await service.loginWithProvider("google", { code: "code-2" });
+			const result = await service.loginWithProvider("google", { code: "code-2" });
 
+			expect(result.roles).toEqual(["user"]);
+			expect(authorization.getRolesForSubject).toHaveBeenCalledWith("system", "account-1");
 			expect(authorization.addRoleForSubject).toHaveBeenCalledTimes(1);
 			expect(authorization.addRoleForSubject).toHaveBeenCalledWith("system", "account-1", "user");
 		});
 
 		it("should give the configured roles in the configured model", async () => {
-			const authorization = { className: () => "authorization", addRoleForSubject: vi.fn() };
+			const authorization = {
+				className: () => "authorization",
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"])
+			};
+			mockAuthorization = authorization;
 			vi.mocked(ComponentFactory.getIfExists).mockImplementation(componentName => {
 				if (componentName === "authorization") {
 					return authorization;
@@ -1270,7 +1353,7 @@ describe("EntityStorageAuthenticationService", () => {
 				return undefined;
 			});
 			vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
-			service = new EntityStorageAuthenticationService({
+			service = createService({
 				config: { defaultRoles: ["trader", "viewer"], authorizationModelId: "trade" }
 			});
 			await service.start();
@@ -1287,7 +1370,7 @@ describe("EntityStorageAuthenticationService", () => {
 				ipAddress: "203.0.113.7"
 			});
 			vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
-			service = new EntityStorageAuthenticationService({
+			service = createService({
 				config: { clientAddressRateLimitEnabled: true }
 			});
 			await service.start();
@@ -1344,45 +1427,12 @@ describe("EntityStorageAuthenticationService", () => {
 			expect((await userEntityStorage.query()).entities).toHaveLength(0);
 		});
 
-		it("should not create an account on the first login when provider sign up is disabled", async () => {
-			service = new EntityStorageAuthenticationService({
-				config: { providerSignUpEnabled: false }
-			});
-			await service.start();
-
-			const error = await service.loginWithProvider("google", { code: "code-1" }).catch(e => e);
-
-			expect(error).toMatchObject({
-				name: "UnauthorizedError",
-				message: "entityStorageAuthenticationService.loginFailed"
-			});
-			expect(error.cause).toBeUndefined();
-			expect((await userEntityStorage.query()).entities).toHaveLength(0);
-			expect(mockAuthenticationAuditService.create).toHaveBeenCalledWith({
-				actorId: "google",
-				event: "login-failure"
-			});
-		});
-
-		it("should still sign in an existing account when provider sign up is disabled", async () => {
-			vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
-			await service.loginWithProvider("google", { code: "code-1" });
-			service = new EntityStorageAuthenticationService({
-				config: { providerSignUpEnabled: false }
-			});
-			await service.start();
-
-			await expect(service.loginWithProvider("google", { code: "code-2" })).resolves.toMatchObject({
-				accountId: "account-1"
-			});
-		});
-
 		it("should return a rate limit failure of a client", async () => {
 			vi.mocked(ContextIdStore.getContextIds).mockResolvedValue({
 				[ContextIdKeys.Node]: "node-1",
 				ipAddress: "203.0.113.7"
 			});
-			service = new EntityStorageAuthenticationService({
+			service = createService({
 				config: { clientAddressRateLimitEnabled: true }
 			});
 			await service.start();
@@ -1464,7 +1514,11 @@ describe("EntityStorageAuthenticationService", () => {
 			query: ReturnType<typeof vi.fn>;
 			create: ReturnType<typeof vi.fn>;
 		};
-		let authorization: { className: () => string; addRoleForSubject: ReturnType<typeof vi.fn> };
+		let authorization: {
+			className: () => string;
+			addRoleForSubject: ReturnType<typeof vi.fn>;
+			getRolesForSubject: ReturnType<typeof vi.fn>;
+		};
 
 		beforeEach(async () => {
 			userEntityStorage = new MemoryEntityStorageConnector<AuthenticationUser>({
@@ -1477,7 +1531,12 @@ describe("EntityStorageAuthenticationService", () => {
 				query: vi.fn().mockResolvedValue({ entities: [] }),
 				create: vi.fn().mockResolvedValue("item-1")
 			};
-			authorization = { className: () => "authorization", addRoleForSubject: vi.fn() };
+			authorization = {
+				className: () => "authorization",
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user"])
+			};
+			mockAuthorization = authorization;
 			vi.mocked(ComponentFactory.getIfExists).mockImplementation(componentName => {
 				if (componentName === "authentication-account-admin") {
 					return accountAdmin;
@@ -1495,54 +1554,62 @@ describe("EntityStorageAuthenticationService", () => {
 				expiry: 123456789
 			});
 			vi.spyOn(RandomHelper, "generateUuidV7").mockReturnValue("account-1");
+			service = createService();
 		});
 
 		afterEach(async () => {
 			await userEntityStorage.teardown();
 		});
 
-		it("should refuse to sign up when it is not enabled", async () => {
+		it("should refuse to sign up when the password provider is not registered", async () => {
 			await service.start();
-
-			await expect(
-				service.register({ email: "new@example.com", password: "Correct-Horse-Battery-42" })
-			).rejects.toMatchObject({
-				name: "ForbiddenError",
-				message: "entityStorageAuthenticationService.selfRegistrationDisabled"
-			});
+			AuthenticationProviderFactory.unregister(
+				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			);
+			try {
+				await expect(
+					service.register({ email: "new@example.com", password: "Correct-Horse-Battery-42" })
+				).rejects.toMatchObject({
+					name: "ForbiddenError",
+					message: "entityStorageAuthenticationService.selfRegistrationDisabled"
+				});
+				await expect(service.verifyRegistration("token")).rejects.toMatchObject({
+					name: "ForbiddenError",
+					message: "entityStorageAuthenticationService.selfRegistrationDisabled"
+				});
+			} finally {
+				registerTestPasswordProvider();
+			}
 			expect((await userEntityStorage.query()).entities).toHaveLength(0);
 		});
 
-		it("should create a password account with the default roles and an editable profile", async () => {
-			service = new EntityStorageAuthenticationService({
-				config: { selfRegistrationEnabled: true, registrationVerificationEnabled: false }
-			});
+		it("should accept a sign up and create an unverified account with an editable profile", async () => {
 			await service.start();
 
-			const result = await service.register({
-				email: "new@example.com",
-				password: "Correct-Horse-Battery-42",
-				givenName: "Ada",
-				familyName: "Lovelace"
-			});
+			await expect(
+				service.register({
+					email: "new@example.com",
+					password: "Correct-Horse-Battery-42",
+					givenName: "Ada",
+					familyName: "Lovelace"
+				})
+			).resolves.toBeUndefined();
+			// The account is created after the response, by the queued work.
+			expect((await userEntityStorage.query()).entities).toHaveLength(0);
+			await service.stop();
 
-			expect(result).toMatchObject({
-				accountId: "account-1",
-				token: "jwt-token",
-				expiry: 123456789,
-				profileReadOnly: false
-			});
 			expect(await userEntityStorage.get("account-1")).toMatchObject({
 				email: "new@example.com",
 				authProviderId: "entity-storage",
 				providerAccountId: "new@example.com",
-				password: expect.any(String)
+				verified: false
 			});
 			expect(mockAuthenticationRateService.check).toHaveBeenCalledWith(
 				"register",
 				"new@example.com"
 			);
-			expect(authorization.addRoleForSubject).toHaveBeenCalledWith("system", "account-1", "user");
+			// The default roles are given when the sign up is verified.
+			expect(authorization.addRoleForSubject).not.toHaveBeenCalled();
 			expect(accountAdmin.create).toHaveBeenCalledWith(
 				"account-1",
 				"private-profile",
@@ -1557,24 +1624,23 @@ describe("EntityStorageAuthenticationService", () => {
 			);
 		});
 
-		it("should refuse to sign up an e-mail address that has a password account", async () => {
-			service = new EntityStorageAuthenticationService({
-				config: { selfRegistrationEnabled: true, registrationVerificationEnabled: false }
-			});
+		it("should accept a sign up of an e-mail address that has a password account without creating another", async () => {
 			await service.start();
 			await service.register({ email: "new@example.com", password: "Correct-Horse-Battery-42" });
 
 			await expect(
 				service.register({ email: "New@Example.com", password: "Correct-Horse-Battery-42" })
-			).rejects.toMatchObject({ name: "ConflictError" });
+			).resolves.toBeUndefined();
+			await service.stop();
+
+			expect((await userEntityStorage.query()).entities).toHaveLength(1);
 		});
 
 		it("should refuse default roles that include the escalated privilege role", () => {
-			expect(
-				() =>
-					new EntityStorageAuthenticationService({
-						config: { defaultRoles: ["user", "global-admin"] }
-					})
+			expect(() =>
+				createService({
+					config: { defaultRoles: ["user", "global-admin"] }
+				})
 			).toThrow(
 				expect.objectContaining({
 					message: "entityStorageAuthenticationService.defaultRolesEscalated"
@@ -1583,9 +1649,6 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 
 		it("should validate the password", async () => {
-			service = new EntityStorageAuthenticationService({
-				config: { selfRegistrationEnabled: true, registrationVerificationEnabled: false }
-			});
 			await service.start();
 
 			await expect(
@@ -1626,11 +1689,41 @@ describe("EntityStorageAuthenticationService", () => {
 					profileReadOnly: true,
 					profileEditUrl: "https://accounts.example.com/profile",
 					identity: "did:example:user",
-					organization: "did:example:org"
+					organization: "did:example:org",
+					roles: ["user"]
 				});
 			} finally {
 				AuthenticationProviderFactory.unregister("google");
 			}
+		});
+
+		it("should return the roles of the account", async () => {
+			const authorization = {
+				className: () => "authorization",
+				addRoleForSubject: vi.fn(),
+				getRolesForSubject: vi.fn().mockResolvedValue(["user", "global-admin"])
+			};
+			mockAuthorization = authorization;
+			vi.mocked(ComponentFactory.getIfExists).mockImplementation(componentName => {
+				if (componentName === "authorization") {
+					return authorization;
+				}
+				return undefined;
+			});
+			vi.spyOn(ContextIdStore, "getContextIds").mockResolvedValue({
+				[ContextIdKeys.Node]: "node-1",
+				[ContextIdKeys.Account]: "account-1"
+			});
+			vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
+				accountId: "account-1",
+				email: "user@example.com",
+				authProviderId: "entity-storage"
+			});
+			service = createService();
+			await service.start();
+
+			expect((await service.me()).roles).toEqual(["user", "global-admin"]);
+			expect(authorization.getRolesForSubject).toHaveBeenCalledWith("system", "account-1");
 		});
 
 		it("should return the addresses the provider gives for the stored tenant", async () => {
@@ -1697,7 +1790,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 			vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(userEntityStorage);
 
-			service = new EntityStorageAuthenticationService();
+			service = createService();
 
 			await ContextIdStore.run({ [ContextIdKeys.Node]: "node-1" }, async () => {
 				await service.start();
@@ -1731,7 +1824,8 @@ describe("EntityStorageAuthenticationService", () => {
 						accountId: "user-1",
 						token: "jwt-token",
 						expiry: 123456789,
-						profileReadOnly: false
+						profileReadOnly: false,
+						roles: ["user"]
 					});
 				}
 			);
@@ -1972,7 +2066,7 @@ describe("EntityStorageAuthenticationService", () => {
 			}
 			return undefined;
 		});
-		service = new EntityStorageAuthenticationService();
+		service = createService();
 
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {
@@ -2023,7 +2117,7 @@ describe("EntityStorageAuthenticationService", () => {
 			}
 			return undefined;
 		});
-		service = new EntityStorageAuthenticationService();
+		service = createService();
 
 		vi.spyOn(TokenHelper, "verify").mockImplementation(
 			async (vaultConnector, nodeId, signingKeyName, token, verifyUser) => {

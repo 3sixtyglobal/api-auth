@@ -11,6 +11,7 @@ import {
 import { nameof } from "@3sixty/nameof";
 import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
+import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
 import {
 	authenticationAccountAdminCreate,
 	authenticationAccountAdminCreateIdentity,
@@ -44,6 +45,12 @@ import { generateRestRoutesIdentityProfileDeprecated } from "../../src/routes/id
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationAccountAdminService } from "../../src/services/entityStorageAuthenticationAccountAdminService.js";
 import { identityData, organizationData } from "../helpers/accountDataValues.js";
+import { createFakeIdentityComponent } from "../helpers/fakeIdentityComponent.js";
+import {
+	createAuthorizationComponent,
+	createOrganizationStorage,
+	createRateComponent
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -260,8 +267,20 @@ describe("account routes", () => {
 			className: () => "user",
 			query: vi.fn().mockResolvedValue({ entities: [] })
 		} as unknown as IEntityStorageConnector;
+		const requests = new MemoryEntityStorageConnector<OrganizationRequest>({
+			entitySchema: nameof<OrganizationRequest>(),
+			config: { storageKey: "organization-request-routes" }
+		});
+		const organizations = await createOrganizationStorage("organization-routes");
+		const identityComponent = createFakeIdentityComponent();
+		const authorization = createAuthorizationComponent();
 		EntityStorageConnectorFactory.register("account-data", () => accountData);
 		EntityStorageConnectorFactory.register("authentication-user", () => userStorage);
+		EntityStorageConnectorFactory.register("organization-request", () => requests);
+		EntityStorageConnectorFactory.register("organization", () => organizations);
+		ComponentFactory.register("identity-service", () => identityComponent);
+		ComponentFactory.register("authorization", () => authorization);
+		ComponentFactory.register("authentication-rate", () => createRateComponent());
 		ComponentFactory.register(
 			"accountAdmin",
 			() => new EntityStorageAuthenticationAccountAdminService()
@@ -279,9 +298,16 @@ describe("account routes", () => {
 			});
 		} finally {
 			ComponentFactory.unregister("accountAdmin");
+			ComponentFactory.unregister("identity-service");
+			ComponentFactory.unregister("authorization");
+			ComponentFactory.unregister("authentication-rate");
 			EntityStorageConnectorFactory.unregister("authentication-user");
 			EntityStorageConnectorFactory.unregister("account-data");
+			EntityStorageConnectorFactory.unregister("organization-request");
+			EntityStorageConnectorFactory.unregister("organization");
 			await accountData.teardown();
+			await requests.teardown();
+			await organizations.teardown();
 		}
 	});
 

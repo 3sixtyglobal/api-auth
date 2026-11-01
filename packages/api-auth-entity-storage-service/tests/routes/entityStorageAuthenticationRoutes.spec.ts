@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type { ILoginResponse } from "@3sixty/api-auth-entity-storage-models";
+
 import { ForbiddenError, HttpErrorHelper, type IHttpRequestContext } from "@3sixty/api-models";
 import { ComponentFactory } from "@3sixty/core";
 import { HttpStatusCode } from "@3sixty/web";
@@ -166,34 +166,7 @@ describe("generateRestRoutesAuthentication", () => {
 		expect(me?.skipAuth).toBeUndefined();
 	});
 
-	it("should sign up and hand the token to the auth processor", async () => {
-		const register = vi.fn().mockResolvedValue({
-			accountId: "account-1",
-			token: "jwt",
-			expiry: 123,
-			profileReadOnly: false
-		});
-		const component = { className: () => "authentication", register };
-		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
-		const httpRequestContext = {
-			serverRequest: { headers: {} },
-			processorState: {}
-		} as unknown as IHttpRequestContext;
-
-		const result = await authenticationRegister(httpRequestContext, "authentication", {
-			body: { email: "user@example.com", password: "MyPassword123!" }
-		});
-
-		expect(register).toHaveBeenCalledWith({
-			email: "user@example.com",
-			password: "MyPassword123!"
-		});
-		expect((result as ILoginResponse).body.accountId).toBe("account-1");
-		expect(httpRequestContext.processorState.authOperation).toBe("login");
-		expect(httpRequestContext.processorState.authToken).toBe("jwt");
-	});
-
-	it("should accept a sign up that must be verified without a body or a token", async () => {
+	it("should accept a sign up without a body or a token", async () => {
 		const register = vi.fn().mockResolvedValue(undefined);
 		const component = { className: () => "authentication", register };
 		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);

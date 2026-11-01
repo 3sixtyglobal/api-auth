@@ -101,6 +101,7 @@ const refreshResponse = await authClient.refresh(passwordResponse.token);
 // The signed in account, with the identity and organization it holds.
 const me = await authClient.me();
 console.log(me.accountId); // 01a17afb-e05f-7939-83f2-d4f04c4bdf2e
+console.log(me.roles); // ['user'], also returned by login
 
 await authClient.logout(refreshResponse.token);
 console.log(refreshResponse.expiry > 0); // true
@@ -108,7 +109,7 @@ console.log(refreshResponse.expiry > 0); // true
 
 ## Sign Up
 
-When the server enables self sign up, a person creates a password account and is signed in.
+When the server registers the password provider, a person signs up for a password account, verifies the e-mail address with the link sent to it, and can then sign in.
 
 ```typescript
 import { EntityStorageAuthenticationRestClient } from '@3sixty/api-auth-entity-storage-rest-client';
@@ -117,14 +118,13 @@ const authClient = new EntityStorageAuthenticationRestClient({
   endpoint: 'https://api.example.org'
 });
 
-// When the server needs the e-mail address verified the result is undefined and a link is sent.
-const result = await authClient.register({
+// Accepted whether or not the address already has an account, a link is sent to the address.
+await authClient.register({
   email: 'carol@example.org',
   password: 'Correct-Horse-Battery-42',
   givenName: 'Carol',
   familyName: 'Smith'
 });
-console.log(result); // undefined
 
 await authClient.verifyRegistration('token-from-the-link');
 ```

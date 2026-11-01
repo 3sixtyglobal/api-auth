@@ -32,8 +32,7 @@ import {
 	ForbiddenError,
 	HttpContextIdKeys,
 	type IPlatformComponent,
-	type ITenantAdminComponent,
-	TooManyRequestsError
+	type ITenantAdminComponent
 } from "@3sixty/api-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
@@ -42,7 +41,6 @@ import {
 	BaseError,
 	Coerce,
 	ComponentFactory,
-	ConflictError,
 	Converter,
 	GeneralError,
 	Guards,
@@ -102,9 +100,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	public static readonly DEFAULT_PASSWORD_RESET_EMAIL_TEMPLATE_ID: string = "password-reset";
 
 	/**
-	 * The default locale of the password reset e-mail.
+	 * The default locale of the password reset and sign up e-mails.
 	 */
-	public static readonly DEFAULT_PASSWORD_RESET_EMAIL_LOCALE: string = "en";
+	public static readonly DEFAULT_EMAIL_LOCALE: string = "en";
 
 	/**
 	 * The default time a sign up verification link can be used for, in minutes.
@@ -179,11 +177,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	public static readonly RATE_ACTION_PASSWORD_RESET: string = "password-reset";
 
 	/**
-	 * The default most work waiting to run after the responses that queued it.
-	 */
-	public static readonly DEFAULT_DEFERRED_QUEUE_LIMIT: number = 1000;
-
-	/**
 	 * The default interval of the removal of expired sign ups and tokens, in minutes.
 	 */
 	public static readonly DEFAULT_CLEANUP_INTERVAL_MINUTES: number = 60;
@@ -217,7 +210,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * The audit service.
 	 * @internal
 	 */
-	private readonly _authenticationAuditService?: IAuthenticationAuditComponent;
+	private readonly _authenticationAuditService: IAuthenticationAuditComponent;
 
 	/**
 	 * The rate service.
@@ -232,10 +225,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _userEntityStorage: IEntityStorageConnector<AuthenticationUser>;
 
 	/**
-	 * The entity storage for password reset and sign up verification tokens, when it exists.
+	 * The entity storage for password reset and sign up verification tokens.
 	 * @internal
 	 */
-	private readonly _passwordResetEntityStorage?: IEntityStorageConnector<AuthenticationPasswordReset>;
+	private readonly _passwordResetEntityStorage: IEntityStorageConnector<AuthenticationPasswordReset>;
 
 	/**
 	 * The vault for the keys.
@@ -244,10 +237,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _vaultConnector: IVaultConnector;
 
 	/**
-	 * The task scheduler that runs deferred work, when it exists.
+	 * The task scheduler that runs deferred work and the cleanup.
 	 * @internal
 	 */
-	private readonly _taskScheduler?: ITaskSchedulerComponent;
+	private readonly _taskScheduler: ITaskSchedulerComponent;
 
 	/**
 	 * The id of the scheduler task that runs deferred work.
@@ -262,18 +255,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _deferredJobs: { contextIds?: IContextIds; method: () => Promise<void> }[];
 
 	/**
-	 * Whether the deferred work task is registered with the scheduler.
-	 * @internal
-	 */
-	private _deferredTaskStarted: boolean;
-
-	/**
-	 * The most work waiting to run after the responses that queued it.
-	 * @internal
-	 */
-	private readonly _deferredQueueLimit: number;
-
-	/**
 	 * The id of the scheduler task that removes expired sign ups and tokens.
 	 * @internal
 	 */
@@ -286,16 +267,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _cleanupIntervalMinutes: number;
 
 	/**
-	 * Whether the cleanup task is registered with the scheduler.
+	 * The platform component that runs the cleanup in every tenant.
 	 * @internal
 	 */
-	private _cleanupTaskStarted: boolean;
-
-	/**
-	 * The platform component that runs the cleanup in every tenant, when it exists.
-	 * @internal
-	 */
-	private readonly _platformComponent?: IPlatformComponent;
+	private readonly _platformComponent: IPlatformComponent;
 
 	/**
 	 * The name of the key to retrieve from the vault for signing JWT.
@@ -328,12 +303,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _clientAddressRateLimitEnabled: boolean;
 
 	/**
-	 * True to create an account on the first login through a provider.
-	 * @internal
-	 */
-	private readonly _providerSignUpEnabled: boolean;
-
-	/**
 	 * The minimum password length for validation.
 	 * @internal
 	 */
@@ -358,16 +327,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _rateLimits: { [action: string]: IAuthenticationRateActionConfig };
 
 	/**
-	 * Whether forgotten passwords can be reset with a link sent by e-mail.
-	 * @internal
-	 */
-	private readonly _passwordResetEnabled: boolean;
-
-	/**
 	 * The address of the page that resets the password, the token is added as a query parameter.
 	 * @internal
 	 */
-	private readonly _passwordResetUrl?: string;
+	private readonly _passwordResetUrl: string;
 
 	/**
 	 * How long a password reset link can be used for, in minutes.
@@ -379,7 +342,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * The sender of the password reset and sign up e-mails.
 	 * @internal
 	 */
-	private readonly _emailSender?: string;
+	private readonly _emailSender: string;
 
 	/**
 	 * The values given to every e-mail template, such as the company name.
@@ -394,22 +357,16 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _passwordResetEmailTemplateId: string;
 
 	/**
-	 * The locale of the password reset e-mail.
+	 * The locale of the password reset and sign up e-mails.
 	 * @internal
 	 */
-	private readonly _passwordResetEmailLocale: string;
-
-	/**
-	 * Whether a sign up must verify its e-mail address.
-	 * @internal
-	 */
-	private readonly _registrationVerificationEnabled: boolean;
+	private readonly _emailLocale: string;
 
 	/**
 	 * The address of the page that verifies a sign up.
 	 * @internal
 	 */
-	private readonly _registrationVerificationUrl?: string;
+	private readonly _registrationVerificationUrl: string;
 
 	/**
 	 * How long a sign up verification link can be used for, in minutes.
@@ -430,16 +387,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _registrationExistsEmailTemplateId: string;
 
 	/**
-	 * The locale of the sign up e-mails.
+	 * The messaging component that sends the password reset and sign up e-mails.
 	 * @internal
 	 */
-	private readonly _registrationEmailLocale: string;
-
-	/**
-	 * The messaging component, required when password reset or sign up verification is enabled.
-	 * @internal
-	 */
-	private readonly _messagingComponent?: IMessagingComponent;
+	private readonly _messagingComponent: IMessagingComponent;
 
 	/**
 	 * The logging component, when it exists.
@@ -448,16 +399,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _logging?: ILoggingComponent;
 
 	/**
-	 * The organization request admin component type, resolved when an account is removed.
+	 * The organization request admin component, which removes the requests of a removed account.
 	 * @internal
 	 */
-	private readonly _organizationRequestAdminComponentType: string;
-
-	/**
-	 * Whether people may sign up for a password account.
-	 * @internal
-	 */
-	private readonly _selfRegistrationEnabled: boolean;
+	private readonly _organizationRequestAdmin: IOrganizationRequestAdminComponent;
 
 	/**
 	 * The roles given to accounts created by a provider login or a sign up.
@@ -472,10 +417,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _authorizationModelId: string;
 
 	/**
-	 * The authorization component that gives the default roles, when it exists.
+	 * The authorization component that holds the roles of the accounts.
 	 * @internal
 	 */
-	private readonly _authorizationComponent?: IAuthorizationComponent;
+	private readonly _authorizationComponent: IAuthorizationComponent;
 
 	/**
 	 * The component to retrieve tenant information.
@@ -484,22 +429,16 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _tenantAdminComponent?: ITenantAdminComponent;
 
 	/**
-	 * The account data admin component type, resolved when a provider profile is stored.
+	 * The account data admin component, which stores the profile a provider holds.
 	 * @internal
 	 */
-	private readonly _authenticationAccountAdminComponentType: string;
+	private readonly _authenticationAccountAdmin: IAuthenticationAccountAdminComponent;
 
 	/**
-	 * The account data admin component, once resolved.
+	 * The account data component, which removes the identity of a removed account.
 	 * @internal
 	 */
-	private _authenticationAccountAdmin?: IAuthenticationAccountAdminComponent;
-
-	/**
-	 * The account data component type, resolved when an account is removed.
-	 * @internal
-	 */
-	private readonly _authenticationAccountComponentType: string;
+	private readonly _authenticationAccount: IAuthenticationAccountComponent;
 
 	/**
 	 * How long ago the session may have started for removing the account, in seconds.
@@ -523,13 +462,13 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			options?.userEntityStorageType ?? "authentication-user"
 		);
 
-		this._passwordResetEntityStorage = EntityStorageConnectorFactory.getIfExists(
+		this._passwordResetEntityStorage = EntityStorageConnectorFactory.get(
 			options?.passwordResetEntityStorageType ?? "authentication-password-reset"
 		);
 
 		this._vaultConnector = VaultConnectorFactory.get(options?.vaultConnectorType ?? "vault");
 
-		this._authenticationAuditService = ComponentFactory.getIfExists<IAuthenticationAuditComponent>(
+		this._authenticationAuditService = ComponentFactory.get<IAuthenticationAuditComponent>(
 			options?.authenticationAuditServiceType ?? "authentication-audit"
 		);
 
@@ -541,30 +480,31 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			options?.tenantAdminComponentType ?? "tenant-admin"
 		);
 
-		this._taskScheduler = ComponentFactory.getIfExists<ITaskSchedulerComponent>(
+		this._taskScheduler = ComponentFactory.get<ITaskSchedulerComponent>(
 			options?.taskSchedulerComponentType ?? "task-scheduler"
 		);
 		this._deferredTaskId = `authentication-deferred-${RandomHelper.generateUuidV7()}`;
 		this._deferredJobs = [];
-		this._deferredTaskStarted = false;
 		this._cleanupTaskId = `authentication-cleanup-${RandomHelper.generateUuidV7()}`;
-		this._cleanupTaskStarted = false;
-		this._platformComponent = ComponentFactory.getIfExists<IPlatformComponent>(
+		this._platformComponent = ComponentFactory.get<IPlatformComponent>(
 			options?.platformComponentType ?? "platform"
 		);
 
-		this._authenticationAccountAdminComponentType =
-			options?.authenticationAccountAdminComponentType ?? "authentication-account-admin";
-		this._authenticationAccountComponentType =
-			options?.authenticationAccountComponentType ?? "authentication-account";
-		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+		this._authenticationAccountAdmin = ComponentFactory.get<IAuthenticationAccountAdminComponent>(
+			options?.authenticationAccountAdminComponentType ?? "authentication-account-admin"
+		);
+		this._authenticationAccount = ComponentFactory.get<IAuthenticationAccountComponent>(
+			options?.authenticationAccountComponentType ?? "authentication-account"
+		);
+		this._authorizationComponent = ComponentFactory.get<IAuthorizationComponent>(
 			options?.authorizationComponentType ?? "authorization"
 		);
 		this._logging = ComponentFactory.getIfExists<ILoggingComponent>(
 			options?.loggingComponentType ?? "logging"
 		);
-		this._organizationRequestAdminComponentType =
-			options?.organizationRequestAdminComponentType ?? "organization-request-admin";
+		this._organizationRequestAdmin = ComponentFactory.get<IOrganizationRequestAdminComponent>(
+			options?.organizationRequestAdminComponentType ?? "organization-request-admin"
+		);
 
 		const config = options?.config;
 		this._signingKeyName = config?.signingKeyName ?? "auth-signing";
@@ -575,12 +515,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			config?.recentSignInSeconds ?? RecentSignInHelper.DEFAULT_MAX_AGE_SECONDS;
 		this._loginRateLimitPerClient = config?.loginRateLimitPerClient ?? false;
 		this._clientAddressRateLimitEnabled = config?.clientAddressRateLimitEnabled ?? false;
-		this._providerSignUpEnabled = config?.providerSignUpEnabled ?? true;
 		this._minPasswordLength = config?.minPasswordLength;
 		this._maxPasswordLength = config?.maxPasswordLength;
 		this._passwordHashOptions = config?.passwordHashOptions;
-		this._deferredQueueLimit =
-			config?.deferredQueueLimit ?? EntityStorageAuthenticationService.DEFAULT_DEFERRED_QUEUE_LIMIT;
 		this._cleanupIntervalMinutes =
 			config?.cleanupIntervalMinutes ??
 			EntityStorageAuthenticationService.DEFAULT_CLEANUP_INTERVAL_MINUTES;
@@ -607,12 +544,31 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			};
 		}
 
-		this._passwordResetEnabled = config?.passwordResetEnabled ?? false;
-		this._passwordResetUrl = config?.passwordResetUrl;
+		// Reset and verification links are sent by e-mail, so fail at start when they cannot be.
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(config?.passwordResetUrl),
+			config?.passwordResetUrl
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(config?.registrationVerificationUrl),
+			config?.registrationVerificationUrl
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(config?.emailSender),
+			config?.emailSender
+		);
+		this._messagingComponent = ComponentFactory.get<IMessagingComponent>(
+			options?.messagingComponentType ?? "messaging"
+		);
+
+		this._passwordResetUrl = config.passwordResetUrl;
 		this._passwordResetExpiryMinutes =
 			config?.passwordResetExpiryMinutes ??
 			EntityStorageAuthenticationService.DEFAULT_PASSWORD_RESET_EXPIRY_MINUTES;
-		this._emailSender = config?.emailSender;
+		this._emailSender = config.emailSender;
 		// Always given, so a template never shows an unfilled placeholder.
 		this._emailTemplateData = {
 			companyName: config?.emailCompanyName ?? ""
@@ -620,13 +576,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._passwordResetEmailTemplateId =
 			config?.passwordResetEmailTemplateId ??
 			EntityStorageAuthenticationService.DEFAULT_PASSWORD_RESET_EMAIL_TEMPLATE_ID;
-		this._passwordResetEmailLocale =
-			config?.passwordResetEmailLocale ??
-			EntityStorageAuthenticationService.DEFAULT_PASSWORD_RESET_EMAIL_LOCALE;
+		this._emailLocale =
+			config?.emailLocale ?? EntityStorageAuthenticationService.DEFAULT_EMAIL_LOCALE;
 
-		this._selfRegistrationEnabled = config?.selfRegistrationEnabled ?? false;
-		this._registrationVerificationEnabled = config?.registrationVerificationEnabled ?? true;
-		this._registrationVerificationUrl = config?.registrationVerificationUrl;
+		this._registrationVerificationUrl = config.registrationVerificationUrl;
 		this._registrationVerificationExpiryMinutes =
 			config?.registrationVerificationExpiryMinutes ??
 			EntityStorageAuthenticationService.DEFAULT_REGISTRATION_VERIFICATION_EXPIRY_MINUTES;
@@ -636,40 +589,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._registrationExistsEmailTemplateId =
 			config?.registrationExistsEmailTemplateId ??
 			EntityStorageAuthenticationService.DEFAULT_REGISTRATION_EXISTS_EMAIL_TEMPLATE_ID;
-		this._registrationEmailLocale =
-			config?.registrationVerificationEmailLocale ?? this._passwordResetEmailLocale;
-
-		// Reset and verification links are sent by e-mail, so fail at start when they cannot be.
-		const passwordResetEmails = Is.object(config) && config.passwordResetEnabled === true;
-		const registrationEmails =
-			Is.object(config) &&
-			config.selfRegistrationEnabled === true &&
-			this._registrationVerificationEnabled;
-		if (passwordResetEmails) {
-			Guards.stringValue(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				nameof(config.passwordResetUrl),
-				config.passwordResetUrl
-			);
-		}
-		if (registrationEmails) {
-			Guards.stringValue(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				nameof(config.registrationVerificationUrl),
-				config.registrationVerificationUrl
-			);
-		}
-		if (passwordResetEmails || registrationEmails) {
-			Guards.stringValue(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				nameof(config.emailSender),
-				config.emailSender
-			);
-		}
-		this._messagingComponent =
-			passwordResetEmails || registrationEmails
-				? ComponentFactory.get<IMessagingComponent>(options?.messagingComponentType ?? "messaging")
-				: undefined;
 
 		this._defaultRoles = config?.defaultRoles ?? EntityStorageAuthenticationService.DEFAULT_ROLES;
 		this._authorizationModelId =
@@ -711,21 +630,15 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			await this._authenticationRateService.registerAction(action, config);
 		}
 
-		if (Is.object(this._taskScheduler)) {
-			await this._taskScheduler.addTask(this._deferredTaskId, [{ intervalMinutes: 1 }], async () =>
-				this.runDeferredJobs()
-			);
-			this._deferredTaskStarted = true;
+		await this._taskScheduler.addTask(this._deferredTaskId, [{ intervalMinutes: 1 }], async () =>
+			this.runDeferredJobs()
+		);
 
-			if (Is.object(this._passwordResetEntityStorage)) {
-				await this._taskScheduler.addTask(
-					this._cleanupTaskId,
-					[{ intervalMinutes: this._cleanupIntervalMinutes }],
-					async () => this.cleanupExpired()
-				);
-				this._cleanupTaskStarted = true;
-			}
-		}
+		await this._taskScheduler.addTask(
+			this._cleanupTaskId,
+			[{ intervalMinutes: this._cleanupIntervalMinutes }],
+			async () => this.cleanupExpired()
+		);
 	}
 
 	/**
@@ -734,14 +647,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @returns A promise that resolves when all rate-limit actions have been unregistered.
 	 */
 	public async stop(nodeLoggingComponentType?: string): Promise<void> {
-		if (this._deferredTaskStarted && Is.object(this._taskScheduler)) {
-			await this._taskScheduler.removeTask(this._deferredTaskId);
-			this._deferredTaskStarted = false;
-		}
-		if (this._cleanupTaskStarted && Is.object(this._taskScheduler)) {
-			await this._taskScheduler.removeTask(this._cleanupTaskId);
-			this._cleanupTaskStarted = false;
-		}
+		await this._taskScheduler.removeTask(this._deferredTaskId);
+		await this._taskScheduler.removeTask(this._cleanupTaskId);
 		// Work still waiting is run now so no e-mail is lost.
 		await this.runDeferredJobs();
 
@@ -829,7 +736,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 			session = await this.startSession(this._nodeId, user);
 		} catch {
-			await this._authenticationAuditService?.create({
+			await this._authenticationAuditService.create({
 				actorId: normalisedEmail,
 				event: AuthAuditEvent.LoginFailure
 			});
@@ -857,7 +764,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 						normalisedEmail
 					)
 				: undefined,
-			this._authenticationAuditService?.create({
+			this._authenticationAuditService.create({
 				actorId: session.user.email,
 				event: AuthAuditEvent.LoginSuccess,
 				data: {
@@ -874,7 +781,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			profile: identity.profile,
 			profileReadOnly: identity.profileReadOnly ?? false,
 			profileEditUrl: identity.profileEditUrl,
-			passwordChangeUrl: identity.passwordChangeUrl
+			passwordChangeUrl: identity.passwordChangeUrl,
+			roles: await this._authorizationComponent.getRolesForSubject(
+				this._authorizationModelId,
+				session.user.accountId
+			)
 		};
 	}
 
@@ -940,7 +851,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			session = await this.startSession(this._nodeId, user, identity);
 			await this.storeProviderProfile(user.accountId, identity);
 		} catch {
-			await this._authenticationAuditService?.create({
+			await this._authenticationAuditService.create({
 				actorId: authProviderId,
 				event: AuthAuditEvent.LoginFailure
 			});
@@ -953,7 +864,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				EntityStorageAuthenticationService.RATE_ACTION_LOGIN_PROVIDER,
 				rateKey
 			),
-			this._authenticationAuditService?.create({
+			this._authenticationAuditService.create({
 				actorId: session.user.email,
 				event: AuthAuditEvent.LoginSuccess,
 				data: {
@@ -974,23 +885,23 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			profile: identity.profile,
 			profileReadOnly: identity.profileReadOnly ?? false,
 			profileEditUrl: identity.profileEditUrl,
-			passwordChangeUrl: identity.passwordChangeUrl
+			passwordChangeUrl: identity.passwordChangeUrl,
+			roles: await this._authorizationComponent.getRolesForSubject(
+				this._authorizationModelId,
+				session.user.accountId
+			)
 		};
 	}
 
 	/**
-	 * Sign up for a password account, when self sign up is enabled. With e-mail verification the
-	 * account is created unverified and a verification link is sent, or the owner of an address that
-	 * already has an account is told, after the response, so the response is the same either way.
-	 * Without verification the account is signed in at once.
+	 * Sign up for a password account, when the password provider is registered. The account is
+	 * created unverified and a verification link is sent, or the owner of an address that already
+	 * has an account is told, after the response, so the response is the same either way.
 	 * @param registration The details of the account.
-	 * @returns The token and the profile, or undefined when the e-mail address must be verified.
-	 * @throws ForbiddenError when self sign up is not enabled.
-	 * @throws ConflictError without verification, when a password account exists for the address.
+	 * @returns A promise that resolves when the sign up has been accepted.
+	 * @throws ForbiddenError when the password provider is not registered.
 	 */
-	public async register(
-		registration: IAuthenticationRegistration
-	): Promise<ILoginResult | undefined> {
+	public async register(registration: IAuthenticationRegistration): Promise<void> {
 		Guards.object<IAuthenticationRegistration>(
 			EntityStorageAuthenticationService.CLASS_NAME,
 			nameof(registration),
@@ -1007,12 +918,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			registration.password
 		);
 
-		if (!this._selfRegistrationEnabled) {
-			throw new ForbiddenError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"selfRegistrationDisabled"
-			);
-		}
+		this.guardPasswordProviderRegistered();
 		if (!Is.stringValue(this._nodeId)) {
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
 		}
@@ -1027,11 +933,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			(await this.clientRateKey()) ?? normalised.email
 		);
 
-		if (!this._registrationVerificationEnabled) {
-			return this.registerAndSignIn(this._nodeId, normalised);
-		}
-
-		const tokenStorage = this.getTokenStorage();
 		PasswordValidator.validatePassword(normalised.password, {
 			minLength: this._minPasswordLength,
 			maxLength: this._maxPasswordLength
@@ -1048,10 +949,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			givenName: normalised.givenName,
 			familyName: normalised.familyName
 		};
-		await this.runDeferred(async () =>
-			this.completeRegistration(tokenStorage, details, passwordHash)
-		);
-		return undefined;
+		await this.runDeferred(async () => this.completeRegistration(details, passwordHash));
 	}
 
 	/**
@@ -1059,20 +957,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * the account the default roles so it can sign in.
 	 * @param token The token from the verification link.
 	 * @returns A promise that resolves when the account has been verified.
-	 * @throws ForbiddenError when self sign up is not enabled.
+	 * @throws ForbiddenError when the password provider is not registered.
 	 * @throws UnauthorizedError when the token is unknown, used or expired.
 	 * @throws TooManyRequestsError when the client verifies too often.
 	 */
 	public async verifyRegistration(token: string): Promise<void> {
 		Guards.stringValue(EntityStorageAuthenticationService.CLASS_NAME, nameof(token), token);
 
-		if (!this._selfRegistrationEnabled) {
-			throw new ForbiddenError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"selfRegistrationDisabled"
-			);
-		}
-		const tokenStorage = this.getTokenStorage();
+		this.guardPasswordProviderRegistered();
 
 		await this._authenticationRateService.check(
 			EntityStorageAuthenticationService.RATE_ACTION_REGISTER_VERIFY,
@@ -1080,7 +972,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		);
 
 		const reset = await PasswordResetHelper.consume(
-			tokenStorage,
+			this._passwordResetEntityStorage,
 			token,
 			PasswordResetHelper.PURPOSE_REGISTRATION
 		);
@@ -1089,9 +981,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			? await this._userEntityStorage.get(accountId)
 			: undefined;
 		const isVerifiable = (account: AuthenticationUser | undefined): boolean =>
-			Is.object<AuthenticationUser>(account) &&
+			account?.verified === false &&
 			account.accountId === accountId &&
-			account.verified === false &&
 			!AccountHelper.isDisabled(account);
 		if (!Is.object<AuthenticationUser>(user) || !isVerifiable(user)) {
 			throw new UnauthorizedError(
@@ -1127,7 +1018,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		});
 		await this.assignDefaultRoles(user.accountId);
 
-		await this._authenticationAuditService?.create({
+		await this._authenticationAuditService.create({
 			actorId: user.email,
 			event: AuthAuditEvent.AccountUpdated,
 			data: {
@@ -1168,7 +1059,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			profileEditUrl: capabilities?.profileEditUrl,
 			passwordChangeUrl: capabilities?.passwordChangeUrl,
 			identity: contextIds[ContextIdKeys.User],
-			organization: contextIds[ContextIdKeys.UserOrganization]
+			organization: contextIds[ContextIdKeys.UserOrganization],
+			roles: await this._authorizationComponent.getRolesForSubject(
+				this._authorizationModelId,
+				accountId
+			)
 		};
 	}
 
@@ -1183,7 +1078,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		const contextIds = await ContextIdStore.getContextIds();
 		const identifier = contextIds?.[ContextIdKeys.Account];
 		if (Is.stringValue(identifier)) {
-			await this._authenticationAuditService?.create({
+			await this._authenticationAuditService.create({
 				actorId: identifier,
 				event: AuthAuditEvent.Logout
 			});
@@ -1296,7 +1191,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			this._maxSessionMinutes
 		);
 
-		await this._authenticationAuditService?.create({
+		await this._authenticationAuditService.create({
 			actorId: refreshSub,
 			event: AuthAuditEvent.TokenRefreshed,
 			data: {
@@ -1416,16 +1311,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 	/**
 	 * Send a link to reset a forgotten password to the e-mail address, when a password account that
-	 * can sign in uses it. The account is looked up and the e-mail sent after the response when a
-	 * task scheduler exists, so neither the response nor its timing reveal whether the account exists.
+	 * can sign in uses it. The account is looked up and the e-mail sent after the response, on the
+	 * next scheduler run, so neither the response nor its timing reveal whether the account exists.
 	 * @param email The e-mail address of the account.
 	 * @returns A promise that resolves when the request has been handled.
-	 * @throws ForbiddenError when password reset is not enabled.
 	 * @throws TooManyRequestsError when the e-mail address or client asks too often.
 	 */
 	public async forgotPassword(email: string): Promise<void> {
 		Guards.stringValue(EntityStorageAuthenticationService.CLASS_NAME, nameof(email), email);
-		const passwordResetStorage = this.getPasswordResetStorage();
 		const normalisedEmail = EmailHelper.normalise(email);
 
 		const rateAction = EntityStorageAuthenticationService.RATE_ACTION_PASSWORD_FORGOT;
@@ -1435,7 +1328,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			await this._authenticationRateService.check(rateAction, clientKey);
 		}
 
-		await this.runDeferred(async () => this.sendPasswordReset(passwordResetStorage, email));
+		await this.runDeferred(async () => this.sendPasswordReset(email));
 	}
 
 	/**
@@ -1444,7 +1337,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @param token The token from the reset link.
 	 * @param newPassword The new password for the account.
 	 * @returns A promise that resolves when the password has been reset.
-	 * @throws ForbiddenError when password reset is not enabled.
 	 * @throws UnauthorizedError when the token is unknown, used or expired, or the account is disabled.
 	 * @throws TooManyRequestsError when the client resets too often.
 	 */
@@ -1455,7 +1347,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			nameof(newPassword),
 			newPassword
 		);
-		const passwordResetStorage = this.getPasswordResetStorage();
 
 		await this._authenticationRateService.check(
 			EntityStorageAuthenticationService.RATE_ACTION_PASSWORD_RESET,
@@ -1468,7 +1359,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			maxLength: this._maxPasswordLength
 		});
 
-		const accountId = (await PasswordResetHelper.consume(passwordResetStorage, token))?.accountId;
+		const accountId = (await PasswordResetHelper.consume(this._passwordResetEntityStorage, token))
+			?.accountId;
 		const user = Is.stringValue(accountId)
 			? await this._userEntityStorage.get(accountId)
 			: undefined;
@@ -1500,14 +1392,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			{
 				requireCurrentPassword: false,
 				passwordHashOptions: this._passwordHashOptions,
-				passwordResetEntityStorage: passwordResetStorage,
+				passwordResetEntityStorage: this._passwordResetEntityStorage,
 				markVerified: verifying
 			}
 		);
 
 		if (verifying) {
 			await this.assignDefaultRoles(user.accountId);
-			await this._authenticationAuditService?.create({
+			await this._authenticationAuditService.create({
 				actorId: user.email,
 				event: AuthAuditEvent.AccountUpdated,
 				data: {
@@ -1521,7 +1413,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	/**
 	 * Remove the signed in account, its account data, its roles and its requests to join an
 	 * organization. The account is disabled first, so its tokens stop working and nothing signs in
-	 * meanwhile, then its identity is removed through the account data component when it exists, with
+	 * meanwhile, then its identity is removed through the account data component, with
 	 * the keys the node holds for it, a document published on a ledger is kept. The account is enabled
 	 * again when the identity cannot be removed, so the owner can sign in and try again. The route
 	 * signs the caller out.
@@ -1547,28 +1439,29 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 		const disabled = await AccountHelper.disable(this._userEntityStorage, user);
 
-		// The account component comes from further up the stack, so it is resolved when needed, and
-		// removes the identity as the signed in account.
-		const accountComponent = ComponentFactory.getIfExists<IAuthenticationAccountComponent>(
-			this._authenticationAccountComponentType
-		);
-		if (Is.object(accountComponent)) {
-			try {
-				await accountComponent.removeIdentity(sessionStart);
-			} catch (error) {
-				// An account without an identity has nothing to remove.
-				if (!BaseError.isErrorName(error, NotFoundError.CLASS_NAME)) {
-					if (Is.object<AuthenticationUser>(disabled)) {
-						await this.restoreEnabled(disabled);
-					}
-					throw error;
+		// The account component removes the identity as the signed in account.
+		try {
+			await this._authenticationAccount.removeIdentity(sessionStart);
+		} catch (error) {
+			// An account without an identity has nothing to remove.
+			if (!BaseError.isErrorName(error, NotFoundError.CLASS_NAME)) {
+				if (Is.object<AuthenticationUser>(disabled)) {
+					await this.restoreEnabled(disabled);
 				}
+				throw error;
 			}
 		}
 
-		await this.removeUser(accountId);
+		await AccountHelper.removeAccount(
+			this._userEntityStorage,
+			this._passwordResetEntityStorage,
+			this._authenticationAccountAdmin,
+			this._organizationRequestAdmin,
+			accountId,
+			{ component: this._authorizationComponent, modelId: this._authorizationModelId }
+		);
 
-		await this._authenticationAuditService?.create({
+		await this._authenticationAuditService.create({
 			actorId: user.email,
 			event: AuthAuditEvent.AccountDeleted,
 			data: {
@@ -1641,116 +1534,60 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Sign up for a password account and sign in at once, as earlier versions did.
-	 * @param nodeId The node identifier.
-	 * @param registration The details of the account, with the e-mail address normalised.
-	 * @returns The token and the profile of the account.
-	 * @throws ConflictError when a password account exists for the e-mail address.
-	 * @internal
-	 */
-	private async registerAndSignIn(
-		nodeId: string,
-		registration: IAuthenticationRegistration
-	): Promise<ILoginResult> {
-		const user = await this.withLock(`register|${registration.email}`, async () => {
-			const existing = await AccountHelper.findByEmail(
-				this._userEntityStorage,
-				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
-				registration.email
-			);
-			if (Is.object<AuthenticationUser>(existing)) {
-				throw new ConflictError(
-					EntityStorageAuthenticationService.CLASS_NAME,
-					"userExists",
-					registration.email
-				);
-			}
-
-			return PasswordHelper.createUser(
-				this._userEntityStorage,
-				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
-				RandomHelper.generateUuidV7(),
-				registration.email,
-				registration.password,
-				{
-					minPasswordLength: this._minPasswordLength,
-					maxPasswordLength: this._maxPasswordLength
-				},
-				{ passwordHashOptions: this._passwordHashOptions }
-			);
-		});
-
-		await this.recordAccountCreated(user);
-		await this.assignDefaultRoles(user.accountId);
-		const profile = this.registrationProfile(registration);
-		await this.storeProfile(user.accountId, profile, false);
-
-		const session = await this.startSession(nodeId, user);
-
-		await this._authenticationAuditService?.create({
-			actorId: user.email,
-			event: AuthAuditEvent.LoginSuccess,
-			data: {
-				accountId: user.accountId,
-				tenantId: session.tenantId
-			}
-		});
-
-		return {
-			accountId: user.accountId,
-			token: session.token,
-			expiry: session.expiry,
-			profile,
-			profileReadOnly: false
-		};
-	}
-
-	/**
 	 * Complete a sign up that must be verified, run after the response. A new address gets an
 	 * unverified account and a verification link, an address with an unverified account gets a new
 	 * link that sets the password of this sign up when verified, and the owner of an address with an
 	 * account is told of the sign up. An unverified account
 	 * older than the link expiry is replaced, so an address cannot be held by a sign up nobody verifies.
-	 * @param tokenStorage The storage for the verification tokens.
 	 * @param registration The details of the account, with the e-mail address normalised.
 	 * @param passwordHash The hash of the password of the sign up.
 	 * @returns A promise that resolves when the sign up has been handled.
 	 * @internal
 	 */
 	private async completeRegistration(
-		tokenStorage: IEntityStorageConnector<AuthenticationPasswordReset>,
 		registration: Omit<IAuthenticationRegistration, "password">,
 		passwordHash: Awaited<ReturnType<typeof PasswordHelper.hashPassword>>
 	): Promise<void> {
 		const expiryMs = this._registrationVerificationExpiryMinutes * 60000;
-		const result = await this.withLock(`register|${registration.email}`, async () => {
+		const lockKey = await AccountHelper.lockKey(`register|${registration.email}`);
+		await Mutex.lock(lockKey, { throwOnTimeout: true });
+		let result: { user: AuthenticationUser; created: boolean };
+		try {
 			let existing = await AccountHelper.findByEmail(
 				this._userEntityStorage,
 				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
 				registration.email
 			);
 			if (
-				Is.object<AuthenticationUser>(existing) &&
-				existing.verified === false &&
+				existing?.verified === false &&
 				Date.parse(existing.dateCreated) + expiryMs <= Date.now()
 			) {
-				await this.removeUser(existing.accountId);
+				await AccountHelper.removeAccount(
+					this._userEntityStorage,
+					this._passwordResetEntityStorage,
+					this._authenticationAccountAdmin,
+					this._organizationRequestAdmin,
+					existing.accountId,
+					{ component: this._authorizationComponent, modelId: this._authorizationModelId }
+				);
 				existing = undefined;
 			}
-			if (Is.object<AuthenticationUser>(existing)) {
-				return { user: existing, created: false };
-			}
-
-			const user = await PasswordHelper.createUserWithHash(
-				this._userEntityStorage,
-				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
-				RandomHelper.generateUuidV7(),
-				registration.email,
-				passwordHash,
-				{ verified: false }
-			);
-			return { user, created: true };
-		});
+			result = Is.object<AuthenticationUser>(existing)
+				? { user: existing, created: false }
+				: {
+						user: await PasswordHelper.createUserWithHash(
+							this._userEntityStorage,
+							EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
+							RandomHelper.generateUuidV7(),
+							registration.email,
+							passwordHash,
+							{ verified: false }
+						),
+						created: true
+					};
+		} finally {
+			Mutex.unlock(lockKey);
+		}
 
 		if (result.created) {
 			await this.recordAccountCreated(result.user);
@@ -1770,7 +1607,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		// The password of this sign up is kept with its link and set when the link is verified, as a
 		// pending account may have been created by someone else. Earlier links are replaced.
 		const { token, expires } = await PasswordResetHelper.create(
-			tokenStorage,
+			this._passwordResetEntityStorage,
 			result.user.accountId,
 			this._registrationVerificationExpiryMinutes,
 			PasswordResetHelper.PURPOSE_REGISTRATION,
@@ -1781,7 +1618,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				passwordHashParameters: passwordHash.passwordHashParameters
 			}
 		);
-		const verifyUrl = new URL(this._registrationVerificationUrl ?? "");
+		const verifyUrl = new URL(this._registrationVerificationUrl);
 		verifyUrl.searchParams.set("token", token);
 		await this.sendEmail(
 			"registration",
@@ -1798,15 +1635,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	/**
 	 * Send a password reset link, when an enabled password account uses the address. An unverified
 	 * account is included, as resetting its password also verifies it.
-	 * @param passwordResetStorage The storage for the reset tokens.
 	 * @param email The e-mail address.
 	 * @returns A promise that resolves when the request has been handled.
 	 * @internal
 	 */
-	private async sendPasswordReset(
-		passwordResetStorage: IEntityStorageConnector<AuthenticationPasswordReset>,
-		email: string
-	): Promise<void> {
+	private async sendPasswordReset(email: string): Promise<void> {
 		const user = await AccountHelper.findByEmail(
 			this._userEntityStorage,
 			EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
@@ -1817,12 +1650,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		}
 
 		const { token, expires } = await PasswordResetHelper.create(
-			passwordResetStorage,
+			this._passwordResetEntityStorage,
 			user.accountId,
 			this._passwordResetExpiryMinutes
 		);
 
-		const resetUrl = new URL(this._passwordResetUrl ?? "");
+		const resetUrl = new URL(this._passwordResetUrl);
 		resetUrl.searchParams.set("token", token);
 		await this.sendEmail("passwordReset", user, this._passwordResetEmailTemplateId, {
 			resetUrl: resetUrl.toString(),
@@ -1846,14 +1679,13 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		templateId: string,
 		data: { [key: string]: string }
 	): Promise<void> {
-		// The constructor ensures the messaging component and sender exist when e-mails are enabled.
 		try {
-			await this._messagingComponent?.sendCustomEmail(
-				this._emailSender ?? "",
+			await this._messagingComponent.sendCustomEmail(
+				this._emailSender,
 				[user.email],
 				templateId,
 				{ ...this._emailTemplateData, ...data },
-				kind === "passwordReset" ? this._passwordResetEmailLocale : this._registrationEmailLocale
+				this._emailLocale
 			);
 		} catch (error) {
 			// A failure is not returned, so the response does not reveal the account exists.
@@ -1869,28 +1701,13 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Run work after the response when a task scheduler exists, otherwise at once. Failures are
-	 * logged, as the response does not wait for the work.
+	 * Queue work to run after the response, on the next scheduler run or when the service stops.
+	 * Failures are logged, as the response does not wait for the work.
 	 * @param method The work.
-	 * @returns A promise that resolves when the work has been queued or run.
-	 * @throws TooManyRequestsError when the queue is full.
+	 * @returns A promise that resolves when the work has been queued.
 	 * @internal
 	 */
 	private async runDeferred(method: () => Promise<void>): Promise<void> {
-		if (!this._deferredTaskStarted) {
-			await this.runJob(method);
-			return;
-		}
-		if (this._deferredJobs.length >= this._deferredQueueLimit) {
-			// The queue is run every minute, so the request can be made again then.
-			throw new TooManyRequestsError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"deferredQueueFull",
-				this._deferredJobs.length,
-				new Date(Date.now() + 60000).toISOString(),
-				{ retryAfterSeconds: 60 }
-			);
-		}
 		this._deferredJobs.push({ contextIds: await ContextIdStore.getContextIds(), method });
 	}
 
@@ -1902,13 +1719,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @internal
 	 */
 	private async cleanupExpired(): Promise<void> {
-		const cleanup = async (): Promise<void> =>
-			this.runJob(async () => this.removeExpiredInTenant());
-		if (Is.object(this._platformComponent)) {
-			await this._platformComponent.execute(cleanup);
-		} else {
-			await cleanup();
-		}
+		await this._platformComponent.execute(async () =>
+			this.runJob(async () => this.removeExpiredInTenant())
+		);
 	}
 
 	/**
@@ -1917,11 +1730,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @internal
 	 */
 	private async removeExpiredInTenant(): Promise<void> {
-		const tokenStorage = this._passwordResetEntityStorage;
-		if (Is.empty(tokenStorage)) {
-			return;
-		}
-		await PasswordResetHelper.removeExpired(tokenStorage);
+		await PasswordResetHelper.removeExpired(this._passwordResetEntityStorage);
 
 		// The ids are gathered first, as removing while paging would move the cursor past accounts.
 		const expiryMs = this._registrationVerificationExpiryMinutes * 60000;
@@ -1949,24 +1758,20 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		} while (Is.stringValue(cursor));
 
 		for (const accountId of accountIds) {
-			await this.removeUnverified(tokenStorage, accountId);
+			await this.removeUnverified(accountId);
 		}
 	}
 
 	/**
 	 * Remove an unverified sign up that has no unexpired link, disabling it first only while it is
 	 * still unverified, so a verification made meanwhile is kept, and one made after is refused.
-	 * @param tokenStorage The storage for the tokens.
 	 * @param accountId The account id.
 	 * @returns A promise that resolves when the sign up has been removed or kept.
 	 * @internal
 	 */
-	private async removeUnverified(
-		tokenStorage: IEntityStorageConnector<AuthenticationPasswordReset>,
-		accountId: string
-	): Promise<void> {
+	private async removeUnverified(accountId: string): Promise<void> {
 		// A link sent again for the sign up, or a reset link, may still verify the account.
-		const links = await tokenStorage.query(
+		const links = await this._passwordResetEntityStorage.query(
 			{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
 			undefined,
 			["id"],
@@ -1993,7 +1798,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			};
 		});
 		if (expired) {
-			await this.removeUser(accountId);
+			await AccountHelper.removeAccount(
+				this._userEntityStorage,
+				this._passwordResetEntityStorage,
+				this._authenticationAccountAdmin,
+				this._organizationRequestAdmin,
+				accountId,
+				{ component: this._authorizationComponent, modelId: this._authorizationModelId }
+			);
 		}
 	}
 
@@ -2030,30 +1842,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Run a method holding a lock for a key in the current tenant.
-	 * @param key The key.
-	 * @param method The method.
-	 * @returns The result of the method.
-	 * @internal
-	 */
-	private async withLock<T>(key: string, method: () => Promise<T>): Promise<T> {
-		const contextIds = await ContextIdStore.getContextIds();
-		const lockKey = Converter.bytesToHex(
-			Sha256.sum256(
-				Converter.utf8ToBytes(
-					`${EntityStorageAuthenticationService.CLASS_NAME}|${contextIds?.[ContextIdKeys.Tenant] ?? ""}|${key}`
-				)
-			)
-		);
-		await Mutex.lock(lockKey, { throwOnTimeout: true });
-		try {
-			return await method();
-		} finally {
-			Mutex.unlock(lockKey);
-		}
-	}
-
-	/**
 	 * Find the account a provider identifies, creating it on the first login when provider sign up is
 	 * enabled. Concurrent first logins are serialised so only one account is created.
 	 * @param authProviderId The authentication provider id.
@@ -2065,7 +1853,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		authProviderId: string,
 		identity: IAuthenticationProviderIdentity
 	): Promise<AuthenticationUser> {
-		return this.withLock(`provider|${authProviderId}|${identity.providerAccountId}`, async () => {
+		const lockKey = await AccountHelper.lockKey(
+			`provider|${authProviderId}|${identity.providerAccountId}`
+		);
+		await Mutex.lock(lockKey, { throwOnTimeout: true });
+		try {
 			const user = await AccountHelper.findByProviderAccount(
 				this._userEntityStorage,
 				authProviderId,
@@ -2074,14 +1866,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			if (Is.object<AuthenticationUser>(user)) {
 				return user;
 			}
-			if (!this._providerSignUpEnabled) {
-				throw new GeneralError(
-					EntityStorageAuthenticationService.CLASS_NAME,
-					"providerSignUpDisabled"
-				);
-			}
-			return this.createProviderAccount(authProviderId, identity);
-		});
+			return await this.createProviderAccount(authProviderId, identity);
+		} finally {
+			Mutex.unlock(lockKey);
+		}
 	}
 
 	/**
@@ -2118,27 +1906,31 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		if (Is.undefined(avatar)) {
 			return;
 		}
-		const accountAdmin = this.getAccountAdmin();
-		if (Is.empty(accountAdmin)) {
-			return;
-		}
 
 		try {
-			const page = await accountAdmin.query(accountId, AuthenticationAccountDataType.Avatar);
+			const page = await this._authenticationAccountAdmin.query(
+				accountId,
+				AuthenticationAccountDataType.Avatar
+			);
 			if (Is.object(avatar)) {
 				const value = AuthenticationAccountHelper.markReadOnly(avatar);
 				const item = page.entities.find(e => e.isDefault) ?? page.entities[0];
 				if (!Is.object(item)) {
-					await accountAdmin.create(accountId, AuthenticationAccountDataType.Avatar, value, true);
+					await this._authenticationAccountAdmin.create(
+						accountId,
+						AuthenticationAccountDataType.Avatar,
+						value,
+						true
+					);
 				} else if (!item.isDefault || !ObjectHelper.equal(item.data, value, false)) {
 					// A provider gives the same photo on most logins, so it is only written when it changed.
-					await accountAdmin.update(item.id, value, true);
+					await this._authenticationAccountAdmin.update(item.id, value, true);
 				}
 			} else {
 				// Only the avatar the provider stored is removed, not one the account uploaded.
 				for (const item of page.entities) {
 					if (AuthenticationAccountHelper.isReadOnly(item.data)) {
-						await accountAdmin.remove(item.id);
+						await this._authenticationAccountAdmin.remove(item.id);
 					}
 				}
 			}
@@ -2186,11 +1978,6 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		profile: NonNullable<IAuthenticationProviderIdentity["profile"]>,
 		readOnly: boolean
 	): Promise<void> {
-		const accountAdmin = this.getAccountAdmin();
-		if (Is.empty(accountAdmin)) {
-			return;
-		}
-
 		const { email, givenName, familyName, ...publicProfile } = profile;
 		const profiles: [string, NonNullable<IAuthenticationProviderIdentity["profile"]>][] = [
 			[AuthenticationAccountDataType.PublicProfile, publicProfile],
@@ -2209,66 +1996,29 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await Promise.all(
 			profiles.map(async ([type, data]) => {
 				const value = readOnly ? AuthenticationAccountHelper.markReadOnly(data) : data;
-				const page = await accountAdmin.query(accountId, type);
+				const page = await this._authenticationAccountAdmin.query(accountId, type);
 				const item = page.entities.find(e => e.isDefault) ?? page.entities[0];
 				if (!Is.object(item)) {
-					await accountAdmin.create(accountId, type, value, true);
+					await this._authenticationAccountAdmin.create(accountId, type, value, true);
 				} else if (!item.isDefault || !ObjectHelper.equal(item.data, value, false)) {
 					// A provider gives the same profile on most logins, so it is only written when it changed.
-					await accountAdmin.update(item.id, value, true);
+					await this._authenticationAccountAdmin.update(item.id, value, true);
 				}
 			})
 		);
 	}
 
 	/**
-	 * Get the account data admin component, when it exists. It comes from further up the stack, so it
-	 * is resolved when first needed and kept once found.
-	 * @returns The component.
-	 * @internal
-	 */
-	private getAccountAdmin(): IAuthenticationAccountAdminComponent | undefined {
-		this._authenticationAccountAdmin ??=
-			ComponentFactory.getIfExists<IAuthenticationAccountAdminComponent>(
-				this._authenticationAccountAdminComponentType
-			);
-		return this._authenticationAccountAdmin;
-	}
-
-	/**
-	 * Give an account the default roles, when an authorization component exists.
+	 * Give an account the default roles.
 	 * @param accountId The account id.
 	 * @returns A promise that resolves when the roles have been given.
 	 * @internal
 	 */
 	private async assignDefaultRoles(accountId: string): Promise<void> {
-		const authorizationComponent = this._authorizationComponent;
-		if (Is.empty(authorizationComponent)) {
-			return;
-		}
 		await Promise.all(
 			this._defaultRoles.map(async role =>
-				authorizationComponent.addRoleForSubject(this._authorizationModelId, accountId, role)
+				this._authorizationComponent.addRoleForSubject(this._authorizationModelId, accountId, role)
 			)
-		);
-	}
-
-	/**
-	 * Remove an account, the data stored for it and its roles.
-	 * @param accountId The account id.
-	 * @returns A promise that resolves when the account has been removed.
-	 * @internal
-	 */
-	private async removeUser(accountId: string): Promise<void> {
-		await AccountHelper.removeAccount(
-			this._userEntityStorage,
-			this._passwordResetEntityStorage,
-			this.getAccountAdmin(),
-			ComponentFactory.getIfExists<IOrganizationRequestAdminComponent>(
-				this._organizationRequestAdminComponentType
-			),
-			accountId,
-			{ component: this._authorizationComponent, modelId: this._authorizationModelId }
 		);
 	}
 
@@ -2311,7 +2061,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @internal
 	 */
 	private async recordAccountCreated(user: AuthenticationUser): Promise<void> {
-		await this._authenticationAuditService?.create({
+		await this._authenticationAuditService.create({
 			actorId: user.email,
 			event: AuthAuditEvent.AccountCreated,
 			data: {
@@ -2322,35 +2072,22 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Get the storage for password reset tokens, when password reset is enabled.
-	 * @returns The storage.
-	 * @throws ForbiddenError when password reset is not enabled.
+	 * Ensure the password provider is registered, as people may only sign up for a password account
+	 * when it is.
+	 * @throws ForbiddenError when it is not registered.
 	 * @internal
 	 */
-	private getPasswordResetStorage(): IEntityStorageConnector<AuthenticationPasswordReset> {
-		if (!this._passwordResetEnabled) {
+	private guardPasswordProviderRegistered(): void {
+		if (
+			!AuthenticationProviderFactory.hasName(
+				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			)
+		) {
 			throw new ForbiddenError(
 				EntityStorageAuthenticationService.CLASS_NAME,
-				"passwordResetDisabled"
+				"selfRegistrationDisabled"
 			);
 		}
-		return this.getTokenStorage();
-	}
-
-	/**
-	 * Get the storage for password reset and sign up verification tokens.
-	 * @returns The storage.
-	 * @throws GeneralError when the storage does not exist.
-	 * @internal
-	 */
-	private getTokenStorage(): IEntityStorageConnector<AuthenticationPasswordReset> {
-		if (Is.empty(this._passwordResetEntityStorage)) {
-			throw new GeneralError(
-				EntityStorageAuthenticationService.CLASS_NAME,
-				"passwordResetStorageMissing"
-			);
-		}
-		return this._passwordResetEntityStorage;
 	}
 
 	/**

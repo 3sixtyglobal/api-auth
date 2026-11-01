@@ -7,7 +7,8 @@ import type {
 import { EmailHelper } from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { BaseError, Is, NotFoundError } from "@3sixty/core";
+import { BaseError, Converter, Is, NotFoundError } from "@3sixty/core";
+import { Sha256 } from "@3sixty/crypto";
 import { ComparisonOperator, LogicalOperator } from "@3sixty/entity";
 import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
@@ -180,10 +181,9 @@ export class AccountHelper {
 
 	/**
 	 * Remove an account and the data stored for it: its password reset and verification tokens, its
-	 * requests to join an organization, its account data and its roles, when the storage and
-	 * components that hold them exist. The account is disabled first, so its sessions end and a
+	 * requests to join an organization, its account data and its roles. The account is disabled first, so its sessions end and a
 	 * concurrent sign in cannot write it again, and it is removed last. The caller must already have
-	 * been checked, the data is removed as the system.
+	 * been checked, the data is removed without the user.
 	 * @param userEntityStorage The entity storage for users.
 	 * @param passwordResetEntityStorage The entity storage for password reset tokens.
 	 * @param accountAdmin The account data admin component.
@@ -196,60 +196,72 @@ export class AccountHelper {
 	 */
 	public static async removeAccount(
 		userEntityStorage: IEntityStorageConnector<AuthenticationUser>,
-		passwordResetEntityStorage: IEntityStorageConnector<AuthenticationPasswordReset> | undefined,
-		accountAdmin: IAuthenticationAccountAdminComponent | undefined,
-		organizationRequestAdmin: IOrganizationRequestAdminComponent | undefined,
+		passwordResetEntityStorage: IEntityStorageConnector<AuthenticationPasswordReset>,
+		accountAdmin: IAuthenticationAccountAdminComponent,
+		organizationRequestAdmin: IOrganizationRequestAdminComponent,
 		accountId: string,
-		authorization?: { component?: IAuthorizationComponent; modelId: string }
+		authorization: { component: IAuthorizationComponent; modelId: string }
 	): Promise<void> {
 		const user = await userEntityStorage.get(accountId);
-		if (Is.object<AuthenticationUser>(user) && user.accountId === accountId) {
+		if (user?.accountId === accountId) {
 			await AccountHelper.disable(userEntityStorage, user);
 		} else {
 			AuthTokenCache.invalidate(accountId);
 		}
 
-		if (Is.object(passwordResetEntityStorage)) {
-			await PasswordResetHelper.removeForAccount(passwordResetEntityStorage, accountId, "all");
-		}
+		await PasswordResetHelper.removeForAccount(passwordResetEntityStorage, accountId, "all");
 
-		// Removing the organization of the account first would otherwise stop the caller removing the
-		// rest of its data.
-		await AccountHelper.runAsSystem(async () => {
-			await organizationRequestAdmin?.removeForAccount(accountId);
+		// Run without the user, as the caller has been checked, and an account removing itself would
+		// otherwise be refused removing its own identity and organization, and a provider avatar.
+		await AccountHelper.runWithoutUser(async () => {
+			await organizationRequestAdmin.removeForAccount(accountId);
 
-			if (Is.object(accountAdmin)) {
-				let page = await accountAdmin.query(accountId);
-				// Each page is read from the start again, as the items already read have been removed.
-				while (page.entities.length > 0) {
-					for (const item of page.entities) {
-						try {
-							await accountAdmin.remove(item.id);
-						} catch (error) {
-							// Removing an identity also removes its credentials and organizations, so a later
-							// item of the page may already be gone.
-							if (!BaseError.someErrorName(error, NotFoundError.CLASS_NAME)) {
-								throw error;
-							}
+			let page = await accountAdmin.query(accountId);
+			// Each page is read from the start again, as the items already read have been removed.
+			while (page.entities.length > 0) {
+				for (const item of page.entities) {
+					try {
+						await accountAdmin.remove(item.id);
+					} catch (error) {
+						// Removing an identity also removes its credentials and organizations, so a later
+						// item of the page may already be gone.
+						if (!BaseError.someErrorName(error, NotFoundError.CLASS_NAME)) {
+							throw error;
 						}
 					}
-					page = await accountAdmin.query(accountId);
 				}
+				page = await accountAdmin.query(accountId);
 			}
 		});
 
 		// Account ids are not reused, but the roles would otherwise be left behind for good.
-		await authorization?.component?.removeAllRolesForSubject(authorization.modelId, accountId);
+		await authorization.component.removeAllRolesForSubject(authorization.modelId, accountId);
 
 		await userEntityStorage.remove(accountId);
 	}
 
 	/**
-	 * Run a method as the system, without the caller's account, once the caller has been checked.
+	 * Get the key of a lock in the current tenant.
+	 * @param key The key, such as the e-mail address of a sign up.
+	 * @returns The lock key.
+	 */
+	public static async lockKey(key: string): Promise<string> {
+		const contextIds = await ContextIdStore.getContextIds();
+		return Converter.bytesToHex(
+			Sha256.sum256(
+				Converter.utf8ToBytes(
+					`${AccountHelper.CLASS_NAME}|${contextIds?.[ContextIdKeys.Tenant] ?? ""}|${key}`
+				)
+			)
+		);
+	}
+
+	/**
+	 * Run a method without the caller's account, user and organization, once the caller has been checked.
 	 * @param method The method to run.
 	 * @returns The result of the method.
 	 */
-	public static async runAsSystem<T>(method: () => Promise<T>): Promise<T> {
+	public static async runWithoutUser<T>(method: () => Promise<T>): Promise<T> {
 		const contextIds = await ContextIdStore.getContextIds();
 		return ContextIdStore.run(
 			{

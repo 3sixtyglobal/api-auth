@@ -37,9 +37,9 @@ import { nameof } from "@3sixty/nameof";
 import type { IProof } from "@3sixty/standards-w3c-did";
 import { EntityStorageAuthenticationAccountService } from "./entityStorageAuthenticationAccountService.js";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 import type { OrganizationRequest } from "../entities/organizationRequest.js";
 import type { IEntityStorageAuthenticationAccountAdminServiceConstructorOptions } from "../models/IEntityStorageAuthenticationAccountAdminServiceConstructorOptions.js";
-import type { IEntityStorageAuthenticationAccountServiceConstructorOptions } from "../models/IEntityStorageAuthenticationAccountServiceConstructorOptions.js";
 import { AccountDataHelper } from "../utils/accountDataHelper.js";
 import { AdminScopeHelper } from "../utils/adminScopeHelper.js";
 import { IdentityProofHelper } from "../utils/identityProofHelper.js";
@@ -85,22 +85,22 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	private readonly _accountDataEntityStorage: IEntityStorageConnector<AccountData>;
 
 	/**
-	 * The entity storage type of the registered organizations, resolved when an account is added to one.
+	 * The entity storage for the registered organizations.
 	 * @internal
 	 */
-	private readonly _organizationEntityStorageType: string;
+	private readonly _organizationEntityStorage: IEntityStorageConnector<Organization>;
 
 	/**
 	 * The authorization component used to guard accounts with escalated privilege.
 	 * @internal
 	 */
-	private readonly _authorizationComponent?: IAuthorizationComponent;
+	private readonly _authorizationComponent: IAuthorizationComponent;
 
 	/**
-	 * The identity component, when it exists.
+	 * The identity component.
 	 * @internal
 	 */
-	private readonly _identityComponent?: IIdentityComponent;
+	private readonly _identityComponent: IIdentityComponent;
 
 	/**
 	 * The role that grants escalated privilege.
@@ -127,17 +127,16 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	private readonly _verificationMethodId: string;
 
 	/**
-	 * The entity storage for the requests to join an organization, when it exists.
+	 * The entity storage for the requests to join an organization.
 	 * @internal
 	 */
-	private readonly _organizationRequestEntityStorage?: IEntityStorageConnector<OrganizationRequest>;
+	private readonly _organizationRequestEntityStorage: IEntityStorageConnector<OrganizationRequest>;
 
 	/**
-	 * The entity storage type of the users, resolved when an account is checked, as the
-	 * authentication components that register it are created after this one.
+	 * The entity storage for the users, which an account id must belong to.
 	 * @internal
 	 */
-	private readonly _userEntityStorageType: string;
+	private readonly _userEntityStorage: IEntityStorageConnector<{ accountId: string }>;
 
 	/**
 	 * The logging component, when it exists.
@@ -152,17 +151,11 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	private readonly _recentSignInSeconds: number;
 
 	/**
-	 * The options of the account service that exports and imports the account data, created when
-	 * first needed with the storage and components of this service.
+	 * The account service that exports and imports the account data, as the account does itself,
+	 * with the storage and components of this service.
 	 * @internal
 	 */
-	private readonly _accountServiceOptions: IEntityStorageAuthenticationAccountServiceConstructorOptions;
-
-	/**
-	 * The account service that exports and imports the account data, as the account does itself.
-	 * @internal
-	 */
-	private _accountService?: EntityStorageAuthenticationAccountService;
+	private readonly _accountService: EntityStorageAuthenticationAccountService;
 
 	/**
 	 * Create a new instance of EntityStorageAuthenticationAccountAdminService.
@@ -172,12 +165,13 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		this._accountDataEntityStorage = EntityStorageConnectorFactory.get(
 			options?.accountDataEntityStorageType ?? "account-data"
 		);
-		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+		this._authorizationComponent = ComponentFactory.get<IAuthorizationComponent>(
 			options?.authorizationComponentType ?? "authorization"
 		);
-		this._organizationEntityStorageType =
-			options?.organizationEntityStorageType ?? OrganizationHelper.DEFAULT_ENTITY_STORAGE_TYPE;
-		this._identityComponent = ComponentFactory.getIfExists<IIdentityComponent>(
+		this._organizationEntityStorage = EntityStorageConnectorFactory.get(
+			options?.organizationEntityStorageType ?? "organization"
+		);
+		this._identityComponent = ComponentFactory.get<IIdentityComponent>(
 			options?.identityComponentType ?? "identity-service"
 		);
 		this._escalatedPrivilegeRole =
@@ -191,26 +185,29 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		this._verificationMethodId =
 			options?.config?.verificationMethodId ??
 			EntityStorageAuthenticationAccountService.DEFAULT_VERIFICATION_METHOD_ID;
-		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.getIfExists<
+		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.get<
 			IEntityStorageConnector<OrganizationRequest>
 		>(options?.organizationRequestEntityStorageType ?? "organization-request");
-		this._userEntityStorageType = options?.userEntityStorageType ?? "authentication-user";
+		this._userEntityStorage = EntityStorageConnectorFactory.get<
+			IEntityStorageConnector<{ accountId: string }>
+		>(options?.userEntityStorageType ?? "authentication-user");
 		this._logging = ComponentFactory.getIfExists<ILoggingComponent>(
 			options?.loggingComponentType ?? "logging"
 		);
 		this._recentSignInSeconds =
 			options?.config?.recentSignInSeconds ?? RecentSignInHelper.DEFAULT_MAX_AGE_SECONDS;
-		this._accountServiceOptions = {
+		this._accountService = new EntityStorageAuthenticationAccountService({
 			accountDataEntityStorageType: options?.accountDataEntityStorageType,
 			organizationEntityStorageType: options?.organizationEntityStorageType,
 			organizationRequestEntityStorageType: options?.organizationRequestEntityStorageType,
 			identityComponentType: options?.identityComponentType,
+			authenticationRateServiceType: options?.authenticationRateServiceType,
 			loggingComponentType: options?.loggingComponentType,
 			config: {
 				verificationMethodId: options?.config?.verificationMethodId,
 				identityProofMaxAgeSeconds: options?.config?.identityProofMaxAgeSeconds
 			}
-		};
+		});
 	}
 
 	/**
@@ -256,7 +253,11 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		// Variants such as "Identity" are normalised, so the handling below can not be skipped.
 		type = AccountDataHelper.normaliseType(type);
-		const callerIsEscalated = this.callerIsEscalatedOnce();
+		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
 		await this.guardMigrationType(type, callerIsEscalated);
 		await this.guardOrganizationProfile(accountId);
 
@@ -271,15 +272,15 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		const organization = AuthenticationAccountHelper.getOrganization(data);
 		if (type === AuthenticationAccountDataType.Organization && Is.stringValue(organization)) {
 			await this.guardContextChange(accountId, callerIsEscalated);
-			await OrganizationHelper.guardRegistered(this._organizationEntityStorageType, organization);
+			await OrganizationHelper.guardRegistered(this._organizationEntityStorage, organization);
 			return PendingMembershipHelper.add(
 				this._accountDataEntityStorage,
+				this._organizationEntityStorage,
 				this._identityComponent,
 				this._verificationMethodId,
 				accountId,
 				organization,
-				isDefault,
-				this._organizationEntityStorageType
+				isDefault
 			);
 		}
 
@@ -329,8 +330,15 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		await this.guardOrganizationProfile(accountId);
 		await this.guardUser(accountId);
-		await this.guardContextChange(accountId, this.callerIsEscalatedOnce());
-		return this.accountService().createAccountIdentity(accountId);
+		await this.guardContextChange(
+			accountId,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		return this._accountService.createAccountIdentity(accountId);
 	}
 
 	/**
@@ -357,11 +365,18 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		await this.guardOrganizationProfile(accountId);
 		await this.guardUser(accountId);
-		await this.guardEscalatedTarget(accountId, this.callerIsEscalatedOnce());
+		await this.guardEscalatedTarget(
+			accountId,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
 		if (Is.stringValue(await AdminScopeHelper.callerAccount())) {
 			RecentSignInHelper.guard(sessionStart, this._recentSignInSeconds);
 		}
-		return this.accountService().exportAccountIdentity(accountId);
+		return this._accountService.exportAccountIdentity(accountId);
 	}
 
 	/**
@@ -389,8 +404,15 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		await this.guardOrganizationProfile(accountId);
 		await this.guardUser(accountId);
-		await this.guardContextChange(accountId, this.callerIsEscalatedOnce());
-		return this.accountService().importAccountIdentity(accountId, exported);
+		await this.guardContextChange(
+			accountId,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		return this._accountService.importAccountIdentity(accountId, exported);
 	}
 
 	/**
@@ -409,8 +431,15 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		await this.guardOrganizationProfile(accountId);
 		await this.guardUser(accountId);
-		await this.guardEscalatedTarget(accountId, this.callerIsEscalatedOnce());
-		return this.accountService().exportAccountProfile(accountId);
+		await this.guardEscalatedTarget(
+			accountId,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		return this._accountService.exportAccountProfile(accountId);
 	}
 
 	/**
@@ -436,8 +465,15 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		);
 		await this.guardOrganizationProfile(accountId);
 		await this.guardUser(accountId);
-		await this.guardEscalatedTarget(accountId, this.callerIsEscalatedOnce());
-		return this.accountService().importAccountProfile(accountId, profile);
+		await this.guardEscalatedTarget(
+			accountId,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		return this._accountService.importAccountProfile(accountId, profile);
 	}
 
 	/**
@@ -465,11 +501,20 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	 */
 	public async update(id: string, data: unknown, isDefault?: boolean): Promise<void> {
 		const item = await AccountDataHelper.get(this._accountDataEntityStorage, id);
-		const callerIsEscalated = this.callerIsEscalatedOnce();
+		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
 		await this.guardMigrationType(item.type, callerIsEscalated);
 		await this.guardOrganizationProfile(item.accountId);
 		await this.guardProviderAvatar(item);
-		if (this.isReservedType(item.type)) {
+		if (
+			AccountDataHelper.isType(
+				item.type,
+				...EntityStorageAuthenticationAccountAdminService._CONTEXT_TYPES
+			)
+		) {
 			await this.guardContextChange(item.accountId, callerIsEscalated);
 			AccountDataHelper.validateData(item.type, data);
 			// The id of an identity item is derived from its DID, and an organization is held with its
@@ -512,11 +557,20 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	 */
 	public async remove(id: string): Promise<void> {
 		const item = await AccountDataHelper.get(this._accountDataEntityStorage, id);
-		const callerIsEscalated = this.callerIsEscalatedOnce();
+		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
 		await this.guardMigrationType(item.type, callerIsEscalated);
 		await this.guardOrganizationProfile(item.accountId);
 		await this.guardProviderAvatar(item);
-		if (this.isReservedType(item.type)) {
+		if (
+			AccountDataHelper.isType(
+				item.type,
+				...EntityStorageAuthenticationAccountAdminService._CONTEXT_TYPES
+			)
+		) {
 			await this.guardContextChange(item.accountId, callerIsEscalated);
 		}
 
@@ -597,8 +651,6 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 		callerIsEscalated: () => Promise<boolean>,
 		proof?: IProof
 	): Promise<string> {
-		const identityComponent = this._identityComponent;
-
 		// The checks are made while holding the lock, so they hold when the identity is stored, and the
 		// cheap ones come before the proof, which resolves the DID.
 		const lockKey = AccountDataHelper.identityLockKey(accountId);
@@ -615,20 +667,14 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 				// A DID the node holds, such as its own or an organization, can not be bound.
 				await AccountDataHelper.guardIdentityAvailable(
 					this._accountDataEntityStorage,
-					this._organizationEntityStorageType,
+					this._organizationEntityStorage,
 					identity
 				);
 
 				// The DID must be shown to be owned by the account, unless the caller has escalated privilege.
 				if (!(await callerIsEscalated())) {
-					if (Is.empty(identityComponent)) {
-						throw new GeneralError(
-							EntityStorageAuthenticationAccountAdminService.CLASS_NAME,
-							"identityComponentMissing"
-						);
-					}
 					await IdentityProofHelper.verify(
-						identityComponent,
+						this._identityComponent,
 						accountId,
 						identity,
 						proof,
@@ -645,20 +691,16 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 			} finally {
 				Mutex.unlock(didLockKey);
 			}
-			if (Is.object(identityComponent)) {
-				// A failure leaves that membership without a credential rather than failing the call.
-				await PendingMembershipHelper.complete(
-					this._accountDataEntityStorage,
-					identityComponent,
-					this._verificationMethodId,
-					accountId,
-					identity,
-					{
-						organizationEntityStorageType: this._organizationEntityStorageType,
-						logging: this._logging
-					}
-				);
-			}
+			// A failure leaves that membership without a credential rather than failing the call.
+			await PendingMembershipHelper.complete(
+				this._accountDataEntityStorage,
+				this._organizationEntityStorage,
+				this._identityComponent,
+				this._verificationMethodId,
+				accountId,
+				identity,
+				{ logging: this._logging }
+			);
 			return id;
 		} finally {
 			Mutex.unlock(lockKey);
@@ -674,9 +716,6 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	 * @internal
 	 */
 	private async removeNodeIdentity(identity: string): Promise<void> {
-		if (Is.empty(this._identityComponent)) {
-			return;
-		}
 		try {
 			// The identity of an account is self-controlled, so it is its own controller.
 			await this._identityComponent.identityRemove(
@@ -736,9 +775,7 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	private async guardOrganizationProfile(accountId: string): Promise<void> {
 		if (
 			accountId.startsWith("did:") &&
-			Is.object(
-				await OrganizationHelper.findRegistered(this._organizationEntityStorageType, accountId)
-			)
+			Is.object(await OrganizationHelper.findByIdentity(this._organizationEntityStorage, accountId))
 		) {
 			throw new UnprocessableError(
 				EntityStorageAuthenticationAccountAdminService.CLASS_NAME,
@@ -748,20 +785,14 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 	}
 
 	/**
-	 * Refuse an account that does not belong to a user, checked only when the user storage exists.
+	 * Refuse an account that does not belong to a user.
 	 * @param accountId The account.
 	 * @returns A promise that resolves when the account exists.
 	 * @throws NotFoundError when it does not.
 	 * @internal
 	 */
 	private async guardUser(accountId: string): Promise<void> {
-		const userEntityStorage = EntityStorageConnectorFactory.getIfExists<
-			IEntityStorageConnector<{ accountId: string }>
-		>(this._userEntityStorageType);
-		if (Is.empty(userEntityStorage)) {
-			return;
-		}
-		const result = await userEntityStorage.query(
+		const result = await this._userEntityStorage.query(
 			{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
 			undefined,
 			["accountId"],
@@ -775,18 +806,6 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 				accountId
 			);
 		}
-	}
-
-	/**
-	 * Get the account service that exports and imports the account data, created when first needed.
-	 * @returns The service.
-	 * @internal
-	 */
-	private accountService(): EntityStorageAuthenticationAccountService {
-		this._accountService ??= new EntityStorageAuthenticationAccountService(
-			this._accountServiceOptions
-		);
-		return this._accountService;
 	}
 
 	/**
@@ -817,33 +836,6 @@ export class EntityStorageAuthenticationAccountAdminService implements IAuthenti
 				{ roleName: this._escalatedPrivilegeRole }
 			);
 		}
-	}
-
-	/**
-	 * Check whether a type grants an account its identity or organization, ignoring case.
-	 * @param type The type.
-	 * @returns True when it does.
-	 * @internal
-	 */
-	private isReservedType(type: string): boolean {
-		return AccountDataHelper.isType(
-			type,
-			...EntityStorageAuthenticationAccountAdminService._CONTEXT_TYPES
-		);
-	}
-
-	/**
-	 * Get a check of whether the caller holds escalated privilege, system calls do, that looks the
-	 * role up at most once, for a single call.
-	 * @returns The check.
-	 * @internal
-	 */
-	private callerIsEscalatedOnce(): () => Promise<boolean> {
-		return AdminScopeHelper.callerIsEscalatedOnce(
-			this._authorizationComponent,
-			this._authorizationModelId,
-			this._escalatedPrivilegeRole
-		);
 	}
 
 	/**

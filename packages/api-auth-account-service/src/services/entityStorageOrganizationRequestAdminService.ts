@@ -17,6 +17,7 @@ import {
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import type { AccountData } from "../entities/accountData.js";
+import type { Organization } from "../entities/organization.js";
 import type { OrganizationRequest } from "../entities/organizationRequest.js";
 import type { IEntityStorageOrganizationRequestAdminServiceConstructorOptions } from "../models/IEntityStorageOrganizationRequestAdminServiceConstructorOptions.js";
 import { AdminScopeHelper } from "../utils/adminScopeHelper.js";
@@ -68,10 +69,10 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	private readonly _organizationRequestEntityStorage: IEntityStorageConnector<OrganizationRequest>;
 
 	/**
-	 * The entity storage type of the registered organizations, resolved when a request is accepted.
+	 * The entity storage for the registered organizations.
 	 * @internal
 	 */
-	private readonly _organizationEntityStorageType: string;
+	private readonly _organizationEntityStorage: IEntityStorageConnector<Organization>;
 
 	/**
 	 * The identity component that issues the membership credentials.
@@ -89,7 +90,7 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	 * The authorization component used to find callers with escalated privilege.
 	 * @internal
 	 */
-	private readonly _authorizationComponent?: IAuthorizationComponent;
+	private readonly _authorizationComponent: IAuthorizationComponent;
 
 	/**
 	 * The role that grants escalated privilege, accounts holding it are only changed by callers holding it.
@@ -114,15 +115,16 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 		this._organizationRequestEntityStorage = EntityStorageConnectorFactory.get(
 			options?.organizationRequestEntityStorageType ?? "organization-request"
 		);
-		this._organizationEntityStorageType =
-			options?.organizationEntityStorageType ?? OrganizationHelper.DEFAULT_ENTITY_STORAGE_TYPE;
+		this._organizationEntityStorage = EntityStorageConnectorFactory.get(
+			options?.organizationEntityStorageType ?? "organization"
+		);
 		this._identityComponent = ComponentFactory.get<IIdentityComponent>(
 			options?.identityComponentType ?? "identity-service"
 		);
 		this._verificationMethodId =
 			options?.config?.verificationMethodId ??
 			EntityStorageOrganizationRequestAdminService.DEFAULT_VERIFICATION_METHOD_ID;
-		this._authorizationComponent = ComponentFactory.getIfExists<IAuthorizationComponent>(
+		this._authorizationComponent = ComponentFactory.get<IAuthorizationComponent>(
 			options?.authorizationComponentType ?? "authorization"
 		);
 		this._escalatedPrivilegeRole =
@@ -233,20 +235,17 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 				{ roleName: this._escalatedPrivilegeRole }
 			);
 		}
-		await OrganizationHelper.guardRegistered(
-			this._organizationEntityStorageType,
-			request.organization
-		);
+		await OrganizationHelper.guardRegistered(this._organizationEntityStorage, request.organization);
 
 		await OrganizationMembershipHelper.join(
 			this._accountDataEntityStorage,
+			this._organizationEntityStorage,
 			this._identityComponent,
 			this._verificationMethodId,
 			request.accountId,
 			request.organization,
 			undefined,
-			undefined,
-			this._organizationEntityStorageType
+			undefined
 		);
 
 		await this._organizationRequestEntityStorage.set({
@@ -307,22 +306,18 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 			value: accountId,
 			comparison: ComparisonOperator.Equals
 		};
-		// The requests are collected before removing them, keeping only exact matches as storage may
-		// compare without case.
+		// The requests are collected before removing them, as removing changes the pages a cursor
+		// would return.
 		const ids: string[] = [];
 		let cursor: string | undefined;
 		do {
 			const page = await this._organizationRequestEntityStorage.query(
 				condition,
 				undefined,
-				undefined,
+				["id"],
 				cursor
 			);
-			ids.push(
-				...page.entities
-					.filter(request => request.accountId === accountId)
-					.map(request => request.id as string)
-			);
+			ids.push(...page.entities.map(request => request.id as string));
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 		if (ids.length > 0) {
