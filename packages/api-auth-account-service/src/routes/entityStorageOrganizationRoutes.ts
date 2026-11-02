@@ -3,12 +3,16 @@
 import {
 	ExportFileHelper,
 	ExportFileType,
+	type IOrganizationAdminAddRequest,
+	type IOrganizationAdminRemoveRequest,
 	type IOrganizationComponent,
 	type IOrganizationCreateRequest,
 	type IOrganizationGetRequest,
 	type IOrganizationGetResponse,
 	type IOrganizationIdentityExportRequest,
 	type IOrganizationIdentityExportResponse,
+	type IOrganizationMemberQueryRequest,
+	type IOrganizationMemberQueryResponse,
 	type IOrganizationQueryRequest,
 	type IOrganizationQueryResponse,
 	type IOrganizationRemoveRequest,
@@ -63,14 +67,6 @@ const DEFAULT_AUTHORIZATION_ADMIN_WRITER: IRouteAuthorization = {
 };
 
 /**
- * The default authorization for changing the profiles.
- */
-const DEFAULT_AUTHORIZATION_PROFILE_WRITER: IRouteAuthorization = {
-	permission: "organization:write",
-	role: "user-admin"
-};
-
-/**
  * The tag to associate with the routes.
  */
 export const tagsOrganization: ITag[] = [
@@ -115,14 +111,15 @@ export function generateRestRoutesOrganization(
 				{
 					id: "organizationCreateRequestExample",
 					description:
-						"The request to create an organization, the caller becomes its first member.",
+						"The request to create an organization, the caller becomes its first member and org admin.",
 					request: {
 						body: {
-							publicProfile: {
+							profile: {
 								"@context": "https://schema.org",
 								"@type": "Organization",
 								name: "Example Ltd"
-							}
+							},
+							publicData: ["profile.name"]
 						}
 					}
 				},
@@ -155,11 +152,12 @@ export function generateRestRoutesOrganization(
 								},
 								nextRevocationIndex: 12
 							},
-							publicProfile: {
+							profile: {
 								"@context": "https://schema.org",
 								"@type": "Organization",
 								name: "Example Ltd"
-							}
+							},
+							publicData: ["profile.name"]
 						}
 					}
 				}
@@ -259,14 +257,15 @@ export function generateRestRoutesOrganization(
 				examples: [
 					{
 						id: "organizationSearchResponseExample",
-						description: "The organizations with their public profiles.",
+						description:
+							"The organizations with their names and the public properties of their profiles.",
 						response: {
 							body: {
 								entities: [
 									{
 										id: EXAMPLE_ORGANIZATION_ID,
 										identity: EXAMPLE_ORGANIZATION_IDENTITY,
-										publicProfile: {
+										profile: {
 											"@context": "https://schema.org",
 											"@type": "Organization",
 											name: "Example Ltd"
@@ -289,7 +288,8 @@ export function generateRestRoutesOrganization(
 
 	const getRoute: IRestRoute<IOrganizationGetRequest, IOrganizationGetResponse> = {
 		operationId: "organizationGet",
-		summary: "Get an organization, the private profile is only included for its members",
+		summary:
+			"Get an organization, the profile, logo and public data are only included for its members and admins",
 		tag: tagsOrganization[0].name,
 		method: "GET",
 		path: `${baseRouteName}/:id`,
@@ -320,12 +320,14 @@ export function generateRestRoutesOrganization(
 							body: {
 								id: EXAMPLE_ORGANIZATION_ID,
 								identity: EXAMPLE_ORGANIZATION_IDENTITY,
-								publicProfile: {
+								profile: {
 									"@context": "https://schema.org",
 									"@type": "Organization",
 									name: "Example Ltd",
 									url: "https://example.com"
 								},
+								publicData: ["profile.name"],
+								isAdmin: true,
 								dateCreated: "2026-01-12T09:05:23.123Z",
 								dateModified: "2026-01-12T09:05:23.123Z"
 							}
@@ -345,7 +347,7 @@ export function generateRestRoutesOrganization(
 
 	const updateRoute: IRestRoute<IOrganizationUpdateRequest, INoContentResponse> = {
 		operationId: "organizationUpdate",
-		summary: "Replace the profiles of an organization",
+		summary: "Change the profile, logo and public data of an organization",
 		tag: tagsOrganization[0].name,
 		method: "PUT",
 		path: `${baseRouteName}/:id`,
@@ -356,17 +358,19 @@ export function generateRestRoutesOrganization(
 			examples: [
 				{
 					id: "organizationUpdateRequestExample",
-					description: "The request to replace the public profile of an organization.",
+					description: "The request to replace the profile of an organization and its public data.",
 					request: {
 						pathParams: {
 							id: EXAMPLE_ORGANIZATION_ID
 						},
 						body: {
-							publicProfile: {
+							profile: {
 								"@context": "https://schema.org",
 								"@type": "Organization",
-								name: "Example Ltd"
-							}
+								name: "Example Ltd",
+								telephone: "+44 20 7946 0000"
+							},
+							publicData: ["profile.name", "logo"]
 						}
 					}
 				}
@@ -383,15 +387,20 @@ export function generateRestRoutesOrganization(
 				type: nameof<IForbiddenResponse>()
 			},
 			{
+				type: nameof<IUnprocessableEntityResponse>()
+			},
+			{
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_PROFILE_WRITER
+		// The service checks the caller is an org admin of the organization or an admin.
+		requiresAuthorization: false
 	};
 
 	const removeRoute: IRestRoute<IOrganizationRemoveRequest, INoContentResponse> = {
 		operationId: "organizationRemove",
-		summary: "Remove an organization that has no members",
+		summary:
+			"Remove an organization that has no members, or of which the calling org admin is the only member",
 		tag: tagsOrganization[0].name,
 		method: "DELETE",
 		path: `${baseRouteName}/:id`,
@@ -428,7 +437,157 @@ export function generateRestRoutesOrganization(
 				type: nameof<IUnauthorizedResponse>()
 			}
 		],
-		defaultAuthorization: DEFAULT_AUTHORIZATION_ADMIN_WRITER
+		// The service checks the caller is an org admin of the organization or an admin.
+		requiresAuthorization: false
+	};
+
+	const memberQueryRoute: IRestRoute<
+		IOrganizationMemberQueryRequest,
+		IOrganizationMemberQueryResponse
+	> = {
+		operationId: "organizationMemberQuery",
+		summary: "Query the members of an organization",
+		tag: tagsOrganization[0].name,
+		method: "GET",
+		path: `${baseRouteName}/:id/member`,
+		handler: async (httpRequestContext, request) =>
+			organizationMemberQuery(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IOrganizationMemberQueryRequest>(),
+			examples: [
+				{
+					id: "organizationMemberQueryRequestExample",
+					description: "The request to query the members of an organization.",
+					request: {
+						pathParams: {
+							id: EXAMPLE_ORGANIZATION_ID
+						},
+						query: {
+							limit: "10"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IOrganizationMemberQueryResponse>(),
+				examples: [
+					{
+						id: "organizationMemberQueryResponseExample",
+						description: "The members of the organization.",
+						response: {
+							body: {
+								entities: [
+									{
+										accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+										email: "alice@example.com",
+										name: "Alice Smith",
+										isAdmin: true
+									}
+								]
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		// The service checks the caller is a member, an org admin of the organization or an admin.
+		requiresAuthorization: false
+	};
+
+	const adminAddRoute: IRestRoute<IOrganizationAdminAddRequest, INoContentResponse> = {
+		operationId: "organizationAdminAdd",
+		summary: "Make a member an org admin of an organization",
+		tag: tagsOrganization[0].name,
+		method: "PUT",
+		path: `${baseRouteName}/:id/admin/:accountId`,
+		handler: async (httpRequestContext, request) =>
+			organizationAdminAdd(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IOrganizationAdminAddRequest>(),
+			examples: [
+				{
+					id: "organizationAdminAddRequestExample",
+					description: "The request to make a member an org admin.",
+					request: {
+						pathParams: {
+							id: EXAMPLE_ORGANIZATION_ID,
+							accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		// The service checks the caller is an org admin of the organization or an admin.
+		requiresAuthorization: false
+	};
+
+	const adminRemoveRoute: IRestRoute<IOrganizationAdminRemoveRequest, INoContentResponse> = {
+		operationId: "organizationAdminRemove",
+		summary: "Stop a member being an org admin of an organization",
+		tag: tagsOrganization[0].name,
+		method: "DELETE",
+		path: `${baseRouteName}/:id/admin/:accountId`,
+		handler: async (httpRequestContext, request) =>
+			organizationAdminRemove(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IOrganizationAdminRemoveRequest>(),
+			examples: [
+				{
+					id: "organizationAdminRemoveRequestExample",
+					description: "The request to stop a member being an org admin.",
+					request: {
+						pathParams: {
+							id: EXAMPLE_ORGANIZATION_ID,
+							accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IConflictResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		// The service checks the caller is an org admin of the organization or an admin.
+		requiresAuthorization: false
 	};
 
 	const exportIdentityRoute: IRestRoute<
@@ -520,6 +679,9 @@ export function generateRestRoutesOrganization(
 		getRoute,
 		updateRoute,
 		removeRoute,
+		memberQueryRoute,
+		adminAddRoute,
+		adminRemoveRoute,
 		exportIdentityRoute
 	];
 }
@@ -669,7 +831,7 @@ export async function organizationGet(
 }
 
 /**
- * Replace the profiles of an organization.
+ * Change the profile, logo and public data of an organization.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
  * @param request The request.
@@ -693,11 +855,7 @@ export async function organizationUpdate(
 	);
 
 	const component = ComponentFactory.get<IOrganizationComponent>(componentName);
-	await component.update(
-		request.pathParams.id,
-		request.body.publicProfile,
-		request.body.privateProfile
-	);
+	await component.update(request.pathParams.id, request.body);
 
 	return {
 		statusCode: HttpStatusCode.noContent
@@ -725,6 +883,89 @@ export async function organizationRemove(
 
 	const component = ComponentFactory.get<IOrganizationComponent>(componentName);
 	await component.remove(request.pathParams.id);
+
+	return {
+		statusCode: HttpStatusCode.noContent
+	};
+}
+
+/**
+ * Query the members of an organization.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function organizationMemberQuery(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IOrganizationMemberQueryRequest
+): Promise<IOrganizationMemberQueryResponse> {
+	Guards.object<IOrganizationMemberQueryRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IOrganizationMemberQueryRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IOrganizationComponent>(componentName);
+	return {
+		body: await component.queryMembers(
+			request.pathParams.id,
+			request.query?.cursor,
+			Coerce.integer(request.query?.limit)
+		)
+	};
+}
+
+/**
+ * Make a member an org admin of an organization.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function organizationAdminAdd(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IOrganizationAdminAddRequest
+): Promise<INoContentResponse> {
+	Guards.object<IOrganizationAdminAddRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IOrganizationAdminAddRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IOrganizationComponent>(componentName);
+	await component.addAdmin(request.pathParams.id, request.pathParams.accountId);
+
+	return {
+		statusCode: HttpStatusCode.noContent
+	};
+}
+
+/**
+ * Stop a member being an org admin of an organization.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function organizationAdminRemove(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IOrganizationAdminRemoveRequest
+): Promise<INoContentResponse> {
+	Guards.object<IOrganizationAdminRemoveRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IOrganizationAdminRemoveRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IOrganizationComponent>(componentName);
+	await component.removeAdmin(request.pathParams.id, request.pathParams.accountId);
 
 	return {
 		statusCode: HttpStatusCode.noContent

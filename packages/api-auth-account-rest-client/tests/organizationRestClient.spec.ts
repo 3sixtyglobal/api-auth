@@ -84,20 +84,47 @@ describe("OrganizationRestClient", () => {
 
 	test("updates and removes an organization", async () => {
 		fetchMock.mockResolvedValueOnce(noContentResponse()).mockResolvedValueOnce(noContentResponse());
-		const publicProfile = { "@context": "https://schema.org", "@type": "Organization" };
+		const profile = { "@context": "https://schema.org", "@type": "Organization" };
 
-		await client.update("org-1", publicProfile);
+		await client.update("org-1", { profile, logo: null, publicData: ["profile.name"] });
 		await client.remove("org-1");
 
 		expect(fetchMock.mock.calls[0][0]).toBe(`${ENDPOINT}/${PREFIX}/org-1`);
 		expect(fetchMock.mock.calls[0][1].method).toBe(HttpMethod.PUT);
-		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ publicProfile });
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+			profile,
+			logo: null,
+			publicData: ["profile.name"]
+		});
 		expect(fetchMock.mock.calls[1][1].method).toBe(HttpMethod.DELETE);
+	});
+
+	test("queries the members and grants and revokes org admin", async () => {
+		const members = { entities: [{ accountId: "acc-1", isAdmin: true }], cursor: "next" };
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(members))
+			.mockResolvedValueOnce(noContentResponse())
+			.mockResolvedValueOnce(noContentResponse());
+
+		await expect(client.queryMembers("org-1", "c1", 5)).resolves.toEqual(members);
+		await client.addAdmin("org-1", "acc-2");
+		await client.removeAdmin("org-1", "acc-2");
+
+		const queryUrl = new URL(fetchMock.mock.calls[0][0]);
+		expect(queryUrl.pathname).toBe(`/${PREFIX}/org-1/member`);
+		expect(queryUrl.searchParams.get("limit")).toBe("5");
+		expect(fetchMock.mock.calls[1][0]).toBe(`${ENDPOINT}/${PREFIX}/org-1/admin/acc-2`);
+		expect(fetchMock.mock.calls[1][1].method).toBe(HttpMethod.PUT);
+		expect(fetchMock.mock.calls[2][0]).toBe(`${ENDPOINT}/${PREFIX}/org-1/admin/acc-2`);
+		expect(fetchMock.mock.calls[2][1].method).toBe(HttpMethod.DELETE);
 	});
 
 	test("guards the arguments", async () => {
 		await expect(client.get("")).rejects.toMatchObject({ name: GuardError.CLASS_NAME });
 		await expect(client.remove("")).rejects.toMatchObject({ name: GuardError.CLASS_NAME });
+		await expect(client.addAdmin("org-1", "")).rejects.toMatchObject({
+			name: GuardError.CLASS_NAME
+		});
 		await expect(client.create(undefined as never)).rejects.toMatchObject({
 			name: GuardError.CLASS_NAME
 		});

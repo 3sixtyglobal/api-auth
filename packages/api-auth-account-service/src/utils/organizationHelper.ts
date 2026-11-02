@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { AuthenticationAccountHelper } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { Guards, Is, NotFoundError, RandomHelper } from "@3sixty/core";
+import { GeneralError, Guards, Is, NotFoundError, RandomHelper } from "@3sixty/core";
 import { ComparisonOperator } from "@3sixty/entity";
 import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
+import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
+import { DidVerificationMethodType } from "@3sixty/standards-w3c-did";
 import type { AccountData } from "../entities/accountData.js";
 import type { Organization } from "../entities/organization.js";
 
@@ -228,30 +230,30 @@ export class OrganizationHelper {
 	}
 
 	/**
-	 * Get the search name of a public profile, its name in lower case.
-	 * @param publicProfile The public profile.
+	 * Get the search name of a profile, its name in lower case.
+	 * @param profile The profile.
 	 * @returns The search name, empty when the profile has no name.
 	 */
-	public static searchName(publicProfile: unknown): string {
-		const name = Is.object<{ name?: unknown }>(publicProfile) ? publicProfile.name : undefined;
+	public static searchName(profile: unknown): string {
+		const name = Is.object<{ name?: unknown }>(profile) ? profile.name : undefined;
 		return Is.string(name)
 			? name.trim().toLowerCase().slice(0, OrganizationHelper._SEARCH_NAME_MAX_LENGTH)
 			: "";
 	}
 
 	/**
-	 * Store the search name of an organization from its public profile, when it has changed.
+	 * Store the search name of an organization from its profile, when it has changed.
 	 * @param storage The entity storage for the organizations.
 	 * @param organization The organization.
-	 * @param publicProfile The public profile.
+	 * @param profile The profile.
 	 * @returns The organization as stored.
 	 */
 	public static async storeSearchName(
 		storage: IEntityStorageConnector<Organization>,
 		organization: Organization,
-		publicProfile: unknown
+		profile: unknown
 	): Promise<Organization> {
-		const searchName = OrganizationHelper.searchName(publicProfile);
+		const searchName = OrganizationHelper.searchName(profile);
 		if (searchName === organization.searchName) {
 			return organization;
 		}
@@ -261,6 +263,43 @@ export class OrganizationHelper {
 			current => ({ ...current, searchName })
 		);
 		return updated ?? organization;
+	}
+
+	/**
+	 * Create a DID controlled by the node for an organization, with the verification method that signs
+	 * membership credentials.
+	 * @param identityComponent The identity component.
+	 * @param nodeIdentity The DID of the node, the controller.
+	 * @param verificationMethodId The verification method to add.
+	 * @returns The DID.
+	 * @throws GeneralError when the DID can not be created.
+	 */
+	public static async createNodeIdentity(
+		identityComponent: IIdentityComponent,
+		nodeIdentity: string,
+		verificationMethodId: string
+	): Promise<string> {
+		const document = await identityComponent.identityCreate(undefined, nodeIdentity);
+		if (!Is.stringValue(document.id) || !document.id.startsWith("did:")) {
+			throw new GeneralError(OrganizationHelper.CLASS_NAME, "identityCreateFailed");
+		}
+
+		try {
+			await identityComponent.verificationMethodCreate(
+				document.id,
+				DidVerificationMethodType.AssertionMethod,
+				verificationMethodId,
+				nodeIdentity
+			);
+		} catch (error) {
+			await identityComponent.identityRemove(
+				document.id,
+				{ removeKeys: true, removeDocumentKey: true },
+				nodeIdentity
+			);
+			throw error;
+		}
+		return document.id;
 	}
 
 	/**

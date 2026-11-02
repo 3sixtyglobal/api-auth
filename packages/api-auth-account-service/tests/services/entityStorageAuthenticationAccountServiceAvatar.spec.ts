@@ -14,7 +14,7 @@ import { EntityStorageAuthenticationAccountService } from "../../src/services/en
 import { AccountDataHelper } from "../../src/utils/accountDataHelper.js";
 import { createFakeIdentityComponent } from "../helpers/fakeIdentityComponent.js";
 import {
-	createAuthorizationComponent,
+	createRoleAuthorizationComponent,
 	createOrganizationStorage,
 	createRateComponent,
 	createUserStorage,
@@ -90,7 +90,7 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 		});
 		vi.spyOn(ComponentFactory, "getIfExists").mockReturnValue(undefined);
 		mockRequiredComponents({
-			authorization: createAuthorizationComponent(),
+			authorization: createRoleAuthorizationComponent({ "admin-1": ["global-admin"] }),
 			"identity-service": createFakeIdentityComponent(),
 			"authentication-rate": createRateComponent()
 		});

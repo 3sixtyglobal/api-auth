@@ -36,4 +36,17 @@ export interface IEntityStorageAuthenticationAccountAdminServiceConfig {
 	 * @default 300
 	 */
 	recentSignInSeconds?: number;
+
+	/**
+	 * The roles a caller holding escalated privilege may always grant and revoke, with the escalated
+	 * privilege role and every role in use, such as tenant-admin when tenants are enabled.
+	 * @default ["user-admin"]
+	 */
+	assignableRoles?: string[];
+
+	/**
+	 * The prefix of the org admin role of an organization, followed by its DID.
+	 * @default org-admin:
+	 */
+	organizationAdminRolePrefix?: string;
 }

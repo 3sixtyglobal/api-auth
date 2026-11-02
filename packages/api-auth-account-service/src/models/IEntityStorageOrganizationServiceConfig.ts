@@ -55,4 +55,10 @@ export interface IEntityStorageOrganizationServiceConfig {
 	 * @default { maxAttempts: 5, windowMinutes: 15 }
 	 */
 	importIdentityRateLimit?: IAuthenticationRateActionConfig;
+
+	/**
+	 * The prefix of the org admin role of an organization, followed by its DID.
+	 * @default org-admin:
+	 */
+	organizationAdminRolePrefix?: string;
 }

@@ -173,7 +173,7 @@ describe("EntityStorageAuthenticationAccountRestClient", () => {
 		const profile = {
 			type: ExportFileType.AccountProfile,
 			version: 1,
-			items: [{ type: "public-profile", data: { name: "A" } }]
+			items: [{ type: "profile", data: { name: "A" } }]
 		};
 		const result = { itemsImported: 1, itemsRemoved: 0, skippedTypes: [] };
 		fetchMock
@@ -208,6 +208,40 @@ describe("EntityStorageAuthenticationAccountRestClient", () => {
 		expect(url).toBe(`${ENDPOINT}/${prefix}/organization`);
 		expect(JSON.parse(options.body)).toEqual({ organization: "did:example:org" });
 		await expect(client.joinOrganization("")).rejects.toMatchObject({
+			name: GuardError.CLASS_NAME
+		});
+	});
+
+	test("creates an organization for the account", async () => {
+		const organization = { id: "org-1", identity: "did:example:org", isAdmin: true };
+		fetchMock.mockResolvedValueOnce(jsonResponse(organization));
+		const details = { profile: { name: "Example Ltd" }, publicData: ["profile.name"] };
+
+		await expect(client.createOrganization(details)).resolves.toEqual(organization);
+
+		const [url, options] = fetchMock.mock.calls[0];
+		expect(url).toBe(`${ENDPOINT}/${prefix}/organization/create`);
+		expect(options.method).toBe(HttpMethod.POST);
+		expect(JSON.parse(options.body)).toEqual(details);
+		await expect(client.createOrganization(undefined as never)).rejects.toMatchObject({
+			name: GuardError.CLASS_NAME
+		});
+	});
+
+	test("gets the public data by identity and by account", async () => {
+		const objects = [{ "@type": "Organization", name: "Example Ltd" }];
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(objects))
+			.mockResolvedValueOnce(jsonResponse(objects));
+
+		await expect(client.getPublicDataByIdentity("did:example:org")).resolves.toEqual(objects);
+		await expect(client.getPublicDataByAccount("account-1")).resolves.toEqual(objects);
+
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			`${ENDPOINT}/${prefix}/public/identity/did:example:org`
+		);
+		expect(fetchMock.mock.calls[1][0]).toBe(`${ENDPOINT}/${prefix}/public/account/account-1`);
+		await expect(client.getPublicDataByIdentity("")).rejects.toMatchObject({
 			name: GuardError.CLASS_NAME
 		});
 	});
@@ -281,6 +315,59 @@ describe("EntityStorageAuthenticationAccountAdminRestClient", () => {
 			data: "did:example:1",
 			proof
 		});
+	});
+
+	test("creates and updates an item only admins may see", async () => {
+		fetchMock
+			.mockResolvedValueOnce(createdResponse(`${ENDPOINT}/${prefix}/item-1`))
+			.mockResolvedValueOnce(noContentResponse());
+
+		await client.create("account-1", "note", { text: "a" }, undefined, undefined, true);
+		await client.update("item-1", { text: "b" }, undefined, false);
+
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+			accountId: "account-1",
+			type: "note",
+			data: { text: "a" },
+			adminOnly: true
+		});
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+			data: { text: "b" },
+			adminOnly: false
+		});
+	});
+
+	test("gets, grants and revokes the roles of an account", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ roles: ["user"] }))
+			.mockResolvedValueOnce(jsonResponse({ roles: ["user", "user-admin"] }))
+			.mockResolvedValueOnce(noContentResponse())
+			.mockResolvedValueOnce(noContentResponse());
+
+		await expect(client.getRoles("account-1")).resolves.toEqual(["user"]);
+		await expect(client.getAssignableRoles()).resolves.toEqual(["user", "user-admin"]);
+		await client.addRole("account-1", "user-admin");
+		await client.removeRole("account-1", "user-admin");
+
+		expect(fetchMock.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+			[`${ENDPOINT}/${prefix}/account-1/roles`, HttpMethod.GET],
+			[`${ENDPOINT}/${prefix}/roles/assignable`, HttpMethod.GET],
+			[`${ENDPOINT}/${prefix}/account-1/roles/user-admin`, HttpMethod.PUT],
+			[`${ENDPOINT}/${prefix}/account-1/roles/user-admin`, HttpMethod.DELETE]
+		]);
+		await expect(client.addRole("account-1", "")).rejects.toMatchObject({
+			name: GuardError.CLASS_NAME
+		});
+	});
+
+	test("gets the accounts the caller manages", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ accountIds: ["account-1"] }))
+			.mockResolvedValueOnce(jsonResponse({}));
+
+		await expect(client.getManagedAccounts()).resolves.toEqual(["account-1"]);
+		await expect(client.getManagedAccounts()).resolves.toBeUndefined();
+		expect(fetchMock.mock.calls[0][0]).toBe(`${ENDPOINT}/${prefix}/managed`);
 	});
 
 	test("guards the account id", async () => {

@@ -6,7 +6,7 @@ Store data such as the profile, identity, organization and verifiable credential
 
 The service works on the data of the signed in account, taken from the request context. The account cannot set its own identity or organization, these are only set through `adoptIdentity`, `joinOrganization` or the admin service. Verifiable credential items, `vc`, are written by the node when it issues a membership credential, the account can also store, change and remove its own, membership is only recognised from credentials that verify.
 
-Types are compared exactly. A type that differs from a known type, such as `identity`, `organization`, `vc`, `publicProfile`, `privateProfile` or `migration`, only by case or surrounding whitespace is refused with an `UnprocessableError`, reserved types are matched ignoring case, and results are filtered again in code, so storage that compares without case cannot return or clear the items of another type.
+Types are compared exactly. A type that differs from a known type, such as `identity`, `organization`, `vc`, `profile`, `publicData` or `migration`, only by case or surrounding whitespace is refused with an `UnprocessableError`, reserved types are matched ignoring case, and results are filtered again in code, so storage that compares without case cannot return or clear the items of another type.
 
 ```typescript
 import { AuthenticationAccountDataType } from '@3sixty/api-auth-models';
@@ -14,11 +14,21 @@ import { EntityStorageAuthenticationAccountService } from '@3sixty/api-auth-acco
 
 const accountService = new EntityStorageAuthenticationAccountService();
 
-await accountService.create(AuthenticationAccountDataType.PublicProfile, {
+await accountService.create(AuthenticationAccountDataType.Profile, {
   '@context': 'https://schema.org',
   '@type': 'Person',
   name: 'Alice'
 });
+
+// Choose what is public, a path names a type and optionally a nested property.
+await accountService.create(AuthenticationAccountDataType.PublicData, {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  itemListElement: ['profile.name']
+});
+
+// Any caller reads the public data by DID, a signed in account also by account or organization id.
+const published = await accountService.getPublicDataByIdentity('did:example:alice');
 
 // Any other type can be stored, one row per item.
 await accountService.create('address', { postalCode: 'AB1 2CD' });
@@ -26,6 +36,10 @@ await accountService.create('address', { postalCode: 'AB1 2CD' });
 // Each credential issued by the node is its own item.
 const credentials = await accountService.query(AuthenticationAccountDataType.VerifiableCredential);
 ```
+
+Admins can store items only admins may see and change, `adminOnly`. The account never sees them, `get`, `update` and `remove` report them as missing, `query` and `exportProfile` leave them out, an import neither removes nor replaces them, and creating an item of a type it holds as admin only is refused with a `ConflictError`, `accountDataAdminOnly`. They are never published.
+
+An account with an identity and no organization or pending request can create an organization with `createOrganization`. The node creates and holds its DID, the account becomes its member with a membership credential issued by the organization, and holds its org admin role, `org-admin:` followed by the DID by default, `organizationAdminRolePrefix` in the configuration. An organization identity export may be given as `identityImport`, as an admin may when creating one, so an organization moved from another node keeps its DID: the file's type is checked first, the node then imports and holds the keys, and the revocation index carries on from the export or the highest index the DID reached here. A DID already registered answers `organizationExists`, one held by an account or the node `organizationIdentityInUse`, one whose keys the node already holds `identityImportConflict`, and a file whose keys do not match `identityExportInvalid`.
 
 An account may store at most `maxItems` items itself, 1000 by default, and at most the number in `maxItemsByType` of a type, `{ vc: 200 }` by default, merged with what is configured. A create beyond either is refused with an `UnprocessableError`, `accountDataLimitReached` or `accountDataTypeLimitReached`. The items the node stores, such as the identity, organizations and imported credentials, count towards the limits but are never refused. Concurrent creates can go slightly over a limit. The node migration records are not listed by `query` or returned by `get` of the account itself.
 
@@ -205,9 +219,20 @@ await OrganizationMembershipHelper.join(
 await requestAdmin.reject(pending.entities[1].id, 'organizationRequest.reason.notAMember');
 ```
 
+### Roles
+
+The account admin service also manages the roles of the accounts. A caller holding escalated privilege grants and revokes any role on any account, including `global-admin`, and may always grant the roles in `assignableRoles`, `user-admin` by default, and `tenant-admin` when the node enables tenants, even before any account holds them. Revoking `global-admin` from its last holder is refused with a `ConflictError`. A scoped user-admin only changes the accounts it manages, never its own and never one holding escalated privilege, and only with the roles it holds other than `global-admin`, so it can make another member a user-admin. The org admin roles are refused with an `UnprocessableError`, they are managed through the organization. The authorization component is called in the context of the caller, so its own escalation checks also apply.
+
+```typescript
+const assignable = await adminService.getAssignableRoles();
+await adminService.addRole(accountId, 'user-admin');
+const roles = await adminService.getRoles(accountId);
+await adminService.removeRole(accountId, 'user-admin');
+```
+
 ## EntityStorageOrganizationService
 
-The organization service registers organizations on the node, inside the partition of the caller's tenant. An organization has an internal id and a DID held by no other organization, and its public and private profiles are account data owned by its DID. Callers holding the escalated privilege role or the member admin role, `user-admin` by default, create, list, update and remove every organization of the tenant, and any signed in account reads the public profile or searches the organizations by name, the private profile is only returned to members and admins. The name of the public profile is also stored in lower case on the organization, so a search matches the start of the name without case. The profiles are only changed through this service, so the two stay in step, and the account data admin service refuses to change the items of a registered organization. The signed in caller is always the first member, an account named in the request is ignored. The first member is given the member admin role and the organization becomes its default when it has none. A system call, such as from the node CLI, has no account, so the organization is created without members.
+The organization service registers organizations on the node, inside the partition of the caller's tenant. An organization has an internal id and a DID held by no other organization, and its profile, logo and public data are account data owned by its DID. Callers holding the escalated privilege role manage every organization of the tenant. The org admins of an organization, who hold `org-admin:` followed by its DID, change its profile, logo and public data, list its members, grant and revoke org admin, an org admin cannot revoke the last one, and remove it when they are its only member. Callers holding the member admin role, `user-admin` by default, also create organizations and list, export and remove those they are an org admin of, and manage the organization of the tenant. Members and admins read the profile, logo and public data paths, any other signed in account reads the public data, `public`, and a search returns the public data with the name. The name of the profile is also stored in lower case on the organization, so a search matches the start of the name without case. The account data admin service refuses to change the items of a registered organization. The signed in caller is always the first member and its org admin, an account named in the request is ignored, and the organization becomes its default when it has none. A system call, such as from the node CLI, has no account, so the organization is created without members. Ending a membership removes the org admin role of that organization, and removing an organization removes it from every account. Being made an org admin, on creating an organization or by a grant, also gives the account the member admin role, and taking its last org admin role, however it is taken, takes the member admin role too, while an org admin of another organization keeps it. The last org admin of an organization cannot leave it, `leaveOrganization` answers `organizationLastAdmin`, so another member is made an org admin first, or the organization is removed by its only member.
 
 An existing DID registered as an organization must not be held by an account, and callers other than system calls include a recent proof by the DID over the organization proof document, with the same rules as an identity proof.
 
@@ -219,11 +244,26 @@ const organizationService = new EntityStorageOrganizationService({
 });
 
 // Without a DID, a DID controlled by the node is created with the trust-assertion verification
-// method. The caller joins the organization as its first member, no role is given as creating an
-// organization already needs the user-admin role or escalated privilege.
+// method. The caller joins the organization as its first member and org admin.
 const organization = await organizationService.create({
-  publicProfile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' }
+  profile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' },
+  publicData: ['profile.name']
 });
+
+// Change the logo and what is public.
+await organizationService.update(organization.id, {
+  logo: {
+    '@context': 'https://schema.org',
+    '@type': 'ImageObject',
+    encodingFormat: 'image/png',
+    contentUrl: 'data:image/png;base64,iVBORw0KGgo='
+  },
+  publicData: ['profile.name', 'logo']
+});
+
+// List the members, make one an org admin.
+const members = await organizationService.queryMembers(organization.id);
+await organizationService.addAdmin(organization.id, members.entities[0].accountId);
 
 // An existing DID can be registered instead, with a proof by it over the organization proof document.
 const document = AuthenticationAccountHelper.organizationProofDocument(
@@ -241,10 +281,10 @@ await organizationService.create({ identity: 'did:example:partner', proof });
 // Read by the internal id or by the DID.
 const byDid = await organizationService.get(organization.identity);
 
-// Find the organizations whose name starts with the text, without case, with their public profiles.
+// Find the organizations whose name starts with the text, without case, with their public data.
 const found = await organizationService.search('exam', 10);
 
-// An organization is only removed once it has no members.
+// An organization is only removed once it has no members, or by its org admin as its only member.
 await organizationService.remove('did:example:partner');
 ```
 
@@ -256,7 +296,7 @@ An admin can export the identity of an organization whose keys the node holds, w
 const exported = await organizationService.exportIdentity(organization.id, sessionStart);
 
 // On another node, or after the organization was removed from this one.
-await organizationService.create({ identityImport: exported, publicProfile });
+await organizationService.create({ identityImport: exported, profile });
 ```
 
 When the organization storage is configured, accounts can only ask to join, be added to, or be accepted into registered organizations, and the organization of the tenant, or of the node when single tenant, is always accepted.

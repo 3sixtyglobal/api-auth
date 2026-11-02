@@ -25,6 +25,12 @@ export interface IEntityStorageAuthenticationAccountServiceConstructorOptions {
 	identityComponentType?: string;
 
 	/**
+	 * The authorization component that holds the org admin roles.
+	 * @default authorization
+	 */
+	authorizationComponentType?: string;
+
+	/**
 	 * The rate component used to limit adopting, exporting and importing.
 	 * @default authentication-rate
 	 */

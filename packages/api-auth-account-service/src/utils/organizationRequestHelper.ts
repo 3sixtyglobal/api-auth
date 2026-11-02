@@ -140,7 +140,7 @@ export class OrganizationRequestHelper {
 	 * Query the requests, the earliest first.
 	 * @param storage The entity storage for the requests.
 	 * @param status The status of the requests to return, all when omitted.
-	 * @param organization The organization of the requests to return, all when omitted.
+	 * @param organization The organization, or organizations, of the requests to return, all when omitted.
 	 * @param cursor The cursor to request the next page.
 	 * @param limit The maximum number of requests to return.
 	 * @returns The requests and a cursor when there are more.
@@ -148,7 +148,7 @@ export class OrganizationRequestHelper {
 	public static async query(
 		storage: IEntityStorageConnector<OrganizationRequest>,
 		status?: OrganizationRequestStatus,
-		organization?: string,
+		organization?: string | string[],
 		cursor?: string,
 		limit?: number
 	): Promise<{
@@ -157,19 +157,13 @@ export class OrganizationRequestHelper {
 	}> {
 		const conditions: {
 			property: string;
-			value: string;
+			value: string | string[];
 			comparison: (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
 		}[] = [];
 		if (Is.stringValue(status)) {
 			conditions.push({ property: "status", value: status, comparison: ComparisonOperator.Equals });
 		}
-		if (Is.stringValue(organization)) {
-			conditions.push({
-				property: "organization",
-				value: organization,
-				comparison: ComparisonOperator.Equals
-			});
-		}
+		OrganizationRequestHelper.addOrganizationCondition(conditions, organization);
 
 		const result = await storage.query(
 			conditions.length > 0 ? { conditions, logicalOperator: LogicalOperator.And } : undefined,
@@ -191,28 +185,22 @@ export class OrganizationRequestHelper {
 	 * cap.
 	 * @param storage The entity storage for the requests.
 	 * @param status The status of the requests to count.
-	 * @param organization The organization of the requests to count, all when omitted.
+	 * @param organization The organization, or organizations, of the requests to count, all when omitted.
 	 * @param cap The most requests counted.
 	 * @returns The number of requests, the cap when there are more, and whether there are more.
 	 */
 	public static async count(
 		storage: IEntityStorageConnector<OrganizationRequest>,
 		status: OrganizationRequestStatus,
-		organization: string | undefined,
+		organization: string | string[] | undefined,
 		cap: number = OrganizationRequestHelper.COUNT_CAP
 	): Promise<{ count: number; capped: boolean }> {
 		const conditions: {
 			property: string;
-			value: string;
+			value: string | string[];
 			comparison: (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
 		}[] = [{ property: "status", value: status, comparison: ComparisonOperator.Equals }];
-		if (Is.stringValue(organization)) {
-			conditions.push({
-				property: "organization",
-				value: organization,
-				comparison: ComparisonOperator.Equals
-			});
-		}
+		OrganizationRequestHelper.addOrganizationCondition(conditions, organization);
 
 		let count = 0;
 		let cursor: string | undefined;
@@ -230,6 +218,35 @@ export class OrganizationRequestHelper {
 		} while (Is.stringValue(cursor) && count <= cap);
 
 		return count > cap ? { count: cap, capped: true } : { count, capped: false };
+	}
+
+	/**
+	 * Add the condition on the organization of the requests.
+	 * @param conditions The conditions to add to.
+	 * @param organization The organization, or organizations, none when omitted.
+	 * @internal
+	 */
+	private static addOrganizationCondition(
+		conditions: {
+			property: string;
+			value: string | string[];
+			comparison: (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
+		}[],
+		organization: string | string[] | undefined
+	): void {
+		if (Is.array<string>(organization)) {
+			conditions.push({
+				property: "organization",
+				value: organization,
+				comparison: ComparisonOperator.In
+			});
+		} else if (Is.stringValue(organization)) {
+			conditions.push({
+				property: "organization",
+				value: organization,
+				comparison: ComparisonOperator.Equals
+			});
+		}
 	}
 
 	/**

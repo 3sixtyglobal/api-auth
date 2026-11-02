@@ -54,7 +54,8 @@ export class AccountProfileHelper {
 	];
 
 	/**
-	 * Export the account data of an account, other than the excluded types, in creation order.
+	 * Export the account data of an account, other than the excluded types and the items only admins
+	 * may see, in creation order.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @returns The export.
@@ -80,8 +81,9 @@ export class AccountProfileHelper {
 	 * Replace the account data of an account with an export. The export is checked in full first,
 	 * then its items are created, and only then are the existing items of the types it may hold
 	 * removed, so a failure leaves the existing items. The types of which the account holds a read
-	 * only item, such as a profile owned by an authentication provider, are left as they are, and
-	 * read only items in the export are left out.
+	 * only item, such as a profile owned by an authentication provider, or an item only admins may
+	 * see, are left as they are, and read only items in the export are left out. The items only
+	 * admins may see are never removed.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
 	 * @param profile The export.
@@ -100,10 +102,12 @@ export class AccountProfileHelper {
 		Guards.stringValue(AccountProfileHelper.CLASS_NAME, nameof(accountId), accountId);
 		const items = AccountProfileHelper.validate(profile, limits);
 
-		const existing = await AccountProfileHelper.loadItems(storage, accountId);
+		const existing = await AccountProfileHelper.loadItems(storage, accountId, true);
 		const readOnlyTypes = new Set(
 			existing
-				.filter(item => AuthenticationAccountHelper.isReadOnly(item.data))
+				.filter(
+					item => item.adminOnly === true || AuthenticationAccountHelper.isReadOnly(item.data)
+				)
 				.map(item => item.type)
 		);
 
@@ -156,7 +160,9 @@ export class AccountProfileHelper {
 			);
 		}
 
-		const toRemove = existing.filter(item => !readOnlyTypes.has(item.type));
+		const toRemove = existing.filter(
+			item => !readOnlyTypes.has(item.type) && item.adminOnly !== true
+		);
 		for (const item of toRemove) {
 			await AccountDataHelper.removeItem(storage, item);
 		}
@@ -228,12 +234,14 @@ export class AccountProfileHelper {
 	 * Read the items of an account other than the excluded types, in creation order.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
+	 * @param includeAdminOnly True to include the items only admins may see.
 	 * @returns The items.
 	 * @internal
 	 */
 	private static async loadItems(
 		storage: IEntityStorageConnector<AccountData>,
-		accountId: string
+		accountId: string,
+		includeAdminOnly?: boolean
 	): Promise<IAuthenticationAccountData[]> {
 		const items: IAuthenticationAccountData[] = [];
 		let cursor: string | undefined;
@@ -244,7 +252,8 @@ export class AccountProfileHelper {
 				undefined,
 				cursor,
 				undefined,
-				AccountProfileHelper.EXCLUDED_TYPES
+				AccountProfileHelper.EXCLUDED_TYPES,
+				includeAdminOnly !== true
 			);
 			items.push(...page.entities);
 			cursor = page.cursor;

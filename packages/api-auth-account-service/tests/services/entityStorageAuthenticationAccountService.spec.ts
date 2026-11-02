@@ -187,11 +187,11 @@ describe("EntityStorageAuthenticationAccountService", () => {
 
 	it("should store and read items of the types the account may set", async () => {
 		await asAccount("account-1", async () => {
-			const profileId = await service.create("public-profile", { name: "Alice" });
+			const profileId = await service.create("profile", { name: "Alice" });
 
 			await expect(service.get(profileId)).resolves.toMatchObject({
 				accountId: "account-1",
-				type: "public-profile",
+				type: "profile",
 				data: { name: "Alice" },
 				dateCreated: expect.any(String),
 				dateModified: expect.any(String)
@@ -203,7 +203,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 		await asAccount("account-1", async () => {
 			await service.create("address", { id: "address-1" });
 			await service.create("address", { id: "address-2" });
-			await service.create("public-profile", { name: "Alice" });
+			await service.create("profile", { name: "Alice" });
 
 			const result = await service.query("address");
 
@@ -284,11 +284,11 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			}
 			await expect(service.create("   ", { a: 1 })).rejects.toThrow();
 
-			const profileId = await service.create(" PublicProfile ", { name: "Alice" });
+			const profileId = await service.create(" ContactDetails ", { name: "Alice" });
 			const vcId = await service.create("Vc", credentialData("vc-1"));
 			const customId = await service.create("myType", { a: 1 });
 
-			await expect(service.get(profileId)).resolves.toMatchObject({ type: "public-profile" });
+			await expect(service.get(profileId)).resolves.toMatchObject({ type: "contact-details" });
 			await expect(service.get(vcId)).resolves.toMatchObject({ type: "vc" });
 			await expect(service.get(customId)).resolves.toMatchObject({ type: "my-type" });
 			for (const type of ["MyType", "my_type", "my type", "my-type"]) {
@@ -296,7 +296,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 					entities: [{ id: customId }]
 				});
 			}
-			await expect(service.query("publicProfile")).resolves.toMatchObject({
+			await expect(service.query("contactDetails")).resolves.toMatchObject({
 				entities: [{ id: profileId }]
 			});
 		});
@@ -304,10 +304,10 @@ describe("EntityStorageAuthenticationAccountService", () => {
 
 	it("should convert a type to kebab case", () => {
 		for (const [type, expected] of [
-			["publicProfile", "public-profile"],
-			["PublicProfile", "public-profile"],
-			["public_profile", "public-profile"],
-			[" public profile ", "public-profile"],
+			["contactDetails", "contact-details"],
+			["ContactDetails", "contact-details"],
+			["contact_details", "contact-details"],
+			[" contact details ", "contact-details"],
 			["Identity", "identity"],
 			["IPAddress", "i-p-address"],
 			["address2Line", "address2-line"],
@@ -343,7 +343,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 
 	it("should update and remove its own items", async () => {
 		await asAccount("account-1", async () => {
-			const id = await service.create("public-profile", { name: "Alice" });
+			const id = await service.create("profile", { name: "Alice" });
 
 			await service.update(id, { name: "Bob" });
 			await expect(service.get(id)).resolves.toMatchObject({ data: { name: "Bob" } });
@@ -356,7 +356,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 	it("should not let the account change a profile owned by the authentication provider", async () => {
 		const privateId = await admin.create(
 			"account-1",
-			"private-profile",
+			"profile",
 			AuthenticationAccountHelper.markReadOnly({ email: "alice@example.com" }),
 			true
 		);
@@ -370,11 +370,11 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			});
 			await expect(service.remove(privateId)).rejects.toMatchObject({ name: "ForbiddenError" });
 			await expect(
-				service.create("private-profile", { email: "mallory@example.com" }, true)
+				service.create("profile", { email: "mallory@example.com" }, true)
 			).rejects.toMatchObject({ name: "ForbiddenError" });
 
-			// Other types, and a profile type the provider does not own, can still be stored.
-			await expect(service.create("public-profile", { name: "Alice" })).resolves.toBeDefined();
+			// Other types can still be stored.
+			await expect(service.create("contact-details", { name: "Alice" })).resolves.toBeDefined();
 			await expect(service.create("address", { id: "address-1" })).resolves.toBeDefined();
 		});
 		await expect(admin.get(privateId)).resolves.toMatchObject({
@@ -385,11 +385,11 @@ describe("EntityStorageAuthenticationAccountService", () => {
 	it("should not let another profile become the default in place of one owned by the provider", async () => {
 		await admin.create(
 			"account-1",
-			"public-profile",
+			"profile",
 			AuthenticationAccountHelper.markReadOnly({ name: "Provider" }),
 			true
 		);
-		const otherId = await admin.create("account-1", "public-profile", { name: "Mine" });
+		const otherId = await admin.create("account-1", "profile", { name: "Mine" });
 
 		await asAccount("account-1", async () => {
 			await expect(service.update(otherId, { name: "Mine" }, true)).rejects.toMatchObject({
@@ -460,7 +460,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 
 	it("should not reveal, change or remove the items of another account", async () => {
 		const otherId = await asAccount("account-2", async () =>
-			service.create("public-profile", { name: "Other" })
+			service.create("profile", { name: "Other" })
 		);
 
 		await asAccount("account-1", async () => {
@@ -474,7 +474,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 	});
 
 	it("should require a signed in account", async () => {
-		await expect(service.create("public-profile", {})).rejects.toThrow();
+		await expect(service.create("profile", {})).rejects.toThrow();
 		await expect(service.query()).rejects.toThrow();
 		await expect(service.adoptIdentity(undefined, undefined, nowSeconds())).rejects.toThrow();
 	});
@@ -482,7 +482,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 	it("should require a type and a value", async () => {
 		await asAccount("account-1", async () => {
 			await expect(service.create("", {})).rejects.toThrow();
-			await expect(service.create("public-profile", undefined)).rejects.toThrow();
+			await expect(service.create("profile", undefined)).rejects.toThrow();
 		});
 	});
 
@@ -1008,7 +1008,7 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 	});
 
 	it("should manage the items of any account", async () => {
-		const id = await admin.create("account-1", "public-profile", { name: "Alice" });
+		const id = await admin.create("account-1", "profile", { name: "Alice" });
 		await admin.create("account-2", "organization", organizationData("did:example:org-2"));
 
 		await admin.update(id, { name: "Bob" });
@@ -1022,9 +1022,9 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 	});
 
 	it("should keep a single default per type when one is set", async () => {
-		const first = await admin.create("account-1", "public-profile", { name: "One" }, true);
-		const second = await admin.create("account-1", "public-profile", { name: "Two" }, true);
-		const other = await admin.create("account-2", "public-profile", { name: "Three" }, true);
+		const first = await admin.create("account-1", "profile", { name: "One" }, true);
+		const second = await admin.create("account-1", "profile", { name: "Two" }, true);
+		const other = await admin.create("account-2", "profile", { name: "Three" }, true);
 
 		await expect(admin.get(first)).resolves.toMatchObject({ isDefault: false });
 		await expect(admin.get(second)).resolves.toMatchObject({ isDefault: true });
@@ -1203,7 +1203,7 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 		});
 	});
 
-	describe("escalated privilege and tenant wide admins", () => {
+	describe("escalated privilege and scoped admins", () => {
 		// Roles are held by account ids, so a DID grants no privilege.
 		const ESCALATED_ACCOUNT = "admin-account";
 		const ADMIN_IDENTITY = "did:example:global-admin";
@@ -1213,7 +1213,7 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 		let guarded: EntityStorageAuthenticationAccountAdminService;
 
 		/**
-		 * Run a function as an admin without escalated privilege.
+		 * Run a function as an admin without escalated privilege, an org admin of the organization.
 		 * @param fn The function to run.
 		 * @param identity The identity of the caller, if any.
 		 * @returns The result of the function.
@@ -1223,11 +1223,17 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 		}
 
 		beforeEach(async () => {
+			const roles: { [subject: string]: string[] } = {
+				[ESCALATED_ACCOUNT]: ["global-admin"],
+				"user-admin": ["user-admin", `org-admin:${ORGANIZATION}`]
+			};
 			authorization = {
 				hasRoleForSubject: vi.fn(
 					async (modelId: string, subject: string, role: string) =>
-						role === "global-admin" && subject === ESCALATED_ACCOUNT
-				)
+						roles[subject]?.includes(role) ?? false
+				),
+				getRolesForSubject: vi.fn(async (modelId: string, subject: string) => roles[subject] ?? []),
+				removeRoleForSubject: vi.fn()
 			} as unknown as IAuthorizationComponent;
 			identityComponent = createIdentityComponent();
 			vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(name => {
@@ -1258,6 +1264,12 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 				"outside-account",
 				"organization",
 				organizationData("did:example:x")
+			);
+			await AccountDataHelper.create(
+				storage,
+				"user-admin",
+				"organization",
+				organizationData(ORGANIZATION)
 			);
 		});
 
@@ -1394,21 +1406,62 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 			});
 		});
 
-		it("should let a caller without escalated privilege manage any account of the tenant", async () => {
-			const outsideId = await admin.create("outside-account", "public-profile", { name: "X" });
+		it("should let a caller without escalated privilege manage only the members of its organizations", async () => {
+			const plainId = await admin.create("plain-account", "profile", { name: "X" });
+			const outsideId = await admin.create("outside-account", "profile", { name: "X" });
 
 			await asUserAdmin(async () => {
+				await expect(guarded.create("plain-account", "note", { text: "Y" })).resolves.toBeDefined();
+				await expect(guarded.get(plainId)).resolves.toMatchObject({ data: { name: "X" } });
+				await guarded.update(plainId, { name: "Z" });
+				expect((await guarded.query("plain-account")).entities).toHaveLength(3);
+				const accounts = new Set((await guarded.query()).entities.map(item => item.accountId));
+				expect([...accounts].sort()).toEqual([ESCALATED_ACCOUNT, "plain-account", "user-admin"]);
+				await expect(guarded.getManagedAccounts()).resolves.toEqual(
+					expect.arrayContaining([ESCALATED_ACCOUNT, "plain-account", "user-admin"])
+				);
+				await guarded.remove(plainId);
+
+				// The accounts outside its organizations are reported as missing.
+				await expect(guarded.get(outsideId)).rejects.toMatchObject({ name: "NotFoundError" });
+				await expect(guarded.update(outsideId, { name: "Z" })).rejects.toMatchObject({
+					name: "NotFoundError"
+				});
+				await expect(guarded.remove(outsideId)).rejects.toMatchObject({ name: "NotFoundError" });
 				await expect(
-					guarded.create("outside-account", "public-profile", { name: "Y" })
-				).resolves.toBeDefined();
-				await expect(guarded.get(outsideId)).resolves.toMatchObject({ data: { name: "X" } });
-				await guarded.update(outsideId, { name: "Z" });
-				await expect(
-					guarded.create("outside-account", "organization", organizationData("did:example:other"))
-				).resolves.toBeDefined();
-				expect((await guarded.query("outside-account")).entities).toHaveLength(4);
-				expect((await guarded.query()).entities.length).toBeGreaterThan(4);
-				await guarded.remove(outsideId);
+					guarded.create("outside-account", "profile", { name: "Y" })
+				).rejects.toMatchObject({
+					name: "NotFoundError",
+					message: "entityStorageAuthenticationAccountAdminService.userNotFound"
+				});
+				await expect(guarded.query("outside-account")).resolves.toEqual({ entities: [] });
+			});
+
+			// A caller with escalated privilege manages every account.
+			await asAccount(ESCALATED_ACCOUNT, async () => {
+				await expect(guarded.getManagedAccounts()).resolves.toBeUndefined();
+				await expect(guarded.get(outsideId)).resolves.toBeDefined();
+			});
+		});
+
+		it("should keep and change the items only admins may see", async () => {
+			await asUserAdmin(async () => {
+				const id = await guarded.create(
+					"plain-account",
+					"note",
+					{ text: "Secret" },
+					undefined,
+					undefined,
+					true
+				);
+				await expect(guarded.get(id)).resolves.toMatchObject({ adminOnly: true });
+				await guarded.update(id, { text: "Changed" });
+				await expect(guarded.get(id)).resolves.toMatchObject({
+					data: { text: "Changed" },
+					adminOnly: true
+				});
+				await guarded.update(id, { text: "Open" }, undefined, false);
+				await expect(guarded.get(id)).resolves.not.toHaveProperty("adminOnly", true);
 			});
 		});
 
@@ -1431,7 +1484,7 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 				).rejects.toMatchObject({ name: "ForbiddenError" });
 				// Other items of their own account can still be managed.
 				await expect(
-					guarded.create("user-admin", "public-profile", { name: "Admin" })
+					guarded.create("user-admin", "profile", { name: "Admin" })
 				).resolves.toBeDefined();
 			});
 

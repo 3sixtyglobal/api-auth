@@ -3,7 +3,7 @@
 import type { IJsonLdNodeObject } from "@3sixty/data-json-ld";
 
 /**
- * Replace the profiles of an organization.
+ * Change the profile, logo and public data of an organization.
  */
 export interface IOrganizationUpdateRequest {
 	/**
@@ -17,17 +17,22 @@ export interface IOrganizationUpdateRequest {
 	};
 
 	/**
-	 * The profiles, those omitted are unchanged.
+	 * The changes, those omitted are unchanged.
 	 */
 	body: {
 		/**
-		 * The profile shown to others.
+		 * The profile, such as a schema.org Organization.
 		 */
-		publicProfile?: IJsonLdNodeObject;
+		profile?: IJsonLdNodeObject;
 
 		/**
-		 * The profile only shown to the members and admins.
+		 * The logo, a schema.org ImageObject holding a data URL, null removes it.
 		 */
-		privateProfile?: IJsonLdNodeObject;
+		logo?: IJsonLdNodeObject | null;
+
+		/**
+		 * The paths of the data that is public, such as profile.name or logo.
+		 */
+		publicData?: string[];
 	};
 }

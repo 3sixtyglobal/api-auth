@@ -3,7 +3,8 @@
 import {
 	AuthenticationAccountDataType,
 	AuthenticationAccountHelper,
-	type IAuthenticationAccountData
+	type IAuthenticationAccountData,
+	type IOrganization
 } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
@@ -21,6 +22,7 @@ import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import { AccountContextCache } from "./accountContextCache.js";
 import { OrganizationHelper } from "./organizationHelper.js";
+import { PublicDataHelper } from "./publicDataHelper.js";
 import type { AccountData } from "../entities/accountData.js";
 import type { Organization } from "../entities/organization.js";
 
@@ -68,6 +70,20 @@ export class AccountDataHelper {
 	public static readonly AVATAR_MAX_DIMENSION: number = 1024;
 
 	/**
+	 * The content types of a logo.
+	 */
+	public static readonly LOGO_CONTENT_TYPES: string[] = [
+		"image/png",
+		"image/jpeg",
+		"image/svg+xml"
+	];
+
+	/**
+	 * The largest logo, in decoded bytes.
+	 */
+	public static readonly LOGO_MAX_BYTES: number = 262144;
+
+	/**
 	 * The types the request context is resolved from, a change clears the cached account.
 	 * @internal
 	 */
@@ -84,8 +100,8 @@ export class AccountDataHelper {
 
 	/**
 	 * Normalise a type, types are stored in kebab case, so every storage matches a type the same way
-	 * whether or not it compares without case, and publicProfile, PublicProfile and public_profile
-	 * are all public-profile.
+	 * whether or not it compares without case, and publicData, PublicData and public_data
+	 * are all public-data.
 	 * @param type The type.
 	 * @returns The normalised type.
 	 * @throws GuardError when the type is empty.
@@ -101,10 +117,10 @@ export class AccountDataHelper {
 	 * Check the value of an item, a JSON object, in the fixed shape of its type for the common types.
 	 * An identity is a JSON-LD node with the DID context and the DID as its id, an organization a
 	 * schema.org Organization with the DID as its identifier, a verifiable credential a JSON
-	 * credential object with a proof, and an avatar a
-	 * schema.org ImageObject holding a base64 data URL. An avatar marked read only is owned by an
-	 * authentication provider, so it may be in any of the provider content types and up to the larger
-	 * size.
+	 * credential object with a proof, an avatar or logo a schema.org ImageObject holding a base64 data
+	 * URL, and the public data a schema.org ItemList of paths. An avatar marked read only is owned by
+	 * an authentication provider, so it may be in any of the provider content types and up to the
+	 * larger size.
 	 * @param type The type of the item.
 	 * @param data The value of the item.
 	 * @param accountOwned True when the account sets the value itself, so it may not mark it read only.
@@ -129,6 +145,26 @@ export class AccountDataHelper {
 			}
 			return;
 		}
+		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.PublicData)) {
+			PublicDataHelper.getPaths(data, true);
+			return;
+		}
+		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.Logo)) {
+			const invalid = AccountDataHelper.checkImage(
+				data,
+				AccountDataHelper.LOGO_CONTENT_TYPES,
+				AccountDataHelper.LOGO_MAX_BYTES
+			);
+			if (invalid === "invalid") {
+				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "logoInvalid");
+			}
+			if (invalid === "tooLarge") {
+				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "logoTooLarge", {
+					maxBytes: AccountDataHelper.LOGO_MAX_BYTES
+				});
+			}
+			return;
+		}
 		if (!AccountDataHelper.isType(type, AuthenticationAccountDataType.Avatar)) {
 			if (!Is.object(data)) {
 				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "accountDataNotObject", {
@@ -137,40 +173,95 @@ export class AccountDataHelper {
 			}
 			return;
 		}
-		const avatar = Is.object<{ [key: string]: unknown }>(data) ? data : undefined;
 		const providerOwned = accountOwned !== true && AuthenticationAccountHelper.isReadOnly(data);
-		const contentTypes = providerOwned
-			? AccountDataHelper.PROVIDER_AVATAR_CONTENT_TYPES
-			: [AccountDataHelper.AVATAR_CONTENT_TYPE];
-		const encodingFormat = avatar?.encodingFormat;
-		const contentUrl = avatar?.contentUrl;
-		const prefix = `data:${Is.string(encodingFormat) ? encodingFormat : ""};base64,`;
-		const payload =
-			Is.string(contentUrl) && contentUrl.startsWith(prefix)
-				? contentUrl.slice(prefix.length)
-				: undefined;
-		if (
-			Is.undefined(avatar) ||
-			(accountOwned === true && AuthenticationAccountHelper.isReadOnly(data)) ||
-			avatar["@type"] !== "ImageObject" ||
-			!Is.string(encodingFormat) ||
-			!contentTypes.includes(encodingFormat) ||
-			!Is.stringBase64(payload) ||
-			!AccountDataHelper.isDimension(avatar.width) ||
-			!AccountDataHelper.isDimension(avatar.height)
-		) {
-			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "avatarInvalid");
-		}
-
 		const maxBytes = providerOwned
 			? AccountDataHelper.PROVIDER_AVATAR_MAX_BYTES
 			: AccountDataHelper.AVATAR_MAX_BYTES;
-		// Base64 holds 3 bytes in every 4 characters, less the padding.
-		const encodedBytes = (payload.length / 4) * 3;
-		const padding = payload.length - payload.replace(/=+$/, "").length;
-		if (encodedBytes - padding > maxBytes) {
+		const invalid = AccountDataHelper.checkImage(
+			data,
+			providerOwned
+				? AccountDataHelper.PROVIDER_AVATAR_CONTENT_TYPES
+				: [AccountDataHelper.AVATAR_CONTENT_TYPE],
+			maxBytes
+		);
+		if (
+			invalid === "invalid" ||
+			(accountOwned === true && AuthenticationAccountHelper.isReadOnly(data))
+		) {
+			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "avatarInvalid");
+		}
+		if (invalid === "tooLarge") {
 			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "avatarTooLarge", { maxBytes });
 		}
+	}
+
+	/**
+	 * Build the public data of an owner, an account or the DID of an organization, from the paths of
+	 * its public data item, a JSON-LD object for each type the paths name, from the item of that type
+	 * to use first. The items only admins may see and the node migration records are never included.
+	 * @param storage The entity storage for account data.
+	 * @param owner The account id, or the DID of an organization.
+	 * @param identifier The DID of the owner, added to each object that has no identifier.
+	 * @param extraPaths Paths always included, such as the name of an organization in a search.
+	 * @returns The public JSON-LD objects.
+	 */
+	public static async buildPublicData(
+		storage: IEntityStorageConnector<AccountData>,
+		owner: string,
+		identifier?: string,
+		extraPaths?: string[]
+	): Promise<NonNullable<IOrganization["public"]>> {
+		Guards.stringValue(AccountDataHelper.CLASS_NAME, nameof(owner), owner);
+		const publicData = await AccountDataHelper.getDefault(
+			storage,
+			owner,
+			AuthenticationAccountDataType.PublicData
+		);
+		const paths = [
+			...(publicData?.adminOnly === true ? [] : PublicDataHelper.getPaths(publicData?.data)),
+			...(extraPaths ?? [])
+		];
+		const types = [...new Set(paths.map(path => path.split(".")[0]))].filter(
+			type => !AccountDataHelper.isType(type, AccountDataHelper.MIGRATION_TYPE)
+		);
+		const items = await Promise.all(
+			types.map(async type => AccountDataHelper.getDefault(storage, owner, type))
+		);
+		const values: { [type: string]: unknown } = {};
+		for (const item of items) {
+			if (Is.object(item) && item.adminOnly !== true) {
+				values[item.type] = item.data;
+			}
+		}
+		return PublicDataHelper.build(values, paths, identifier) as NonNullable<
+			IOrganization["public"]
+		>;
+	}
+
+	/**
+	 * Check whether an account holds an item of a type that only admins may see and change.
+	 * @param storage The entity storage for account data.
+	 * @param accountId The account id.
+	 * @param type The type of the items.
+	 * @returns True when it does.
+	 */
+	public static async hasAdminOnly(
+		storage: IEntityStorageConnector<AccountData>,
+		accountId: string,
+		type: string
+	): Promise<boolean> {
+		Guards.stringValue(AccountDataHelper.CLASS_NAME, nameof(accountId), accountId);
+		const condition = AccountDataHelper.typeCondition(
+			accountId,
+			AccountDataHelper.normaliseType(type)
+		);
+		condition.conditions.push({
+			property: "adminOnly",
+			value: true,
+			comparison: ComparisonOperator.Equals
+		});
+		const result = await storage.query(condition, undefined, ["id"], undefined, 1);
+		return result.entities.length > 0;
 	}
 
 	/**
@@ -226,6 +317,7 @@ export class AccountDataHelper {
 	 * is no default to clear.
 	 * @param options.revocationIndex The revocation index of the membership credential the node
 	 * issued for an organization item.
+	 * @param options.adminOnly True when only admins may see and change the item.
 	 * @returns The unique identifier of the item.
 	 */
 	public static async create(
@@ -235,7 +327,7 @@ export class AccountDataHelper {
 		data: unknown,
 		isDefault?: boolean,
 		id?: string,
-		options?: { hasNoItems?: boolean; revocationIndex?: number }
+		options?: { hasNoItems?: boolean; revocationIndex?: number; adminOnly?: boolean }
 	): Promise<string> {
 		Guards.stringValue(AccountDataHelper.CLASS_NAME, nameof(accountId), accountId);
 		type = AccountDataHelper.normaliseType(type);
@@ -255,6 +347,7 @@ export class AccountDataHelper {
 			organization: AccountDataHelper.organizationOf(type, data),
 			revocationIndex:
 				type === AuthenticationAccountDataType.Organization ? options?.revocationIndex : undefined,
+			adminOnly: options?.adminOnly === true ? true : undefined,
 			isDefault: isDefault ?? false,
 			dateCreated: now,
 			dateModified: now
@@ -476,13 +569,15 @@ export class AccountDataHelper {
 	 * @param item The item as read.
 	 * @param data The new value of the item.
 	 * @param isDefault True to use the item first for its type, clearing any other default, unchanged when omitted.
+	 * @param adminOnly True when only admins may see and change the item, unchanged when omitted.
 	 * @returns A promise that resolves when the item has been updated.
 	 */
 	public static async updateItem(
 		storage: IEntityStorageConnector<AccountData>,
 		item: IAuthenticationAccountData,
 		data: unknown,
-		isDefault?: boolean
+		isDefault?: boolean,
+		adminOnly?: boolean
 	): Promise<void> {
 		Guards.defined(AccountDataHelper.CLASS_NAME, nameof(data), data);
 		AccountDataHelper.validateData(item.type, data);
@@ -501,6 +596,7 @@ export class AccountDataHelper {
 			data,
 			organization: AccountDataHelper.organizationOf(item.type, data),
 			revocationIndex,
+			adminOnly: (adminOnly ?? item.adminOnly) === true ? true : undefined,
 			isDefault: isDefault ?? item.isDefault,
 			dateCreated: item.dateCreated,
 			dateModified: new Date().toISOString()
@@ -542,30 +638,38 @@ export class AccountDataHelper {
 	/**
 	 * Query items, filtered by account and type.
 	 * @param storage The entity storage for account data.
-	 * @param accountId The account of the items to return, all accounts when omitted.
+	 * @param accountId The account, or accounts, of the items to return, all accounts when omitted.
 	 * @param type The type of the items to return, all types when omitted.
 	 * @param cursor The cursor to request the next page.
 	 * @param limit The maximum number of items to return.
 	 * @param excludeTypes The types to leave out when no type is given.
+	 * @param excludeAdminOnly True to leave out the items only admins may see.
 	 * @returns The items and a cursor when there are more.
 	 */
 	public static async query(
 		storage: IEntityStorageConnector<AccountData>,
-		accountId?: string,
+		accountId?: string | string[],
 		type?: string,
 		cursor?: string,
 		limit?: number,
-		excludeTypes?: string[]
+		excludeTypes?: string[],
+		excludeAdminOnly?: boolean
 	): Promise<{
 		entities: IAuthenticationAccountData[];
 		cursor?: string;
 	}> {
 		const conditions: {
 			property: string;
-			value: string | boolean;
+			value: string | string[] | boolean;
 			comparison: (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
 		}[] = [];
-		if (Is.stringValue(accountId)) {
+		if (Is.array<string>(accountId)) {
+			conditions.push({
+				property: "accountId",
+				value: accountId,
+				comparison: ComparisonOperator.In
+			});
+		} else if (Is.stringValue(accountId)) {
 			conditions.push({
 				property: "accountId",
 				value: accountId,
@@ -600,7 +704,11 @@ export class AccountDataHelper {
 			limit
 		);
 
-		const entities = (result.entities as AccountData[]).map(item => AccountDataHelper.toData(item));
+		// Old items have no admin only flag, which not every storage matches with a not equals
+		// condition, so the items only admins may see are left out here.
+		const entities = (result.entities as AccountData[])
+			.filter(item => excludeAdminOnly !== true || item.adminOnly !== true)
+			.map(item => AccountDataHelper.toData(item));
 		return { entities, cursor: result.cursor };
 	}
 
@@ -834,9 +942,50 @@ export class AccountDataHelper {
 			type: item.type,
 			data: item.data,
 			isDefault: item.isDefault,
+			adminOnly: item.adminOnly === true ? true : undefined,
 			dateCreated: item.dateCreated,
 			dateModified: item.dateModified
 		};
+	}
+
+	/**
+	 * Check an image, a schema.org ImageObject holding a base64 data URL of one of the content types,
+	 * up to the size given.
+	 * @param data The value.
+	 * @param contentTypes The content types allowed.
+	 * @param maxBytes The largest image, in decoded bytes.
+	 * @returns Why the image is refused, or undefined when it is valid.
+	 * @internal
+	 */
+	private static checkImage(
+		data: unknown,
+		contentTypes: string[],
+		maxBytes: number
+	): "invalid" | "tooLarge" | undefined {
+		const image = Is.object<{ [key: string]: unknown }>(data) ? data : undefined;
+		const encodingFormat = image?.encodingFormat;
+		const contentUrl = image?.contentUrl;
+		const prefix = `data:${Is.string(encodingFormat) ? encodingFormat : ""};base64,`;
+		const payload =
+			Is.string(contentUrl) && contentUrl.startsWith(prefix)
+				? contentUrl.slice(prefix.length)
+				: undefined;
+		if (
+			Is.undefined(image) ||
+			image["@type"] !== "ImageObject" ||
+			!Is.string(encodingFormat) ||
+			!contentTypes.includes(encodingFormat) ||
+			!Is.stringBase64(payload) ||
+			!AccountDataHelper.isDimension(image.width) ||
+			!AccountDataHelper.isDimension(image.height)
+		) {
+			return "invalid";
+		}
+
+		// Base64 holds 3 bytes in every 4 characters, less the padding.
+		const encodedBytes = (payload.length / 4) * 3;
+		const padding = payload.length - payload.replace(/=+$/, "").length;
+		return encodedBytes - padding > maxBytes ? "tooLarge" : undefined;
 	}
 
 	/**

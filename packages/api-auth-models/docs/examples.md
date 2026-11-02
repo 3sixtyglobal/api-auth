@@ -216,23 +216,26 @@ console.log(AuthenticationAccountHelper.isReadOnly(profile)); // true
 
 ## Organizations
 
-Organizations are registered on the node with a DID, their profiles are held as account data owned by the organization id.
+Organizations are registered on the node with a DID, their profile, logo and public data are held as account data owned by the organization DID.
 
 ```typescript
 import type { IOrganization, IOrganizationCreate } from '@3sixty/api-auth-models';
 
 const create: IOrganizationCreate = {
-  publicProfile: {
+  profile: {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Example Ltd'
-  }
+  },
+  publicData: ['profile.name']
 };
 
 const organization: IOrganization = {
   id: '01a17afc-611a-7d5b-a898-e0e20088b36f',
   identity: 'did:example:organization',
-  publicProfile: create.publicProfile,
+  profile: create.profile,
+  publicData: create.publicData,
+  isAdmin: true,
   dateCreated: '2026-01-12T09:05:23.123Z',
   dateModified: '2026-01-12T09:05:23.123Z'
 };

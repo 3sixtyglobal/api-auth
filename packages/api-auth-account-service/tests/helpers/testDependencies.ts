@@ -55,6 +55,40 @@ export function createAuthorizationComponent(): IAuthorizationComponent {
 }
 
 /**
+ * Create an authorization component that holds the roles given, by account id, and changes them.
+ * @param roles The roles by account id, changed as roles are added and removed.
+ * @param isAdminOfAll Accounts that are an org admin of every organization.
+ * @returns The component.
+ */
+export function createRoleAuthorizationComponent(
+	roles: { [subject: string]: string[] },
+	isAdminOfAll: string[] = []
+): IAuthorizationComponent {
+	return {
+		className: () => "authorization",
+		hasRoleForSubject: vi.fn(
+			async (modelId: string, subject: string, role: string) =>
+				(roles[subject]?.includes(role) ?? false) ||
+				(isAdminOfAll.includes(subject) && role.startsWith("org-admin:"))
+		),
+		getRolesForSubject: vi.fn(async (modelId: string, subject: string) => roles[subject] ?? []),
+		getAllRoles: vi.fn(async () => ({ roles: [...new Set(Object.values(roles).flat())] })),
+		getSubjectsForRole: vi.fn(async (modelId: string, role: string) =>
+			Object.keys(roles).filter(subject => roles[subject].includes(role))
+		),
+		addRoleForSubject: vi.fn(async (modelId: string, subject: string, role: string) => {
+			roles[subject] = [...(roles[subject] ?? []), role];
+		}),
+		removeRoleForSubject: vi.fn(async (modelId: string, subject: string, role: string) => {
+			roles[subject] = (roles[subject] ?? []).filter(held => held !== role);
+		}),
+		removeAllRolesForSubject: vi.fn(async (modelId: string, subject: string) => {
+			roles[subject] = [];
+		})
+	} as unknown as IAuthorizationComponent;
+}
+
+/**
  * Create a rate component that allows every request.
  * @returns The component.
  */

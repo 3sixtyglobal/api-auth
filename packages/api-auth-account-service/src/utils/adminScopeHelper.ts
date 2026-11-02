@@ -3,14 +3,17 @@
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { Is } from "@3sixty/core";
+import { ComparisonOperator, LogicalOperator } from "@3sixty/entity";
 import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import { AccountDataHelper } from "./accountDataHelper.js";
+import type { OrganizationAdminRoles } from "./organizationAdminRoles.js";
 import type { AccountData } from "../entities/accountData.js";
 
 /**
- * Helper class for the roles of the caller of the admin services. Admins act across the whole
- * tenant, only accounts holding escalated privilege are protected from callers without it.
+ * Helper class for the roles of the caller of the admin services. Callers holding escalated
+ * privilege act across the whole tenant, other admins only on the members of the organizations they
+ * are an org admin of, and accounts holding escalated privilege are protected from callers without it.
  */
 export class AdminScopeHelper {
 	/**
@@ -142,6 +145,110 @@ export class AdminScopeHelper {
 					authorizationModelId,
 					escalatedPrivilegeRole
 				);
+	}
+
+	/**
+	 * Get the organizations the caller manages.
+	 * @param adminRoles The org admin roles.
+	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
+	 * @returns The DIDs of the organizations the caller is an org admin of, or undefined when the
+	 * caller holds escalated privilege and manages every organization.
+	 */
+	public static async managedOrganizations(
+		adminRoles: OrganizationAdminRoles,
+		callerIsEscalated: () => Promise<boolean>
+	): Promise<string[] | undefined> {
+		if (await callerIsEscalated()) {
+			return undefined;
+		}
+		const callerAccountId = await AdminScopeHelper.callerAccount();
+		return Is.stringValue(callerAccountId) ? adminRoles.organizations(callerAccountId) : [];
+	}
+
+	/**
+	 * Get the accounts the caller manages, the members of the organizations it is an org admin of.
+	 * @param storage The entity storage for account data.
+	 * @param adminRoles The org admin roles.
+	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
+	 * @returns The account ids, or undefined when the caller holds escalated privilege and manages
+	 * every account.
+	 */
+	public static async managedAccounts(
+		storage: IEntityStorageConnector<AccountData>,
+		adminRoles: OrganizationAdminRoles,
+		callerIsEscalated: () => Promise<boolean>
+	): Promise<string[] | undefined> {
+		const organizations = await AdminScopeHelper.managedOrganizations(
+			adminRoles,
+			callerIsEscalated
+		);
+		if (!Is.array(organizations)) {
+			return undefined;
+		}
+		const accountIds = new Set<string>();
+		if (organizations.length > 0) {
+			let cursor: string | undefined;
+			do {
+				const page = await storage.query(
+					{
+						property: "organization",
+						value: organizations,
+						comparison: ComparisonOperator.In
+					},
+					undefined,
+					["accountId"],
+					cursor
+				);
+				for (const item of page.entities) {
+					if (Is.stringValue(item.accountId)) {
+						accountIds.add(item.accountId);
+					}
+				}
+				cursor = page.cursor;
+			} while (Is.stringValue(cursor));
+		}
+		return [...accountIds];
+	}
+
+	/**
+	 * Check whether the caller manages an account, a caller holding escalated privilege manages every
+	 * account, others the members of the organizations they are an org admin of.
+	 * @param storage The entity storage for account data.
+	 * @param adminRoles The org admin roles.
+	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
+	 * @param accountId The account.
+	 * @returns True when the caller manages the account.
+	 */
+	public static async callerManages(
+		storage: IEntityStorageConnector<AccountData>,
+		adminRoles: OrganizationAdminRoles,
+		callerIsEscalated: () => Promise<boolean>,
+		accountId: string
+	): Promise<boolean> {
+		const organizations = await AdminScopeHelper.managedOrganizations(
+			adminRoles,
+			callerIsEscalated
+		);
+		if (!Is.array(organizations)) {
+			return true;
+		}
+		if (organizations.length === 0) {
+			return false;
+		}
+		const result = await storage.query(
+			{
+				conditions: [
+					{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
+					{ property: "organization", value: organizations, comparison: ComparisonOperator.In }
+				],
+				logicalOperator: LogicalOperator.And
+			},
+			undefined,
+			["id"],
+			undefined,
+			1
+		);
+		return result.entities.length > 0;
 	}
 
 	/**

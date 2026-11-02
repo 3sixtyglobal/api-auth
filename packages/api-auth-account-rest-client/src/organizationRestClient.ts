@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IOrganization,
+	IOrganizationAdminAddRequest,
+	IOrganizationAdminRemoveRequest,
 	IOrganizationComponent,
 	IOrganizationCreate,
 	IOrganizationCreateRequest,
@@ -10,6 +12,10 @@ import type {
 	IOrganizationIdentityExport,
 	IOrganizationIdentityExportRequest,
 	IOrganizationIdentityExportResponse,
+	IOrganizationMember,
+	IOrganizationMemberQueryRequest,
+	IOrganizationMemberQueryResponse,
+	IOrganizationProfileUpdate,
 	IOrganizationQueryRequest,
 	IOrganizationQueryResponse,
 	IOrganizationRemoveRequest,
@@ -129,7 +135,7 @@ export class OrganizationRestClient extends BaseRestClient implements IOrganizat
 	 * Search the organizations whose name starts with the text given, without case.
 	 * @param name The start of the name.
 	 * @param limit The maximum number of organizations to return.
-	 * @returns The organizations with their public profiles.
+	 * @returns The organizations with their names and the public properties of their profiles.
 	 */
 	public async search(
 		name: string,
@@ -156,23 +162,95 @@ export class OrganizationRestClient extends BaseRestClient implements IOrganizat
 	}
 
 	/**
-	 * Replace the profiles of an organization, the profiles omitted are unchanged.
+	 * Change the profile, logo and public data of an organization, those omitted are unchanged.
 	 * @param id The unique identifier or the DID of the organization.
-	 * @param publicProfile The profile shown to others.
-	 * @param privateProfile The profile only shown to the members and admins.
-	 * @returns A promise that resolves when the profiles have been replaced.
+	 * @param changes The profile, logo and public data.
+	 * @returns A promise that resolves when the organization has been changed.
 	 */
-	public async update(
-		id: string,
-		publicProfile?: IOrganization["publicProfile"],
-		privateProfile?: IOrganization["privateProfile"]
-	): Promise<void> {
+	public async update(id: string, changes: IOrganizationProfileUpdate): Promise<void> {
 		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(id), id);
+		Guards.object<IOrganizationProfileUpdate>(
+			OrganizationRestClient.CLASS_NAME,
+			nameof(changes),
+			changes
+		);
 
 		await this.fetch<IOrganizationUpdateRequest, INoContentResponse>("/:id", HttpMethod.PUT, {
 			pathParams: { id },
-			body: { publicProfile, privateProfile }
+			body: changes
 		});
+	}
+
+	/**
+	 * Query the members of an organization.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param cursor The cursor to request the next page.
+	 * @param limit The maximum number of members to return.
+	 * @returns The members and a cursor when there are more.
+	 */
+	public async queryMembers(
+		id: string,
+		cursor?: string,
+		limit?: number
+	): Promise<{
+		entities: IOrganizationMember[];
+		cursor?: string;
+	}> {
+		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(id), id);
+
+		const response = await this.fetch<
+			IOrganizationMemberQueryRequest,
+			IOrganizationMemberQueryResponse
+		>("/:id/member", HttpMethod.GET, {
+			pathParams: { id },
+			query: {
+				cursor,
+				limit: Coerce.string(limit)
+			}
+		});
+
+		return {
+			entities: response.body.entities,
+			cursor: response.body.cursor
+		};
+	}
+
+	/**
+	 * Make a member an org admin of an organization.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param accountId The account of the member.
+	 * @returns A promise that resolves when the member is an org admin.
+	 */
+	public async addAdmin(id: string, accountId: string): Promise<void> {
+		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(id), id);
+		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(accountId), accountId);
+
+		await this.fetch<IOrganizationAdminAddRequest, INoContentResponse>(
+			"/:id/admin/:accountId",
+			HttpMethod.PUT,
+			{
+				pathParams: { id, accountId }
+			}
+		);
+	}
+
+	/**
+	 * Stop a member being an org admin of an organization.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param accountId The account of the member.
+	 * @returns A promise that resolves when the member is no longer an org admin.
+	 */
+	public async removeAdmin(id: string, accountId: string): Promise<void> {
+		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(id), id);
+		Guards.stringValue(OrganizationRestClient.CLASS_NAME, nameof(accountId), accountId);
+
+		await this.fetch<IOrganizationAdminRemoveRequest, INoContentResponse>(
+			"/:id/admin/:accountId",
+			HttpMethod.DELETE,
+			{
+				pathParams: { id, accountId }
+			}
+		);
 	}
 
 	/**
@@ -199,7 +277,7 @@ export class OrganizationRestClient extends BaseRestClient implements IOrganizat
 	}
 
 	/**
-	 * Remove an organization that has no members.
+	 * Remove an organization that has no members, or of which the calling org admin is the only member.
 	 * @param id The unique identifier or the DID of the organization.
 	 * @returns A promise that resolves when the organization has been removed.
 	 */

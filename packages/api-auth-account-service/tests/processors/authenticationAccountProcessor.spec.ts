@@ -306,7 +306,7 @@ describe("AuthenticationAccountProcessor", () => {
 
 	it("should keep a cached account when other account data changes", async () => {
 		await runPre({ [ContextIdKeys.Account]: "account-1" });
-		await AccountDataHelper.create(storage, "account-1", "public-profile", { name: "Alice" });
+		await AccountDataHelper.create(storage, "account-1", "profile", { name: "Alice" });
 		const querySpy = vi.spyOn(storage, "query");
 		await runPre({ [ContextIdKeys.Account]: "account-1" });
 

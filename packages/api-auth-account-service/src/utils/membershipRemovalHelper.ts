@@ -11,15 +11,15 @@ import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import { AccountDataHelper } from "./accountDataHelper.js";
+import type { OrganizationAdminRoles } from "./organizationAdminRoles.js";
 import { OrganizationMembershipHelper } from "./organizationMembershipHelper.js";
 import { OrganizationRequestHelper } from "./organizationRequestHelper.js";
 import type { AccountData } from "../entities/accountData.js";
 import type { OrganizationRequest } from "../entities/organizationRequest.js";
 
 /**
- * Helper class for removing an account from its organizations. Membership grants no role, the role
- * given to the creator of an organization applies to every organization of the tenant, so no role
- * is removed.
+ * Helper class for removing an account from its organizations, which also ends its org admin role
+ * of each organization.
  */
 export class MembershipRemovalHelper {
 	/**
@@ -33,9 +33,10 @@ export class MembershipRemovalHelper {
 	 * the organization and names the identity of the account as a member counts as a membership
 	 * credential, other credentials the account stored are left. Only the revocation indexes the node
 	 * recorded when it issued the credentials of the organization items are revoked, never an index
-	 * read from a stored credential.
+	 * read from a stored credential. The org admin role of the organization is removed.
 	 * @param storage The entity storage for account data.
 	 * @param identityComponent The identity component that verifies and revokes credentials.
+	 * @param adminRoles The org admin roles.
 	 * @param accountId The account id.
 	 * @param organization The DID of the organization.
 	 * @param preloaded The account data and node the caller has already read, read here when omitted.
@@ -48,6 +49,7 @@ export class MembershipRemovalHelper {
 	public static async leave(
 		storage: IEntityStorageConnector<AccountData>,
 		identityComponent: IIdentityComponent,
+		adminRoles: OrganizationAdminRoles,
 		accountId: string,
 		organization: string,
 		preloaded?: {
@@ -103,6 +105,7 @@ export class MembershipRemovalHelper {
 		for (const item of organizationItems) {
 			await AccountDataHelper.removeItem(storage, item);
 		}
+		await adminRoles.remove(accountId, organization);
 		return true;
 	}
 
@@ -113,6 +116,7 @@ export class MembershipRemovalHelper {
 	 * @param storage The entity storage for account data.
 	 * @param requestStorage The entity storage for the requests to join an organization.
 	 * @param identityComponent The identity component that verifies and revokes credentials.
+	 * @param adminRoles The org admin roles.
 	 * @param accountId The account id.
 	 * @returns A promise that resolves when the items have been removed.
 	 */
@@ -120,6 +124,7 @@ export class MembershipRemovalHelper {
 		storage: IEntityStorageConnector<AccountData>,
 		requestStorage: IEntityStorageConnector<OrganizationRequest>,
 		identityComponent: IIdentityComponent,
+		adminRoles: OrganizationAdminRoles,
 		accountId: string
 	): Promise<void> {
 		Guards.stringValue(MembershipRemovalHelper.CLASS_NAME, nameof(accountId), accountId);
@@ -133,6 +138,7 @@ export class MembershipRemovalHelper {
 				await MembershipRemovalHelper.leave(
 					storage,
 					identityComponent,
+					adminRoles,
 					accountId,
 					organization,
 					loaded

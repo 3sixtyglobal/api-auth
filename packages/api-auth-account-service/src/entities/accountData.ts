@@ -25,7 +25,7 @@ export class AccountData {
 	public accountId!: string;
 
 	/**
-	 * The type of the item, such as identity or public-profile, stored in kebab case.
+	 * The type of the item, such as identity or profile, stored in kebab case.
 	 */
 	@property({
 		type: "string",
@@ -55,6 +55,12 @@ export class AccountData {
 	 */
 	@property({ type: "integer", optional: true })
 	public revocationIndex?: number;
+
+	/**
+	 * True when only admins may see and change the item, old items read as false.
+	 */
+	@property({ type: "boolean", optional: true })
+	public adminOnly?: boolean;
 
 	/**
 	 * True for the item of its type to use first, otherwise the earliest created item is used.

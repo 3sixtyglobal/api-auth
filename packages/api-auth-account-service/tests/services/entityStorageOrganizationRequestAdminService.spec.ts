@@ -374,7 +374,7 @@ describe("organization requests", () => {
 		]);
 	});
 
-	describe("tenant wide admins", () => {
+	describe("scoped admins", () => {
 		let tenantWide: EntityStorageOrganizationRequestAdminService;
 
 		/**
@@ -391,10 +391,18 @@ describe("organization requests", () => {
 		}
 
 		beforeEach(async () => {
+			// The user admin and account-1 are org admins of the organization, not of the other one.
+			const roles: { [subject: string]: string[] } = {
+				"global-admin": ["global-admin"],
+				"account-2": ["global-admin"],
+				"user-admin": [`org-admin:${ORGANIZATION}`],
+				"account-1": [`org-admin:${ORGANIZATION}`]
+			};
 			const authorization = {
 				className: () => "authorization",
 				hasRoleForSubject: async (modelId: string, subject: string, role: string) =>
-					role === "global-admin" && ["global-admin", "account-2"].includes(subject)
+					roles[subject]?.includes(role) ?? false,
+				getRolesForSubject: async (modelId: string, subject: string) => roles[subject] ?? []
 			};
 			vi.spyOn(ComponentFactory, "getIfExists").mockImplementation(name => {
 				if (name === "authorization") {
@@ -409,21 +417,43 @@ describe("organization requests", () => {
 			await asAccount("account-3", async () => service.joinOrganization("did:example:other"));
 		});
 
-		it("should let a caller without escalated privilege review the requests of any organization", async () => {
+		it("should let a caller without escalated privilege review only the requests of its organizations", async () => {
 			const all = await tenantWide.query("pending");
 			const own = all.entities.find(r => r.organization === ORGANIZATION)?.id ?? "";
 			const other = all.entities.find(r => r.organization !== ORGANIZATION)?.id ?? "";
 
 			await asAdmin(async () => {
-				expect((await tenantWide.query("pending")).entities).toHaveLength(2);
-				await expect(tenantWide.query("pending", "did:example:other")).resolves.toMatchObject({
-					entities: [{ accountId: "account-3" }]
+				expect((await tenantWide.query("pending")).entities.map(r => r.id)).toEqual([own]);
+				await expect(tenantWide.query("pending", "did:example:other")).resolves.toEqual({
+					entities: []
 				});
-				await expect(tenantWide.get(other)).resolves.toMatchObject({ accountId: "account-3" });
-				await tenantWide.accept(other);
+				await expect(tenantWide.countRequests("pending")).resolves.toEqual({
+					count: 1,
+					capped: false
+				});
+				await expect(tenantWide.countRequests("pending", "did:example:other")).resolves.toEqual({
+					count: 0,
+					capped: false
+				});
+				// The requests of other organizations are reported as missing.
+				for (const attempt of [
+					async () => tenantWide.get(other),
+					async () => tenantWide.accept(other),
+					async () => tenantWide.reject(other)
+				]) {
+					await expect(attempt()).rejects.toMatchObject({
+						name: "NotFoundError",
+						message: "organizationRequestHelper.organizationRequestNotFound"
+					});
+				}
 				await tenantWide.reject(own, "organizationRequest.reason.notAMember");
 			});
 
+			// A caller with escalated privilege reviews every organization.
+			await asAdmin(async () => {
+				expect((await tenantWide.query("pending")).entities.map(r => r.id)).toEqual([other]);
+				await tenantWide.accept(other);
+			}, "global-admin");
 			expect((await tenantWide.get(other)).status).toBe("accepted");
 			expect((await tenantWide.get(own)).status).toBe("rejected");
 		});

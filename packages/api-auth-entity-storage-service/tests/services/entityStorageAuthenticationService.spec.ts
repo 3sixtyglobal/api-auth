@@ -1183,32 +1183,23 @@ describe("EntityStorageAuthenticationService", () => {
 
 			await service.loginWithProvider("google", { code: "code-1" });
 
-			// The provider owns the profile, so it is stored read only.
+			// The provider owns the profile, so it is stored read only as the single profile.
 			expect(accountAdmin.create).toHaveBeenCalledWith(
 				"account-1",
-				"public-profile",
+				"profile",
 				{
 					"@context": "https://schema.org",
 					"@type": "Person",
+					email: "user@example.com",
 					name: "Ada Lovelace",
+					givenName: "Ada",
+					familyName: "Lovelace",
 					image: "https://example.com/ada.png",
 					readonlyValue: true
 				},
 				true
 			);
-			expect(accountAdmin.create).toHaveBeenCalledWith(
-				"account-1",
-				"private-profile",
-				{
-					"@context": "https://schema.org",
-					"@type": "Person",
-					givenName: "Ada",
-					familyName: "Lovelace",
-					email: "user@example.com",
-					readonlyValue: true
-				},
-				true
-			);
+			expect(accountAdmin.create).toHaveBeenCalledTimes(1);
 
 			// A later login replaces the stored profile with the one the provider now holds.
 			accountAdmin.query.mockResolvedValue({
@@ -1227,31 +1218,25 @@ describe("EntityStorageAuthenticationService", () => {
 		});
 
 		it("should not write a stored provider profile that has not changed", async () => {
-			const publicProfile = {
+			const profile = {
 				"@context": "https://schema.org",
 				"@type": "Person",
+				email: "user@example.com",
 				name: "Ada Lovelace",
-				readonlyValue: true
-			};
-			const privateProfile = {
-				"@context": "https://schema.org",
-				"@type": "Person",
 				givenName: "Ada",
 				familyName: "Lovelace",
-				email: "user@example.com",
 				readonlyValue: true
 			};
+			let stored: unknown = { ...profile, name: "Ada" };
 			const accountAdmin = {
 				className: () => "accountAdmin",
-				query: vi.fn(async (accountId: string, type: string) => ({
-					entities: [
-						type === "public-profile"
-							? { id: "public-1", isDefault: true, data: { ...publicProfile, name: "Ada" } }
-							: { id: "private-1", isDefault: true, data: privateProfile }
-					]
+				query: vi.fn(async () => ({
+					entities: [{ id: "profile-1", isDefault: true, data: stored }]
 				})),
 				create: vi.fn(),
-				update: vi.fn().mockResolvedValue(undefined)
+				update: vi.fn(async (id: string, data: unknown) => {
+					stored = data;
+				})
 			};
 			const getIfExists = vi.mocked(ComponentFactory.getIfExists);
 			getIfExists.mockImplementation(componentName => {
@@ -1280,15 +1265,10 @@ describe("EntityStorageAuthenticationService", () => {
 			await service.loginWithProvider("google", { code: "code-1" });
 			await service.loginWithProvider("google", { code: "code-2" });
 
-			// Only the public profile differs from the stored one, so only it is written.
+			// The profile is written once, as the second login gives the same profile.
 			expect(accountAdmin.create).not.toHaveBeenCalled();
-			expect(accountAdmin.update).toHaveBeenCalledTimes(2);
-			expect(accountAdmin.update).toHaveBeenCalledWith("public-1", publicProfile, true);
-			expect(accountAdmin.update).not.toHaveBeenCalledWith(
-				"private-1",
-				expect.anything(),
-				expect.anything()
-			);
+			expect(accountAdmin.update).toHaveBeenCalledTimes(1);
+			expect(accountAdmin.update).toHaveBeenCalledWith("profile-1", profile, true);
 			// The component is resolved once and kept.
 			expect(
 				getIfExists.mock.calls.filter(([name]) => name === "authentication-account-admin")
@@ -1612,7 +1592,7 @@ describe("EntityStorageAuthenticationService", () => {
 			expect(authorization.addRoleForSubject).not.toHaveBeenCalled();
 			expect(accountAdmin.create).toHaveBeenCalledWith(
 				"account-1",
-				"private-profile",
+				"profile",
 				{
 					"@context": "https://schema.org",
 					"@type": "Person",

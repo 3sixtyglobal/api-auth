@@ -28,12 +28,17 @@ export interface IOrganizationCreate {
 	proof?: IProof;
 
 	/**
-	 * The profile shown to others, such as a schema.org Organization.
+	 * The profile, such as a schema.org Organization.
 	 */
-	publicProfile?: IJsonLdNodeObject;
+	profile?: IJsonLdNodeObject;
 
 	/**
-	 * The profile only shown to the members and admins of the organization.
+	 * The logo, a schema.org ImageObject holding a data URL.
 	 */
-	privateProfile?: IJsonLdNodeObject;
+	logo?: IJsonLdNodeObject;
+
+	/**
+	 * The paths of the data that is public, such as profile.name or logo.
+	 */
+	publicData?: string[];
 }

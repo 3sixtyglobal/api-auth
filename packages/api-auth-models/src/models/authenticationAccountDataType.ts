@@ -8,14 +8,22 @@
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const AuthenticationAccountDataType = {
 	/**
-	 * The profile shown to others, an object.
+	 * The profile of the account or organization, one item, a JSON-LD object such as a schema.org
+	 * Person or Organization.
 	 */
-	PublicProfile: "public-profile",
+	Profile: "profile",
 
 	/**
-	 * The profile kept private to the account, an object.
+	 * Which properties of the data of the owner are public, one item, a schema.org ItemList whose
+	 * itemListElement holds paths, the first segment an account data type and any further segments a
+	 * nested property, such as logo, profile.address or profile.address.addressLocality.
 	 */
-	PrivateProfile: "private-profile",
+	PublicData: "public-data",
+
+	/**
+	 * The logo of an organization, a schema.org ImageObject holding a data URL, one item.
+	 */
+	Logo: "logo",
 
 	/**
 	 * The picture of the account, a schema.org ImageObject holding a data URL, one item per account.

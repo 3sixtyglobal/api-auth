@@ -1,12 +1,15 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IComponent } from "@3sixty/core";
+import type { IJsonLdNodeObject } from "@3sixty/data-json-ld";
 import type { IProof } from "@3sixty/standards-w3c-did";
 import type { IAccountIdentityExport } from "./IAccountIdentityExport.js";
 import type { IAccountIdentityImportResult } from "./IAccountIdentityImportResult.js";
+import type { IAccountOrganizationCreate } from "./IAccountOrganizationCreate.js";
 import type { IAccountProfileExport } from "./IAccountProfileExport.js";
 import type { IAccountProfileImportResult } from "./IAccountProfileImportResult.js";
 import type { IAuthenticationAccountData } from "./IAuthenticationAccountData.js";
+import type { IOrganization } from "./IOrganization.js";
 import type { IOrganizationRequest } from "./IOrganizationRequest.js";
 
 /**
@@ -96,6 +99,32 @@ export interface IAuthenticationAccountComponent extends IComponent {
 	 * @throws ConflictError when the account is already in the organization or has a request pending.
 	 */
 	joinOrganization(organization: string): Promise<void>;
+
+	/**
+	 * Create an organization with a DID the node holds for the signed in account, which becomes its
+	 * member, with a membership credential, and its org admin.
+	 * @param details The profile, logo and public data of the organization.
+	 * @returns The organization.
+	 * @throws UnprocessableError when the account has no identity.
+	 * @throws ConflictError when the account has an organization or a request to join one pending.
+	 */
+	createOrganization(details: IAccountOrganizationCreate): Promise<IOrganization>;
+
+	/**
+	 * Get the public data of the organization or account that holds a DID, no sign in is needed.
+	 * @param identity The DID.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 * @throws NotFoundError when no organization or account holds the DID.
+	 */
+	getPublicDataByIdentity(identity: string): Promise<IJsonLdNodeObject[]>;
+
+	/**
+	 * Get the public data of an account or organization.
+	 * @param accountId The account id, or the unique identifier or DID of an organization.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 * @throws NotFoundError when nothing is stored for it.
+	 */
+	getPublicDataByAccount(accountId: string): Promise<IJsonLdNodeObject[]>;
 
 	/**
 	 * Get the organization of the signed in account.

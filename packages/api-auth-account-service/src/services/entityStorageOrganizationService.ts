@@ -10,6 +10,8 @@ import {
 	type IOrganizationComponent,
 	type IOrganizationCreate,
 	type IOrganizationIdentityExport,
+	type IOrganizationMember,
+	type IOrganizationProfileUpdate,
 	type IOrganizationRequest,
 	OrganizationRequestStatus,
 	RecentSignInHelper
@@ -36,7 +38,7 @@ import {
 import { Did, type IIdentityComponent, type IIdentityExport } from "@3sixty/identity-models";
 import type { ILoggingComponent } from "@3sixty/logging-models";
 import { nameof } from "@3sixty/nameof";
-import { DidVerificationMethodType, type IProof } from "@3sixty/standards-w3c-did";
+import type { IProof } from "@3sixty/standards-w3c-did";
 import { EntityStorageAuthenticationAccountService } from "./entityStorageAuthenticationAccountService.js";
 import type { AccountData } from "../entities/accountData.js";
 import type { Organization } from "../entities/organization.js";
@@ -46,14 +48,18 @@ import { AccountDataHelper } from "../utils/accountDataHelper.js";
 import { AdminScopeHelper } from "../utils/adminScopeHelper.js";
 import { IdentityProofHelper } from "../utils/identityProofHelper.js";
 import { MembershipRemovalHelper } from "../utils/membershipRemovalHelper.js";
+import { OrganizationAdminRoles } from "../utils/organizationAdminRoles.js";
 import { OrganizationHelper } from "../utils/organizationHelper.js";
+import { OrganizationProfileHelper } from "../utils/organizationProfileHelper.js";
 import { OrganizationRequestHelper } from "../utils/organizationRequestHelper.js";
 import { PendingMembershipHelper } from "../utils/pendingMembershipHelper.js";
 
 /**
- * Manages the organizations registered on the node using entity storage, their profiles are held as
- * account data owned by the organization id. Callers holding escalated privilege or the member
- * admin role manage every organization of the tenant.
+ * Manages the organizations registered on the node using entity storage, their profiles, logos and
+ * public data are held as account data owned by the organization DID. Callers holding escalated
+ * privilege manage every organization of the tenant, the org admins of an organization manage it,
+ * and callers holding the member admin role also create, list, export and remove the organizations
+ * they are an org admin of.
  */
 export class EntityStorageOrganizationService implements IOrganizationComponent {
 	/**
@@ -190,6 +196,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	private readonly _recentSignInSeconds: number;
 
 	/**
+	 * The org admin roles of the organizations.
+	 * @internal
+	 */
+	private readonly _adminRoles: OrganizationAdminRoles;
+
+	/**
 	 * Create a new instance of EntityStorageOrganizationService.
 	 * @param options The options for the service.
 	 */
@@ -241,6 +253,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		};
 		this._recentSignInSeconds =
 			options?.config?.recentSignInSeconds ?? RecentSignInHelper.DEFAULT_MAX_AGE_SECONDS;
+		this._adminRoles = new OrganizationAdminRoles(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			options?.config?.organizationAdminRolePrefix,
+			this._memberAdminRole
+		);
 	}
 
 	/**
@@ -276,9 +294,8 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	/**
 	 * Create an organization, only admins may. A node controlled DID with the trust verification
 	 * method is created when no DID is given, an existing DID needs a proof by it unless the call is
-	 * a system call. The signed in caller is the first member, the organization becomes its default
-	 * when it has none, no role is given as creating an organization already needs the member admin
-	 * role or escalated privilege. A system call, such as from the node CLI, has no account so the
+	 * a system call. The signed in caller is the first member and its org admin, the organization
+	 * becomes its default when it has none. A system call, such as from the node CLI, has no account so the
 	 * organization is created without members, firstMemberAccountId is ignored. An identity export
 	 * may be given instead, it is imported controlled by the node and removed again when the
 	 * organization can not be registered.
@@ -288,7 +305,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @throws ConflictError when the DID is already registered or held by an account or the node.
 	 * @throws UnauthorizedError when a required proof does not verify.
 	 * @throws UnprocessableError when an identity export is given with an identity or proof, or is
-	 * not valid.
+	 * not valid, or the profile, logo or public data is not valid.
 	 * @throws TooManyRequestsError when the caller imports too often.
 	 */
 	public async create(organization: IOrganizationCreate): Promise<IOrganization> {
@@ -329,6 +346,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 				);
 			}
 		}
+		const changes = {
+			profile: organization.profile,
+			logo: organization.logo,
+			publicData: organization.publicData
+		};
+		OrganizationProfileHelper.validate(changes);
 		await this.guardAdmin();
 		// The first member is always the caller, never an account named in the request, so an admin
 		// can not add another account, or one holding escalated privilege, as an admin.
@@ -349,8 +372,13 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		} else if (Is.stringValue(existingIdentity)) {
 			identity = existingIdentity;
 		} else {
-			identity = await this.createIdentity();
-			held = { controller: await this.nodeIdentity(), imported: false };
+			const nodeIdentity = await this.nodeIdentity();
+			identity = await OrganizationHelper.createNodeIdentity(
+				this._identityComponent,
+				nodeIdentity,
+				this._verificationMethodId
+			);
+			held = { controller: nodeIdentity, imported: false };
 		}
 
 		let stored: Organization | undefined;
@@ -363,21 +391,20 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			);
 			stored = await this.register(
 				identity,
-				organization.publicProfile,
+				changes.profile,
 				Is.object(held),
 				Math.max(retiredRevocationIndex ?? 0, importedRevocationIndex ?? 0)
 			);
-			// A created DID has no profiles yet, an existing or imported one may.
-			await this.storeProfiles(
+			// A created DID has no profile yet, an existing or imported one may.
+			await OrganizationProfileHelper.store(
+				this._accountDataEntityStorage,
 				identity,
-				organization.publicProfile,
-				organization.privateProfile,
+				changes,
 				!Is.stringValue(existingIdentity) && !Is.object(identityImport)
 			);
 
-			// No role is granted, the first member is the caller, who already holds the member admin
-			// role or escalated privilege to create an organization, and granting a role to yourself is
-			// refused.
+			// The first member is the caller, who is made its org admin, so a caller without escalated
+			// privilege keeps managing what it creates.
 			if (Is.stringValue(firstMemberAccountId)) {
 				await PendingMembershipHelper.add(
 					this._accountDataEntityStorage,
@@ -388,6 +415,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 					identity,
 					undefined
 				);
+				await this._adminRoles.add(firstMemberAccountId, identity);
 			}
 		} catch (error) {
 			await this.rollbackCreate(identity, stored, held, firstMemberAccountId);
@@ -396,13 +424,14 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 
 		return {
 			...this.toOrganization(stored),
-			publicProfile: organization.publicProfile,
-			privateProfile: organization.privateProfile
+			...(await OrganizationProfileHelper.load(this._accountDataEntityStorage, identity)),
+			isAdmin: Is.stringValue(firstMemberAccountId)
 		};
 	}
 
 	/**
-	 * Get an organization, the private profile is only included for its members and admins.
+	 * Get an organization, its members, org admins and admins get the profile, logo and public data
+	 * paths, others the public data.
 	 * @param id The unique identifier or the DID of the organization.
 	 * @returns The organization.
 	 * @throws NotFoundError when the organization is not registered.
@@ -410,31 +439,34 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	public async get(id: string): Promise<IOrganization> {
 		const organization = await this.getOrganization(id);
 
-		const [canReadPrivate, publicProfile] = await Promise.all([
-			this.canReadPrivate(organization.identity),
-			AccountDataHelper.getDefault(
-				this._accountDataEntityStorage,
-				organization.identity,
-				AuthenticationAccountDataType.PublicProfile
-			)
+		const [isAdmin, canReadFull] = await Promise.all([
+			this._adminRoles.isAdmin(await AdminScopeHelper.callerAccount(), organization.identity),
+			this.canReadFull(organization.identity)
 		]);
-		const privateProfile = canReadPrivate
-			? await AccountDataHelper.getDefault(
+		if (isAdmin || canReadFull) {
+			return {
+				...this.toOrganization(organization),
+				...(await OrganizationProfileHelper.load(
 					this._accountDataEntityStorage,
-					organization.identity,
-					AuthenticationAccountDataType.PrivateProfile
-				)
-			: undefined;
-
+					organization.identity
+				)),
+				isAdmin
+			};
+		}
 		return {
 			...this.toOrganization(organization),
-			publicProfile: publicProfile?.data as IOrganization["publicProfile"],
-			privateProfile: privateProfile?.data as IOrganization["privateProfile"]
+			public: await AccountDataHelper.buildPublicData(
+				this._accountDataEntityStorage,
+				organization.identity,
+				organization.identity
+			),
+			isAdmin
 		};
 	}
 
 	/**
-	 * Query the organizations, the earliest first, only admins may.
+	 * Query the organizations, the earliest first, only admins may, an admin without escalated
+	 * privilege gets the organizations it is an org admin of.
 	 * @param cursor The cursor to request the next page.
 	 * @param limit The maximum number of organizations to return.
 	 * @returns The organizations, without their profiles, and a cursor when there are more.
@@ -448,8 +480,21 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		cursor?: string;
 	}> {
 		await this.guardAdmin();
+		const managed = await AdminScopeHelper.managedOrganizations(
+			this._adminRoles,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		if (Is.array(managed) && managed.length === 0) {
+			return { entities: [] };
+		}
 		const result = await this._organizationEntityStorage.query(
-			undefined,
+			Is.array(managed)
+				? { property: "identity", value: managed, comparison: ComparisonOperator.In }
+				: undefined,
 			undefined,
 			undefined,
 			cursor,
@@ -466,7 +511,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * account may.
 	 * @param name The start of the name.
 	 * @param limit The maximum number of organizations to return.
-	 * @returns The organizations with their public profiles.
+	 * @returns The organizations with their public data, which always includes their names.
 	 */
 	public async search(
 		name: string,
@@ -498,46 +543,196 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		const matches = (result.entities as Organization[]).filter(organization =>
 			organization.searchName.startsWith(searchName)
 		);
-		const publicProfiles = await this.findPublicProfiles(
-			matches.map(organization => organization.identity)
-		);
+		// The name was searched, so it is always included with the public data.
 		return {
-			entities: matches.map(organization => ({
-				...this.toOrganization(organization),
-				publicProfile: publicProfiles.get(organization.identity)
-			}))
+			entities: await Promise.all(
+				matches.map(async organization => ({
+					...this.toOrganization(organization),
+					public: await AccountDataHelper.buildPublicData(
+						this._accountDataEntityStorage,
+						organization.identity,
+						organization.identity,
+						[`${AuthenticationAccountDataType.Profile}.name`]
+					)
+				}))
+			)
 		};
 	}
 
 	/**
-	 * Replace the profiles of an organization, the profiles omitted are unchanged, only admins may.
+	 * Change the profile, logo and public data of an organization, those omitted are unchanged, its
+	 * org admins and callers holding escalated privilege may.
 	 * @param id The unique identifier or the DID of the organization.
-	 * @param publicProfile The profile shown to others.
-	 * @param privateProfile The profile only shown to the members and admins.
-	 * @returns A promise that resolves when the profiles have been replaced.
+	 * @param changes The profile, logo and public data.
+	 * @returns A promise that resolves when the organization has been changed.
 	 * @throws NotFoundError when the organization is not registered.
-	 * @throws ForbiddenError when the caller is not an admin.
+	 * @throws ForbiddenError when the caller does not manage the organization.
+	 * @throws UnprocessableError when the profile, logo or public data is not valid.
 	 */
-	public async update(
-		id: string,
-		publicProfile?: IOrganization["publicProfile"],
-		privateProfile?: IOrganization["privateProfile"]
-	): Promise<void> {
-		await this.guardAdmin();
-		const organization = await this.getOrganization(id);
-
-		await this.storeProfiles(organization.identity, publicProfile, privateProfile, false);
-		// Read again before writing, so a revocation index allocated meanwhile is kept.
-		await OrganizationHelper.updateOrganization(
-			this._organizationEntityStorage,
-			organization.identity,
-			current => ({
-				...current,
-				searchName: Is.object(publicProfile)
-					? OrganizationHelper.searchName(publicProfile)
-					: current.searchName
-			})
+	public async update(id: string, changes: IOrganizationProfileUpdate): Promise<void> {
+		Guards.object<IOrganizationProfileUpdate>(
+			EntityStorageOrganizationService.CLASS_NAME,
+			nameof(changes),
+			changes
 		);
+		OrganizationProfileHelper.validate(changes);
+		const organization = await this.getOrganization(id);
+		await this.guardManager(organization.identity);
+
+		await OrganizationProfileHelper.store(
+			this._accountDataEntityStorage,
+			organization.identity,
+			changes,
+			false
+		);
+		const profile = changes.profile;
+		if (Is.object(profile)) {
+			// Read again before writing, so a revocation index allocated meanwhile is kept.
+			await OrganizationHelper.updateOrganization(
+				this._organizationEntityStorage,
+				organization.identity,
+				current => ({ ...current, searchName: OrganizationHelper.searchName(profile) })
+			);
+		}
+	}
+
+	/**
+	 * Query the members of an organization, its members, org admins and callers holding escalated
+	 * privilege may.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param cursor The cursor to request the next page.
+	 * @param limit The maximum number of members to return.
+	 * @returns The members and a cursor when there are more.
+	 * @throws NotFoundError when the organization is not registered.
+	 * @throws ForbiddenError when the caller is not a member and does not manage the organization.
+	 */
+	public async queryMembers(
+		id: string,
+		cursor?: string,
+		limit?: number
+	): Promise<{
+		entities: IOrganizationMember[];
+		cursor?: string;
+	}> {
+		const organization = await this.getOrganization(id);
+		const callerAccountId = await AdminScopeHelper.callerAccount();
+		if (!(
+			Is.stringValue(callerAccountId) &&
+			(await AdminScopeHelper.isMember(
+				this._accountDataEntityStorage,
+				callerAccountId,
+				organization.identity
+			))
+		)) {
+			await this.guardManager(organization.identity);
+		}
+
+		const page = await this._accountDataEntityStorage.query(
+			{
+				property: "organization",
+				value: organization.identity,
+				comparison: ComparisonOperator.Equals
+			},
+			[{ property: "dateCreated", sortDirection: SortDirection.Ascending }],
+			["accountId"],
+			cursor,
+			limit
+		);
+		const accountIds = [
+			...new Set(
+				page.entities.map(item => item.accountId).filter(accountId => Is.stringValue(accountId))
+			)
+		];
+		const [admins, profiles] = await Promise.all([
+			this._adminRoles.admins(organization.identity),
+			this.loadMemberProfiles(accountIds)
+		]);
+		return {
+			entities: accountIds.map(accountId => ({
+				accountId,
+				...profiles.get(accountId),
+				isAdmin: admins.includes(accountId)
+			})),
+			cursor: page.cursor
+		};
+	}
+
+	/**
+	 * Make a member an org admin of an organization, its org admins and callers holding escalated
+	 * privilege may.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param accountId The account of the member.
+	 * @returns A promise that resolves when the member is an org admin.
+	 * @throws NotFoundError when the organization is not registered or the account is not a member.
+	 * @throws ForbiddenError when the caller does not manage the organization.
+	 */
+	public async addAdmin(id: string, accountId: string): Promise<void> {
+		Guards.stringValue(EntityStorageOrganizationService.CLASS_NAME, nameof(accountId), accountId);
+		const organization = await this.getOrganization(id);
+		await this.guardManager(organization.identity);
+		if (
+			!(await AdminScopeHelper.isMember(
+				this._accountDataEntityStorage,
+				accountId,
+				organization.identity
+			))
+		) {
+			throw new NotFoundError(
+				EntityStorageOrganizationService.CLASS_NAME,
+				"organizationMemberNotFound",
+				accountId
+			);
+		}
+		await this._adminRoles.add(accountId, organization.identity);
+	}
+
+	/**
+	 * Stop a member being an org admin of an organization, its org admins and callers holding
+	 * escalated privilege may, only callers holding escalated privilege may remove the last org admin.
+	 * @param id The unique identifier or the DID of the organization.
+	 * @param accountId The account of the member.
+	 * @returns A promise that resolves when the member is no longer an org admin.
+	 * @throws NotFoundError when the organization is not registered or the account is neither a
+	 * member nor an org admin.
+	 * @throws ForbiddenError when the caller does not manage the organization.
+	 * @throws ConflictError when the account is the last org admin and the caller does not hold
+	 * escalated privilege.
+	 */
+	public async removeAdmin(id: string, accountId: string): Promise<void> {
+		Guards.stringValue(EntityStorageOrganizationService.CLASS_NAME, nameof(accountId), accountId);
+		const organization = await this.getOrganization(id);
+		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
+		await this.guardManager(organization.identity, callerIsEscalated);
+
+		const admins = await this._adminRoles.admins(organization.identity);
+		if (!admins.includes(accountId)) {
+			if (
+				!(await AdminScopeHelper.isMember(
+					this._accountDataEntityStorage,
+					accountId,
+					organization.identity
+				))
+			) {
+				throw new NotFoundError(
+					EntityStorageOrganizationService.CLASS_NAME,
+					"organizationMemberNotFound",
+					accountId
+				);
+			}
+			return;
+		}
+		if (admins.length === 1 && !(await callerIsEscalated())) {
+			throw new ConflictError(
+				EntityStorageOrganizationService.CLASS_NAME,
+				"organizationLastAdmin",
+				accountId
+			);
+		}
+		await this._adminRoles.remove(accountId, organization.identity);
 	}
 
 	/**
@@ -548,8 +743,8 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 * @param sessionStart When the session of the caller started in seconds, it must be recent.
 	 * @returns The export with the revocation index the organization reached, which contains private
 	 * keys and must be protected.
-	 * @throws ForbiddenError when the caller is not an admin, or the organization is the node or the
-	 * organization of the tenant.
+	 * @throws ForbiddenError when the caller is not an admin of the organization, or the organization
+	 * is the node or the organization of the tenant.
 	 * @throws UnauthorizedError when the session did not start recently.
 	 * @throws NotFoundError when the organization is not registered.
 	 * @throws UnprocessableError when the node does not hold the keys of the organization.
@@ -560,6 +755,8 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		sessionStart?: number
 	): Promise<IOrganizationIdentityExport> {
 		await this.guardAdmin();
+		const organization = await this.getOrganization(id);
+		await this.guardManager(organization.identity);
 		const callerAccountId = await AdminScopeHelper.callerAccount();
 		// A system call, such as from the node CLI, has no session.
 		if (Is.stringValue(callerAccountId)) {
@@ -569,7 +766,6 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 				callerAccountId
 			);
 		}
-		const organization = await this.getOrganization(id);
 		const contextIds = await ContextIdStore.getContextIds();
 		if (
 			organization.identity === contextIds?.[ContextIdKeys.Node] ||
@@ -607,52 +803,112 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	}
 
 	/**
-	 * Remove an organization and its profiles, only admins may, and only when no account is a member.
-	 * The keys of a DID the node created or imported for the organization are removed with it, a DID
-	 * registered as an existing identity is left, as the node does not hold it. The pending requests
-	 * to join it are rejected, with the reason organizationRequest.reason.organizationRemoved.
+	 * Remove an organization with its account data and org admin roles. Callers holding escalated
+	 * privilege and its org admins may remove it when no account is a member, and the pending
+	 * requests to join it are rejected, with the reason organizationRequest.reason.organizationRemoved.
+	 * An org admin who is its only member may also remove it, which ends their membership, revoking
+	 * its credential, and removes the pending requests to join it. The keys of a DID the node created
+	 * or imported for the organization are removed with it, a DID registered as an existing identity
+	 * is left, as the node does not hold it.
 	 * @param id The unique identifier or the DID of the organization.
 	 * @returns A promise that resolves when the organization has been removed.
 	 * @throws NotFoundError when the organization is not registered.
-	 * @throws ForbiddenError when the caller is not an admin.
-	 * @throws ConflictError when an account is a member of the organization.
+	 * @throws ForbiddenError when the caller does not manage the organization.
+	 * @throws ConflictError when another account is a member of the organization.
 	 * @throws GeneralError when removing the keys of the organization fails, the organization is kept.
 	 */
 	public async remove(id: string): Promise<void> {
-		await this.guardAdmin();
 		const organization = await this.getOrganization(id);
-
-		if (
-			await AccountDataHelper.hasOrganizationItem(
-				this._accountDataEntityStorage,
-				organization.identity
-			)
-		) {
-			throw new ConflictError(
-				EntityStorageOrganizationService.CLASS_NAME,
-				"organizationHasMembers",
-				organization.identity
-			);
+		const callerAccountId = await AdminScopeHelper.callerAccount();
+		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
+		const isAdmin = await this._adminRoles.isAdmin(callerAccountId, organization.identity);
+		if (!isAdmin) {
+			await this.guardManager(organization.identity, callerIsEscalated);
 		}
 
+		// Two members are read, enough to tell whether the caller is the only one.
+		const members = await this._accountDataEntityStorage.query(
+			{
+				property: "organization",
+				value: organization.identity,
+				comparison: ComparisonOperator.Equals
+			},
+			undefined,
+			["accountId"],
+			undefined,
+			2
+		);
+		const memberIds = members.entities.map(item => item.accountId);
+		if (memberIds.length === 0) {
+			await this.removeOrganization(organization, false);
+			return;
+		}
+		if (
+			isAdmin &&
+			Is.stringValue(callerAccountId) &&
+			memberIds.length === 1 &&
+			memberIds[0] === callerAccountId
+		) {
+			// The membership ends first, as its credential is revoked with the keys of the organization.
+			await MembershipRemovalHelper.leave(
+				this._accountDataEntityStorage,
+				this._identityComponent,
+				this._adminRoles,
+				callerAccountId,
+				organization.identity
+			);
+			await this.removeOrganization(organization, true);
+			return;
+		}
+		throw new ConflictError(
+			EntityStorageOrganizationService.CLASS_NAME,
+			isAdmin && !(await callerIsEscalated())
+				? "organizationHasOtherMembers"
+				: "organizationHasMembers",
+			organization.identity
+		);
+	}
+
+	/**
+	 * Remove an organization that has no members, with its account data, org admin roles and the
+	 * keys of a DID the node holds for it.
+	 * @param organization The organization.
+	 * @param removeRequests True to remove the pending requests to join it, otherwise they are
+	 * rejected with a reason.
+	 * @returns A promise that resolves when the organization has been removed.
+	 * @internal
+	 */
+	private async removeOrganization(
+		organization: Organization,
+		removeRequests: boolean
+	): Promise<void> {
 		// The keys are removed first, so a failure leaves the organization to be removed again.
 		if (organization.identityHeld === true) {
 			await this.removeHeldIdentity(organization.identity);
 		}
-		await this.removeProfiles(organization.identity);
-		await this.rejectPendingRequests(organization.identity);
+		await OrganizationProfileHelper.removeAll(
+			this._accountDataEntityStorage,
+			organization.identity
+		);
+		await this.closePendingRequests(organization.identity, removeRequests);
+		await this._adminRoles.removeAll(organization.identity);
 		await this.retireRevocationIndex(organization);
 		await this._organizationEntityStorage.remove(organization.id);
 	}
 
 	/**
-	 * Reject the pending requests to join an organization that is removed, so each account sees why
-	 * it was not let in rather than waiting on a request no one can answer.
+	 * Close the pending requests to join an organization that is removed, rejected so each account
+	 * sees why it was not let in rather than waiting on a request no one can answer, or removed.
 	 * @param identity The DID of the organization.
-	 * @returns A promise that resolves when the requests have been rejected.
+	 * @param remove True to remove the requests rather than reject them.
+	 * @returns A promise that resolves when the requests have been closed.
 	 * @internal
 	 */
-	private async rejectPendingRequests(identity: string): Promise<void> {
+	private async closePendingRequests(identity: string, remove: boolean): Promise<void> {
 		// Collected first, as rejecting a request takes it out of the pending pages being read.
 		const pending: IOrganizationRequest[] = [];
 		let cursor: string | undefined;
@@ -670,15 +926,22 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		for (const request of pending) {
 			try {
 				// Only while still pending, so a request an admin answered meanwhile is kept.
-				await this._organizationRequestEntityStorage.set(
-					{
-						...request,
-						status: OrganizationRequestStatus.Rejected,
-						reason: EntityStorageOrganizationService.REASON_ORGANIZATION_REMOVED,
-						dateModified: new Date().toISOString()
-					},
-					[{ property: "status", value: OrganizationRequestStatus.Pending }]
-				);
+				const pendingCondition = [
+					{ property: "status" as const, value: OrganizationRequestStatus.Pending }
+				];
+				if (remove) {
+					await this._organizationRequestEntityStorage.remove(request.id, pendingCondition);
+				} else {
+					await this._organizationRequestEntityStorage.set(
+						{
+							...request,
+							status: OrganizationRequestStatus.Rejected,
+							reason: EntityStorageOrganizationService.REASON_ORGANIZATION_REMOVED,
+							dateModified: new Date().toISOString()
+						},
+						pendingCondition
+					);
+				}
 			} catch (error) {
 				if (!BaseError.someErrorName(error, ConflictError.CLASS_NAME)) {
 					throw error;
@@ -754,7 +1017,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	/**
 	 * Register an organization for a DID.
 	 * @param identity The DID.
-	 * @param publicProfile The public profile, its name is stored for search.
+	 * @param profile The profile, its name is stored for search.
 	 * @param identityHeld True when the node created or imported the DID.
 	 * @param nextRevocationIndex The revocation index the organization starts from.
 	 * @returns The organization.
@@ -763,7 +1026,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	 */
 	private async register(
 		identity: string,
-		publicProfile: IOrganization["publicProfile"],
+		profile: IOrganization["profile"],
 		identityHeld: boolean,
 		nextRevocationIndex: number
 	): Promise<Organization> {
@@ -774,7 +1037,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			const { organization: registered, created } = await OrganizationHelper.register(
 				this._organizationEntityStorage,
 				identity,
-				OrganizationHelper.searchName(publicProfile),
+				OrganizationHelper.searchName(profile),
 				identityHeld,
 				nextRevocationIndex
 			);
@@ -898,6 +1161,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 					MembershipRemovalHelper.leave(
 						this._accountDataEntityStorage,
 						this._identityComponent,
+						this._adminRoles,
 						firstMemberAccountId,
 						identity
 					)
@@ -905,7 +1169,9 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			}
 			// The profiles of an existing DID may predate the organization, so they are kept.
 			if (Is.object(held)) {
-				steps.push(async () => this.removeProfiles(identity));
+				steps.push(async () =>
+					OrganizationProfileHelper.removeAll(this._accountDataEntityStorage, identity)
+				);
 			}
 			// The first member may have been given an index before creating failed.
 			steps.push(async () => this.retireRevocationIndex(stored));
@@ -967,142 +1233,28 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	}
 
 	/**
-	 * Remove the profiles of an organization.
-	 * @param identity The DID of the organization.
-	 * @returns A promise that resolves when the profiles have been removed.
+	 * Read the e-mail address and name of a list of members from their profiles, with a single query.
+	 * @param accountIds The accounts of the members.
+	 * @returns The e-mail address and name by account id.
 	 * @internal
 	 */
-	private async removeProfiles(identity: string): Promise<void> {
-		// An organization holds few items, its profiles, so they are collected before removing them.
-		// The revocation index it reached is kept for when the DID is registered again.
-		const retiredId = OrganizationHelper.retiredRevocationIndexId(identity);
-		const ids: string[] = [];
-		let cursor: string | undefined;
-		do {
-			const page = await this._accountDataEntityStorage.query(
-				{
-					conditions: [
-						{ property: "accountId", value: identity, comparison: ComparisonOperator.Equals },
-						{ property: "id", value: retiredId, comparison: ComparisonOperator.NotEquals }
-					],
-					logicalOperator: LogicalOperator.And
-				},
-				undefined,
-				["id"],
-				cursor
-			);
-			ids.push(...page.entities.map(item => item.id as string));
-			cursor = page.cursor;
-		} while (Is.stringValue(cursor));
-		for (const itemId of ids) {
-			await this._accountDataEntityStorage.remove(itemId);
+	private async loadMemberProfiles(
+		accountIds: string[]
+	): Promise<Map<string, { email?: string; name?: string }>> {
+		const members = new Map<string, { email?: string; name?: string }>();
+		if (accountIds.length === 0) {
+			return members;
 		}
-	}
-
-	/**
-	 * Create a DID controlled by the node, with the verification method that signs membership
-	 * credentials.
-	 * @returns The DID.
-	 * @internal
-	 */
-	private async createIdentity(): Promise<string> {
-		const nodeIdentity = await this.nodeIdentity();
-
-		const document = await this._identityComponent.identityCreate(undefined, nodeIdentity);
-		if (!Is.stringValue(document.id) || !document.id.startsWith("did:")) {
-			throw new GeneralError(EntityStorageOrganizationService.CLASS_NAME, "identityCreateFailed");
-		}
-
-		try {
-			await this._identityComponent.verificationMethodCreate(
-				document.id,
-				DidVerificationMethodType.AssertionMethod,
-				this._verificationMethodId,
-				nodeIdentity
-			);
-		} catch (error) {
-			await this._identityComponent.identityRemove(
-				document.id,
-				{ removeKeys: true, removeDocumentKey: true },
-				nodeIdentity
-			);
-			throw error;
-		}
-		return document.id;
-	}
-
-	/**
-	 * Store the profiles of an organization as the default account data of its DID, replacing the existing ones.
-	 * @param identity The DID of the organization, which owns its profiles.
-	 * @param publicProfile The profile shown to others.
-	 * @param privateProfile The profile only shown to the members and admins.
-	 * @param isNew True when the DID was just created, so it has no profiles to replace.
-	 * @returns A promise that resolves when the profiles have been stored.
-	 * @internal
-	 */
-	private async storeProfiles(
-		identity: string,
-		publicProfile: IOrganization["publicProfile"],
-		privateProfile: IOrganization["privateProfile"],
-		isNew: boolean
-	): Promise<void> {
-		const profiles: [string, IOrganization["publicProfile"]][] = [
-			[AuthenticationAccountDataType.PublicProfile, publicProfile],
-			[AuthenticationAccountDataType.PrivateProfile, privateProfile]
-		];
-		// The profiles are of different types, so they are stored together.
-		await Promise.all(
-			profiles
-				.filter(([, profile]) => Is.object(profile))
-				.map(async ([type, data]) => {
-					const existing = isNew
-						? undefined
-						: await AccountDataHelper.getDefault(this._accountDataEntityStorage, identity, type);
-					if (Is.object(existing)) {
-						await AccountDataHelper.updateItem(
-							this._accountDataEntityStorage,
-							existing,
-							data,
-							true
-						);
-					} else {
-						await AccountDataHelper.create(
-							this._accountDataEntityStorage,
-							identity,
-							type,
-							data,
-							true,
-							undefined,
-							{ hasNoItems: isNew }
-						);
-					}
-				})
-		);
-	}
-
-	/**
-	 * Find the public profile of each of a list of organizations with a single query, the default
-	 * profile of each, otherwise the earliest.
-	 * @param identities The DIDs of the organizations.
-	 * @returns The public profiles by DID.
-	 * @internal
-	 */
-	private async findPublicProfiles(
-		identities: string[]
-	): Promise<Map<string, IOrganization["publicProfile"]>> {
 		const profiles = new Map<string, AccountData>();
-		if (identities.length === 0) {
-			return new Map();
-		}
 		let cursor: string | undefined;
 		do {
 			const page = await this._accountDataEntityStorage.query(
 				{
 					conditions: [
-						{ property: "accountId", value: identities, comparison: ComparisonOperator.In },
+						{ property: "accountId", value: accountIds, comparison: ComparisonOperator.In },
 						{
 							property: "type",
-							value: AuthenticationAccountDataType.PublicProfile,
+							value: AuthenticationAccountDataType.Profile,
 							comparison: ComparisonOperator.Equals
 						}
 					],
@@ -1121,22 +1273,27 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			cursor = page.cursor;
 		} while (Is.stringValue(cursor));
 
-		return new Map(
-			[...profiles].map(([identity, item]) => [
-				identity,
-				item.data as IOrganization["publicProfile"]
-			])
-		);
+		for (const [accountId, item] of profiles) {
+			const profile = Is.object<{ [key: string]: unknown }>(item.data) ? item.data : {};
+			const name = Is.stringValue(profile.name)
+				? profile.name
+				: [profile.givenName, profile.familyName].filter(part => Is.stringValue(part)).join(" ");
+			members.set(accountId, {
+				email: Is.stringValue(profile.email) ? profile.email : undefined,
+				name: Is.stringValue(name) ? name : undefined
+			});
+		}
+		return members;
 	}
 
 	/**
-	 * Check whether the caller may read the private profile of an organization, its members and
-	 * admins may.
+	 * Check whether the caller may read the profile, logo and public data of an organization, its
+	 * members and admins may.
 	 * @param identity The DID of the organization.
 	 * @returns True when the caller may.
 	 * @internal
 	 */
-	private async canReadPrivate(identity: string): Promise<boolean> {
+	private async canReadFull(identity: string): Promise<boolean> {
 		const contextIds = await ContextIdStore.getContextIds();
 		const callerAccountId = contextIds?.[ContextIdKeys.Account];
 		// The organization the account processor set is one the account is a member of.
@@ -1190,6 +1347,38 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			dateCreated: organization.dateCreated,
 			dateModified: organization.dateModified
 		};
+	}
+
+	/**
+	 * Ensure the caller manages an organization, as its org admin or holding escalated privilege.
+	 * @param identity The DID of the organization.
+	 * @param callerIsEscalated The check of whether the caller holds escalated privilege, a new
+	 * lookup when omitted.
+	 * @returns A promise that resolves when the caller manages the organization.
+	 * @throws ForbiddenError when it does not.
+	 * @internal
+	 */
+	private async guardManager(
+		identity: string,
+		callerIsEscalated?: () => Promise<boolean>
+	): Promise<void> {
+		if (await this._adminRoles.isAdmin(await AdminScopeHelper.callerAccount(), identity)) {
+			return;
+		}
+		const isEscalated = Is.function(callerIsEscalated)
+			? await callerIsEscalated()
+			: await AdminScopeHelper.callerIsEscalated(
+					this._authorizationComponent,
+					this._authorizationModelId,
+					this._escalatedPrivilegeRole
+				);
+		if (!isEscalated) {
+			throw new ForbiddenError(
+				EntityStorageOrganizationService.CLASS_NAME,
+				"organizationAdminRequired",
+				{ escalatedRole: this._escalatedPrivilegeRole, adminRole: this._memberAdminRole }
+			);
+		}
 	}
 
 	/**

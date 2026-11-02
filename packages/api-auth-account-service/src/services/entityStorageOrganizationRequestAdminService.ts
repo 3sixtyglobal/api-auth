@@ -8,7 +8,14 @@ import {
 } from "@3sixty/api-auth-models";
 import { ForbiddenError } from "@3sixty/api-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
-import { ComponentFactory, ConflictError, Guards, Is, UnprocessableError } from "@3sixty/core";
+import {
+	ComponentFactory,
+	ConflictError,
+	Guards,
+	Is,
+	NotFoundError,
+	UnprocessableError
+} from "@3sixty/core";
 import { ComparisonOperator } from "@3sixty/entity";
 import {
 	EntityStorageConnectorFactory,
@@ -21,12 +28,15 @@ import type { Organization } from "../entities/organization.js";
 import type { OrganizationRequest } from "../entities/organizationRequest.js";
 import type { IEntityStorageOrganizationRequestAdminServiceConstructorOptions } from "../models/IEntityStorageOrganizationRequestAdminServiceConstructorOptions.js";
 import { AdminScopeHelper } from "../utils/adminScopeHelper.js";
+import { OrganizationAdminRoles } from "../utils/organizationAdminRoles.js";
 import { OrganizationHelper } from "../utils/organizationHelper.js";
 import { OrganizationMembershipHelper } from "../utils/organizationMembershipHelper.js";
 import { OrganizationRequestHelper } from "../utils/organizationRequestHelper.js";
 
 /**
- * Reviews the requests of accounts to join any organization of the tenant using entity storage.
+ * Reviews the requests of accounts to join the organizations of the tenant using entity storage.
+ * Callers holding escalated privilege review the requests of every organization, other callers only
+ * those of the organizations they are an org admin of, other requests are reported as missing.
  */
 export class EntityStorageOrganizationRequestAdminService implements IOrganizationRequestAdminComponent {
 	/**
@@ -105,6 +115,12 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	private readonly _authorizationModelId: string;
 
 	/**
+	 * The org admin roles of the organizations, which decide the requests a caller reviews.
+	 * @internal
+	 */
+	private readonly _adminRoles: OrganizationAdminRoles;
+
+	/**
 	 * Create a new instance of EntityStorageOrganizationRequestAdminService.
 	 * @param options The options for the service.
 	 */
@@ -133,6 +149,11 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 		this._authorizationModelId =
 			options?.config?.authorizationModelId ??
 			EntityStorageOrganizationRequestAdminService.DEFAULT_AUTHORIZATION_MODEL_ID;
+		this._adminRoles = new OrganizationAdminRoles(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			options?.config?.organizationAdminRolePrefix
+		);
 	}
 
 	/**
@@ -147,16 +168,33 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	 * Get a request.
 	 * @param id The unique identifier of the request.
 	 * @returns The request.
-	 * @throws NotFoundError when the request does not exist.
+	 * @throws NotFoundError when the request does not exist, or is for an organization the caller
+	 * does not manage.
 	 */
 	public async get(id: string): Promise<IOrganizationRequest> {
-		return OrganizationRequestHelper.get(this._organizationRequestEntityStorage, id);
+		const request = await OrganizationRequestHelper.get(this._organizationRequestEntityStorage, id);
+		const managed = await AdminScopeHelper.managedOrganizations(
+			this._adminRoles,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		if (Is.array(managed) && !managed.includes(request.organization)) {
+			throw new NotFoundError(
+				OrganizationRequestHelper.CLASS_NAME,
+				"organizationRequestNotFound",
+				id
+			);
+		}
+		return request;
 	}
 
 	/**
-	 * Query the requests, the earliest first.
+	 * Query the requests of the organizations the caller manages, the earliest first.
 	 * @param status The status of the requests to return, all when omitted.
-	 * @param organization The organization of the requests to return, all when omitted.
+	 * @param organization The organization of the requests to return, all the caller manages when omitted.
 	 * @param cursor The cursor to request the next page.
 	 * @param limit The maximum number of requests to return.
 	 * @returns The requests and a cursor when there are more.
@@ -170,19 +208,24 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 		entities: IOrganizationRequest[];
 		cursor?: string;
 	}> {
+		const organizations = await this.scopeOrganizations(organization);
+		if (Is.array(organizations) && organizations.length === 0) {
+			return { entities: [] };
+		}
 		return OrganizationRequestHelper.query(
 			this._organizationRequestEntityStorage,
 			status,
-			organization,
+			organizations,
 			cursor,
 			limit
 		);
 	}
 
 	/**
-	 * Count the requests of a status, up to a cap so counting stays bounded on every storage.
+	 * Count the requests of a status of the organizations the caller manages, up to a cap so counting
+	 * stays bounded on every storage.
 	 * @param status The status of the requests to count.
-	 * @param organization The organization of the requests to count, all when omitted.
+	 * @param organization The organization of the requests to count, all the caller manages when omitted.
 	 * @returns The number of requests, and whether there are more than the cap.
 	 * @throws GuardError when the status is not a request status.
 	 */
@@ -196,10 +239,14 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 			status,
 			Object.values(OrganizationRequestStatus)
 		);
+		const organizations = await this.scopeOrganizations(organization);
+		if (Is.array(organizations) && organizations.length === 0) {
+			return { count: 0, capped: false };
+		}
 		return OrganizationRequestHelper.count(
 			this._organizationRequestEntityStorage,
 			status,
-			organization
+			organizations
 		);
 	}
 
@@ -208,7 +255,8 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	 * the organization and the credential as the account data of the account.
 	 * @param id The unique identifier of the request.
 	 * @returns A promise that resolves when the account has joined the organization.
-	 * @throws NotFoundError when the request does not exist.
+	 * @throws NotFoundError when the request does not exist, or is for an organization the caller
+	 * does not manage.
 	 * @throws ConflictError when the request is not pending.
 	 * @throws UnprocessableError when the account no longer has an identity.
 	 * @throws ForbiddenError when the account holds escalated privilege and the caller does not, or
@@ -260,7 +308,8 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	 * @param id The unique identifier of the request.
 	 * @param reason The i18n key of the reason to give the account, for the client to translate.
 	 * @returns A promise that resolves when the request has been rejected.
-	 * @throws NotFoundError when the request does not exist.
+	 * @throws NotFoundError when the request does not exist, or is for an organization the caller
+	 * does not manage.
 	 * @throws ConflictError when the request is not pending.
 	 * @throws UnprocessableError when the reason is not an i18n key.
 	 */
@@ -343,6 +392,32 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 			);
 		}
 		return request;
+	}
+
+	/**
+	 * Get the organizations to read the requests of, those the caller manages.
+	 * @param organization The organization asked for, all the caller manages when omitted.
+	 * @returns The organization or organizations, none when the caller manages none of them, or
+	 * undefined for every organization.
+	 * @internal
+	 */
+	private async scopeOrganizations(
+		organization: string | undefined
+	): Promise<string | string[] | undefined> {
+		const managed = await AdminScopeHelper.managedOrganizations(
+			this._adminRoles,
+			AdminScopeHelper.callerIsEscalatedOnce(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			)
+		);
+		if (!Is.array(managed)) {
+			return organization;
+		}
+		return Is.stringValue(organization)
+			? managed.filter(managedOrganization => managedOrganization === organization)
+			: managed;
 	}
 
 	/**

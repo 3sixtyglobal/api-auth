@@ -20,6 +20,7 @@ export interface IAuthenticationAccountAdminComponent extends IComponent {
 	 * @param isDefault True to use the item first for its type, clearing any other default.
 	 * @param proof A proof by the DID over the identity proof document, required when a caller
 	 * without escalated privilege stores an identity.
+	 * @param adminOnly True when only admins may see and change the item.
 	 * @returns The unique identifier of the item.
 	 */
 	create(
@@ -27,7 +28,8 @@ export interface IAuthenticationAccountAdminComponent extends IComponent {
 		type: string,
 		data: unknown,
 		isDefault?: boolean,
-		proof?: IProof
+		proof?: IProof,
+		adminOnly?: boolean
 	): Promise<string>;
 
 	/**
@@ -43,10 +45,57 @@ export interface IAuthenticationAccountAdminComponent extends IComponent {
 	 * @param id The unique identifier of the item.
 	 * @param data The new value of the item.
 	 * @param isDefault True to use the item first for its type, clearing any other default, unchanged when omitted.
+	 * @param adminOnly True when only admins may see and change the item, unchanged when omitted.
 	 * @returns A promise that resolves when the item has been updated.
 	 * @throws NotFoundError when the item does not exist.
 	 */
-	update(id: string, data: unknown, isDefault?: boolean): Promise<void>;
+	update(id: string, data: unknown, isDefault?: boolean, adminOnly?: boolean): Promise<void>;
+
+	/**
+	 * Get the accounts the caller may manage, callers without escalated privilege only manage the
+	 * members of the organizations they are an org admin of.
+	 * @returns The account ids, or undefined when the caller may manage every account.
+	 */
+	getManagedAccounts(): Promise<string[] | undefined>;
+
+	/**
+	 * Get the roles of an account the caller manages.
+	 * @param accountId The account.
+	 * @returns The roles.
+	 * @throws NotFoundError when the caller does not manage the account.
+	 */
+	getRoles(accountId: string): Promise<string[]>;
+
+	/**
+	 * Get the roles the caller may grant and revoke, every role for a caller holding escalated
+	 * privilege, otherwise the roles it holds other than the escalated privilege role. The org admin
+	 * roles are never included, they are managed through the organization.
+	 * @returns The roles.
+	 */
+	getAssignableRoles(): Promise<string[]>;
+
+	/**
+	 * Grant a role to an account the caller manages.
+	 * @param accountId The account.
+	 * @param role The role.
+	 * @returns A promise that resolves when the role has been granted.
+	 * @throws NotFoundError when the caller does not manage the account.
+	 * @throws ForbiddenError when the caller may not grant the role to the account.
+	 * @throws UnprocessableError when the role is an org admin role.
+	 */
+	addRole(accountId: string, role: string): Promise<void>;
+
+	/**
+	 * Revoke a role of an account the caller manages.
+	 * @param accountId The account.
+	 * @param role The role.
+	 * @returns A promise that resolves when the role has been revoked.
+	 * @throws NotFoundError when the caller does not manage the account.
+	 * @throws ForbiddenError when the caller may not revoke the role of the account.
+	 * @throws UnprocessableError when the role is an org admin role.
+	 * @throws ConflictError when the escalated privilege role is revoked from its last holder.
+	 */
+	removeRole(accountId: string, role: string): Promise<void>;
 
 	/**
 	 * Remove an item.

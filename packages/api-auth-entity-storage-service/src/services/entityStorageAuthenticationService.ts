@@ -1965,8 +1965,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Store a profile as the account data of the account, when an account data admin component
-	 * exists. The e-mail and names are kept in the private profile.
+	 * Store a profile as the profile account data of the account, which is private unless the account
+	 * makes parts of it public.
 	 * @param accountId The account id.
 	 * @param profile The profile.
 	 * @param readOnly True to mark the profile read only, so the account may not change it.
@@ -1978,34 +1978,23 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		profile: NonNullable<IAuthenticationProviderIdentity["profile"]>,
 		readOnly: boolean
 	): Promise<void> {
-		const { email, givenName, familyName, ...publicProfile } = profile;
-		const profiles: [string, NonNullable<IAuthenticationProviderIdentity["profile"]>][] = [
-			[AuthenticationAccountDataType.PublicProfile, publicProfile],
-			[
-				AuthenticationAccountDataType.PrivateProfile,
-				{
-					"@context": profile["@context"],
-					"@type": profile["@type"],
-					givenName,
-					familyName,
-					email
-				}
-			]
-		];
-
-		await Promise.all(
-			profiles.map(async ([type, data]) => {
-				const value = readOnly ? AuthenticationAccountHelper.markReadOnly(data) : data;
-				const page = await this._authenticationAccountAdmin.query(accountId, type);
-				const item = page.entities.find(e => e.isDefault) ?? page.entities[0];
-				if (!Is.object(item)) {
-					await this._authenticationAccountAdmin.create(accountId, type, value, true);
-				} else if (!item.isDefault || !ObjectHelper.equal(item.data, value, false)) {
-					// A provider gives the same profile on most logins, so it is only written when it changed.
-					await this._authenticationAccountAdmin.update(item.id, value, true);
-				}
-			})
+		const value = readOnly ? AuthenticationAccountHelper.markReadOnly(profile) : profile;
+		const page = await this._authenticationAccountAdmin.query(
+			accountId,
+			AuthenticationAccountDataType.Profile
 		);
+		const item = page.entities.find(e => e.isDefault) ?? page.entities[0];
+		if (!Is.object(item)) {
+			await this._authenticationAccountAdmin.create(
+				accountId,
+				AuthenticationAccountDataType.Profile,
+				value,
+				true
+			);
+		} else if (!item.isDefault || !ObjectHelper.equal(item.data, value, false)) {
+			// A provider gives the same profile on most logins, so it is only written when it changed.
+			await this._authenticationAccountAdmin.update(item.id, value, true);
+		}
 	}
 
 	/**

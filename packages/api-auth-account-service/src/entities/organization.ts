@@ -21,7 +21,7 @@ export class Organization {
 	public identity!: string;
 
 	/**
-	 * The name from the public profile in lower case, to search the organizations by name, empty when it has none.
+	 * The name from the profile in lower case, to search the organizations by name, empty when it has none.
 	 */
 	@property({ type: "string", maxLength: 255, isSecondary: true })
 	public searchName!: string;

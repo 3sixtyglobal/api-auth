@@ -11,11 +11,20 @@ const accountClient = new EntityStorageAuthenticationAccountRestClient({
   endpoint: 'https://api.example.org'
 });
 
-const id = await accountClient.create('privateProfile', { email: 'alice@example.org' });
+const id = await accountClient.create('profile', { email: 'alice@example.org' });
 await accountClient.update(id, { email: 'alice@example.com' });
 
 const profile = await accountClient.get(id);
-console.log(profile.type); // privateProfile
+console.log(profile.type); // profile
+
+// Create an organization the account is a member and org admin of.
+const own = await accountClient.createOrganization({
+  profile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' },
+  publicData: ['profile.name']
+});
+
+// The public data of an organization or account, by DID needs no sign in.
+const published = await accountClient.getPublicDataByIdentity(own.identity);
 
 // Create a new self-controlled DID for the signed in account, this needs a recent sign in.
 const did = await accountClient.adoptIdentity();
@@ -78,6 +87,22 @@ const pending = await requestClient.query('pending');
 await requestClient.accept(pending.entities[0].id);
 ```
 
+## EntityStorageAuthenticationAccountAdminRestClient roles
+
+```typescript
+import { EntityStorageAuthenticationAccountAdminRestClient } from '@3sixty/api-auth-account-rest-client';
+
+const adminClient = new EntityStorageAuthenticationAccountAdminRestClient({
+  endpoint: 'https://api.example.org'
+});
+
+// The roles the caller may grant and revoke, then make another account a user admin.
+const assignable = await adminClient.getAssignableRoles();
+await adminClient.addRole('01a17afb-e05f-7939-83f2-d4f04c4bdf2e', 'user-admin');
+const roles = await adminClient.getRoles('01a17afb-e05f-7939-83f2-d4f04c4bdf2e');
+await adminClient.removeRole('01a17afb-e05f-7939-83f2-d4f04c4bdf2e', 'user-admin');
+```
+
 ## OrganizationRestClient
 
 ```typescript
@@ -89,22 +114,27 @@ const organizationClient = new OrganizationRestClient({
 
 // Admins create organizations, a node controlled DID is created when none is given.
 const organization = await organizationClient.create({
-  publicProfile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' }
+  profile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' },
+  publicData: ['profile.name']
 });
 
 // An existing DID needs a proof by it over AuthenticationAccountHelper.organizationProofDocument.
 await organizationClient.create({ identity: 'did:example:partner', proof });
 
-// Any signed in account reads the public profile, members also see the private profile.
+// Members and admins read the profile, others the public data.
 const byDid = await organizationClient.get(organization.identity);
-console.log(byDid.publicProfile?.name); // Example Ltd
+console.log(byDid.profile?.name ?? byDid.public?.[0]?.name); // Example Ltd
 
-// Admins update the profiles of any organization.
-await organizationClient.update(organization.id, undefined, {
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
-  email: 'office@example.org'
+// Org admins change the profile, logo and public data, a null logo removes it.
+await organizationClient.update(organization.id, {
+  profile: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Ltd' },
+  logo: null,
+  publicData: ['profile.name']
 });
+
+// Org admins list the members and grant or revoke org admin.
+const members = await organizationClient.queryMembers(organization.id);
+await organizationClient.addAdmin(organization.id, members.entities[0].accountId);
 
 // Admins export the identity of an organization the node holds the keys of, with a recent sign in,
 // and create an organization from an export.

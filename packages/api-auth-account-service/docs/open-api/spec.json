@@ -339,7 +339,7 @@
 													"issuanceDate": "2026-01-12T09:05:23.123Z",
 													"credentialStatus": {
 														"id": "did:entity-storage:0xfedcba9876543210#revocation",
-														"type": "BitstringStatusList",
+														"type": "RevocationBitmap2022",
 														"revocationBitmapIndex": "5"
 													},
 													"proof": {
@@ -553,7 +553,7 @@
 												"issuanceDate": "2026-01-12T09:05:23.123Z",
 												"credentialStatus": {
 													"id": "did:entity-storage:0xfedcba9876543210#revocation",
-													"type": "BitstringStatusList",
+													"type": "RevocationBitmap2022",
 													"revocationBitmapIndex": "5"
 												},
 												"proof": {
@@ -747,7 +747,7 @@
 											"version": 1,
 											"items": [
 												{
-													"type": "public-profile",
+													"type": "profile",
 													"data": {
 														"@context": "https://schema.org",
 														"@type": "Person",
@@ -881,7 +881,7 @@
 										"version": 1,
 										"items": [
 											{
-												"type": "public-profile",
+												"type": "profile",
 												"data": {
 													"@context": "https://schema.org",
 													"@type": "Person",
@@ -1454,6 +1454,230 @@
 				}
 			}
 		},
+		"/authentication/account/organization/create": {
+			"post": {
+				"operationId": "authenticationAccountCreateOrganization",
+				"summary": "Create an organization for the signed in account, which becomes its member and org admin",
+				"tags": [
+					"Authentication Account"
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"requestBody": {
+					"description": "Create an organization for the signed in account.",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AccountOrganizationCreate"
+							},
+							"examples": {
+								"authenticationAccountCreateOrganizationRequestExample": {
+									"summary": "The request to create an organization whose name and logo are public.",
+									"value": {
+										"profile": {
+											"@context": "https://schema.org",
+											"@type": "Organization",
+											"name": "Example Ltd",
+											"email": "office@example.com"
+										},
+										"logo": {
+											"@context": "https://schema.org",
+											"@type": "ImageObject",
+											"encodingFormat": "image/png",
+											"contentUrl": "data:image/png;base64,iVBORw0KGgo="
+										},
+										"publicData": [
+											"profile.name",
+											"logo"
+										]
+									}
+								},
+								"authenticationAccountCreateOrganizationFromImportRequestExample": {
+									"summary": "The request to create an organization from an identity export of another node, keeping its DID.",
+									"value": {
+										"identityImport": {
+											"type": "organization-identity",
+											"version": 1,
+											"identity": {
+												"version": 1,
+												"namespace": "entity-storage",
+												"selfControlled": false,
+												"document": {
+													"@context": "https://www.w3.org/ns/did/v1",
+													"id": "did:entity-storage:0xfedcba9876543210"
+												},
+												"documentSignature": "base64-signature",
+												"keys": [
+													{
+														"id": "did",
+														"type": "Ed25519",
+														"privateKey": "base64-private-key",
+														"publicKey": "base64-public-key"
+													}
+												]
+											},
+											"nextRevocationIndex": 12
+										},
+										"profile": {
+											"@context": "https://schema.org",
+											"@type": "Organization",
+											"name": "Example Ltd"
+										},
+										"publicData": [
+											"profile.name"
+										]
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "The organization created for the signed in account.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Organization"
+								},
+								"examples": {
+									"authenticationAccountCreateOrganizationResponseExample": {
+										"summary": "The organization created.",
+										"value": {
+											"id": "01a17afc-611a-7d5b-a898-e0e20088b36f",
+											"identity": "did:example:organization",
+											"profile": {
+												"@context": "https://schema.org",
+												"@type": "Organization",
+												"name": "Example Ltd",
+												"email": "office@example.com"
+											},
+											"publicData": [
+												"profile.name",
+												"logo"
+											],
+											"isAdmin": true,
+											"dateCreated": "2026-01-12T09:05:23.123Z",
+											"dateModified": "2026-01-12T09:05:23.123Z"
+										}
+									}
+								}
+							}
+						},
+						"headers": {
+							"location": {
+								"schema": {
+									"type": "string"
+								},
+								"description": "e.g. authentication/account/organization"
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "The request resulted in a conflicting operation, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ConflictError",
+											"message": "errorMessage",
+											"properties": {
+												"conflicts": [
+													"1"
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnprocessableError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/authentication/account/organization/{organization}": {
 			"delete": {
 				"operationId": "authenticationAccountLeaveOrganization",
@@ -1564,6 +1788,234 @@
 				}
 			}
 		},
+		"/authentication/account/public/identity/{identity}": {
+			"get": {
+				"operationId": "authenticationAccountPublicIdentity",
+				"summary": "Get the public data of the organization or account that holds a DID",
+				"tags": [
+					"Authentication Account"
+				],
+				"parameters": [
+					{
+						"name": "identity",
+						"description": "The DID.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "did:example:organization"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The public data of an account or organization.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountPublicDataGetResponse"
+								},
+								"examples": {
+									"authenticationAccountPublicIdentityResponseExample": {
+										"summary": "The public data of the organization.",
+										"value": [
+											{
+												"@context": "https://schema.org",
+												"@type": "Organization",
+												"name": "Example Ltd",
+												"address": {
+													"@type": "PostalAddress",
+													"addressLocality": "London"
+												},
+												"identifier": "did:example:organization"
+											}
+										]
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/account/public/account/{accountId}": {
+			"get": {
+				"operationId": "authenticationAccountPublicAccount",
+				"summary": "Get the public data of an account or organization",
+				"tags": [
+					"Authentication Account"
+				],
+				"parameters": [
+					{
+						"name": "accountId",
+						"description": "The account id, or the unique identifier or DID of an organization.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The public data of an account or organization.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountPublicDataGetResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/authentication/account": {
 			"post": {
 				"operationId": "authenticationAccountCreate",
@@ -1588,7 +2040,7 @@
 								"authenticationAccountCreateRequestExample": {
 									"summary": "The request to store an item of account data.",
 									"value": {
-										"type": "public-profile",
+										"type": "profile",
 										"data": {
 											"@context": "https://schema.org",
 											"@type": "Person",
@@ -3085,6 +3537,24 @@
 							}
 						}
 					},
+					"422": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnprocessableError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
 					"500": {
 						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
 						"content": {
@@ -3226,6 +3696,662 @@
 											"message": "errorMessage",
 											"properties": {
 												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnprocessableError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/admin/account/managed": {
+			"get": {
+				"operationId": "authenticationAccountAdminManaged",
+				"summary": "Get the accounts the caller may manage",
+				"tags": [
+					"Authentication Account Admin"
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The accounts the caller may manage.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountAdminManagedResponse"
+								},
+								"examples": {
+									"authenticationAccountAdminManagedResponseExample": {
+										"summary": "The members of the organizations the caller is an org admin of, accountIds is omitted for a caller who manages every account.",
+										"value": {
+											"accountIds": [
+												"01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/admin/account/roles/assignable": {
+			"get": {
+				"operationId": "authenticationAccountAdminAssignableRoles",
+				"summary": "Get the roles the caller may grant and revoke",
+				"tags": [
+					"Authentication Account Admin"
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "A list of roles.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountAdminRolesResponse"
+								},
+								"examples": {
+									"authenticationAccountAdminAssignableRolesResponseExample": {
+										"summary": "The roles a user admin holds itself, other than global-admin.",
+										"value": {
+											"roles": [
+												"user",
+												"user-admin"
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/admin/account/{accountId}/roles": {
+			"get": {
+				"operationId": "authenticationAccountAdminGetRoles",
+				"summary": "Get the roles of an account",
+				"tags": [
+					"Authentication Account Admin"
+				],
+				"parameters": [
+					{
+						"name": "accountId",
+						"description": "The account.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "A list of roles.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountAdminRolesResponse"
+								},
+								"examples": {
+									"authenticationAccountAdminGetRolesResponseExample": {
+										"summary": "The roles of the account.",
+										"value": {
+											"roles": [
+												"user",
+												"org-admin:did:example:organization"
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/admin/account/{accountId}/roles/{role}": {
+			"put": {
+				"operationId": "authenticationAccountAdminAddRole",
+				"summary": "Grant a role to an account",
+				"tags": [
+					"Authentication Account Admin"
+				],
+				"parameters": [
+					{
+						"name": "accountId",
+						"description": "The account.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+					},
+					{
+						"name": "role",
+						"description": "The role.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "user-admin"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "The rest request ended in success with no data."
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnprocessableError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "authenticationAccountAdminRemoveRole",
+				"summary": "Revoke a role of an account",
+				"tags": [
+					"Authentication Account Admin"
+				],
+				"parameters": [
+					{
+						"name": "accountId",
+						"description": "",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+					},
+					{
+						"name": "role",
+						"description": "",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "user-admin"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "The rest request ended in success with no data."
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "The request resulted in a conflicting operation, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ConflictError",
+											"message": "errorMessage",
+											"properties": {
+												"conflicts": [
+													"1"
+												]
 											}
 										}
 									}
@@ -3414,7 +4540,7 @@
 				"parameters": [
 					{
 						"name": "id",
-						"description": "",
+						"description": "The unique identifier of the item.",
 						"in": "path",
 						"required": true,
 						"schema": {
@@ -3430,12 +4556,12 @@
 					}
 				],
 				"requestBody": {
-					"description": "Replace the value of an item of account data.",
+					"description": "Replace the value of an item of account data of any account.",
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
-								"$ref": "#/components/schemas/AccountDataUpdateRequest"
+								"$ref": "#/components/schemas/AccountDataAdminUpdateRequest"
 							},
 							"examples": {
 								"authenticationAccountAdminUpdateRequestExample": {
@@ -3489,6 +4615,27 @@
 										"value": {
 											"name": "UnauthorizedError",
 											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
 										}
 									}
 								}
@@ -3597,6 +4744,27 @@
 										"value": {
 											"name": "UnauthorizedError",
 											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
 										}
 									}
 								}
@@ -4408,13 +5576,16 @@
 							},
 							"examples": {
 								"organizationCreateRequestExample": {
-									"summary": "The request to create an organization, the caller becomes its first member.",
+									"summary": "The request to create an organization, the caller becomes its first member and org admin.",
 									"value": {
-										"publicProfile": {
+										"profile": {
 											"@context": "https://schema.org",
 											"@type": "Organization",
 											"name": "Example Ltd"
-										}
+										},
+										"publicData": [
+											"profile.name"
+										]
 									}
 								},
 								"organizationCreateFromImportRequestExample": {
@@ -4443,11 +5614,14 @@
 											},
 											"nextRevocationIndex": 12
 										},
-										"publicProfile": {
+										"profile": {
 											"@context": "https://schema.org",
 											"@type": "Organization",
 											"name": "Example Ltd"
-										}
+										},
+										"publicData": [
+											"profile.name"
+										]
 									}
 								}
 							}
@@ -4737,13 +5911,13 @@
 								},
 								"examples": {
 									"organizationSearchResponseExample": {
-										"summary": "The organizations with their public profiles.",
+										"summary": "The organizations with their names and the public properties of their profiles.",
 										"value": {
 											"entities": [
 												{
 													"id": "01a17afc-611a-7d5b-a898-e0e20088b36f",
 													"identity": "did:example:organization",
-													"publicProfile": {
+													"profile": {
 														"@context": "https://schema.org",
 														"@type": "Organization",
 														"name": "Example Ltd"
@@ -4821,7 +5995,7 @@
 		"/authentication/organization/{id}": {
 			"get": {
 				"operationId": "organizationGet",
-				"summary": "Get an organization, the private profile is only included for its members",
+				"summary": "Get an organization, the profile, logo and public data are only included for its members and admins",
 				"tags": [
 					"Organization"
 				],
@@ -4857,12 +6031,16 @@
 										"value": {
 											"id": "01a17afc-611a-7d5b-a898-e0e20088b36f",
 											"identity": "did:example:organization",
-											"publicProfile": {
+											"profile": {
 												"@context": "https://schema.org",
 												"@type": "Organization",
 												"name": "Example Ltd",
 												"url": "https://example.com"
 											},
+											"publicData": [
+												"profile.name"
+											],
+											"isAdmin": true,
 											"dateCreated": "2026-01-12T09:05:23.123Z",
 											"dateModified": "2026-01-12T09:05:23.123Z"
 										}
@@ -4953,7 +6131,7 @@
 			},
 			"put": {
 				"operationId": "organizationUpdate",
-				"summary": "Replace the profiles of an organization",
+				"summary": "Change the profile, logo and public data of an organization",
 				"tags": [
 					"Organization"
 				],
@@ -4976,7 +6154,7 @@
 					}
 				],
 				"requestBody": {
-					"description": "Replace the profiles of an organization.",
+					"description": "Change the profile, logo and public data of an organization.",
 					"required": true,
 					"content": {
 						"application/json": {
@@ -4985,19 +6163,508 @@
 							},
 							"examples": {
 								"organizationUpdateRequestExample": {
-									"summary": "The request to replace the public profile of an organization.",
+									"summary": "The request to replace the profile of an organization and its public data.",
 									"value": {
-										"publicProfile": {
+										"profile": {
 											"@context": "https://schema.org",
 											"@type": "Organization",
-											"name": "Example Ltd"
-										}
+											"name": "Example Ltd",
+											"telephone": "+44 20 7946 0000"
+										},
+										"publicData": [
+											"profile.name",
+											"logo"
+										]
 									}
 								}
 							}
 						}
 					}
 				},
+				"responses": {
+					"204": {
+						"description": "The rest request ended in success with no data."
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnprocessableError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "organizationRemove",
+				"summary": "Remove an organization that has no members, or of which the calling org admin is the only member",
+				"tags": [
+					"Organization"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"description": "The unique identifier or the DID of the organization.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afc-611a-7d5b-a898-e0e20088b36f"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "The rest request ended in success with no data."
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "The request resulted in a conflicting operation, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ConflictError",
+											"message": "errorMessage",
+											"properties": {
+												"conflicts": [
+													"1"
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/organization/{id}/member": {
+			"get": {
+				"operationId": "organizationMemberQuery",
+				"summary": "Query the members of an organization",
+				"tags": [
+					"Organization"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"description": "The unique identifier or the DID of the organization.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afc-611a-7d5b-a898-e0e20088b36f"
+					},
+					{
+						"name": "cursor",
+						"description": "The pagination cursor.",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"description": "The maximum number of results to return.",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"example": "10"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The members of an organization.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OrganizationMemberQueryResponse"
+								},
+								"examples": {
+									"organizationMemberQueryResponseExample": {
+										"summary": "The members of the organization.",
+										"value": {
+											"entities": [
+												{
+													"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+													"email": "alice@example.com",
+													"name": "Alice Smith",
+													"isAdmin": true
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "You are not authorized to use the API or no credentials were supplied, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "UnauthorizedError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "ForbiddenError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/organization/{id}/admin/{accountId}": {
+			"put": {
+				"operationId": "organizationAdminAdd",
+				"summary": "Make a member an org admin of an organization",
+				"tags": [
+					"Organization"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"description": "The unique identifier or the DID of the organization.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afc-611a-7d5b-a898-e0e20088b36f"
+					},
+					{
+						"name": "accountId",
+						"description": "The account of the member.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+					}
+				],
+				"security": [
+					{
+						"jwtBearerAuthScheme": []
+					}
+				],
 				"responses": {
 					"204": {
 						"description": "The rest request ended in success with no data."
@@ -5104,8 +6771,8 @@
 				}
 			},
 			"delete": {
-				"operationId": "organizationRemove",
-				"summary": "Remove an organization that has no members",
+				"operationId": "organizationAdminRemove",
+				"summary": "Stop a member being an org admin of an organization",
 				"tags": [
 					"Organization"
 				],
@@ -5120,6 +6787,17 @@
 						},
 						"style": "simple",
 						"example": "01a17afc-611a-7d5b-a898-e0e20088b36f"
+					},
+					{
+						"name": "accountId",
+						"description": "The account of the member.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
 					}
 				],
 				"security": [
@@ -5473,6 +7151,35 @@
 	},
 	"components": {
 		"schemas": {
+			"AccountAdminManagedResponse": {
+				"type": "object",
+				"properties": {
+					"accountIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The account ids, omitted when the caller may manage every account."
+					}
+				},
+				"description": "The response body."
+			},
+			"AccountAdminRolesResponse": {
+				"type": "object",
+				"properties": {
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The roles."
+					}
+				},
+				"required": [
+					"roles"
+				],
+				"description": "The response body."
+			},
 			"AccountDataAdminCreateRequest": {
 				"type": "object",
 				"properties": {
@@ -5493,6 +7200,10 @@
 					},
 					"proof": {
 						"$ref": "https://schema.3sixty.global/w3c-did/Proof"
+					},
+					"adminOnly": {
+						"type": "boolean",
+						"description": "True when only admins may see and change the item."
 					}
 				},
 				"required": [
@@ -5501,6 +7212,26 @@
 					"data"
 				],
 				"description": "The item to store."
+			},
+			"AccountDataAdminUpdateRequest": {
+				"type": "object",
+				"properties": {
+					"data": {
+						"description": "The new value of the item, a JSON object in the shape of its type."
+					},
+					"isDefault": {
+						"type": "boolean",
+						"description": "True to use the item first for its type, clearing any other default, unchanged when omitted."
+					},
+					"adminOnly": {
+						"type": "boolean",
+						"description": "True when only admins may see and change the item, unchanged when omitted."
+					}
+				},
+				"required": [
+					"data"
+				],
+				"description": "The new value."
 			},
 			"AccountDataCreateRequest": {
 				"type": "object",
@@ -5643,6 +7374,28 @@
 					"organizations"
 				]
 			},
+			"AccountOrganizationCreate": {
+				"description": "The details of an organization the signed in account creates for itself.",
+				"type": "object",
+				"properties": {
+					"identityImport": {
+						"$ref": "#/components/schemas/OrganizationIdentityExport"
+					},
+					"profile": {
+						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+					},
+					"logo": {
+						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+					},
+					"publicData": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The paths of the data that is public, such as profile.name or logo."
+					}
+				}
+			},
 			"AccountOrganizationGetResponse": {
 				"type": "object",
 				"properties": {
@@ -5752,6 +7505,13 @@
 					"skippedTypes"
 				]
 			},
+			"AccountPublicDataGetResponse": {
+				"type": "array",
+				"items": {
+					"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+				},
+				"description": "The public JSON-LD objects, empty when nothing is public."
+			},
 			"AuthenticationAccountData": {
 				"description": "An item of data stored for an account.",
 				"type": "object",
@@ -5766,7 +7526,7 @@
 					},
 					"type": {
 						"type": "string",
-						"description": "The type of the item, such as identity or public-profile, stored in kebab case."
+						"description": "The type of the item, such as identity or profile, stored in kebab case."
 					},
 					"data": {
 						"description": "The value of the item, a JSON object in the shape of its type."
@@ -5774,6 +7534,10 @@
 					"isDefault": {
 						"type": "boolean",
 						"description": "True for the item of its type to use first, otherwise the earliest created item is used."
+					},
+					"adminOnly": {
+						"type": "boolean",
+						"description": "True when only admins may see and change the item, only present in admin responses."
 					},
 					"dateCreated": {
 						"type": "string",
@@ -5945,11 +7709,29 @@
 						"type": "string",
 						"description": "The DID of the organization."
 					},
-					"publicProfile": {
+					"profile": {
 						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
 					},
-					"privateProfile": {
+					"logo": {
 						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+					},
+					"publicData": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The paths of the data that is public, only for its members and admins."
+					},
+					"public": {
+						"type": "array",
+						"items": {
+							"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+						},
+						"description": "The public data, a JSON-LD object for each type its public data paths name, for callers who\nare not its members or admins, and in a search, where the name is always included."
+					},
+					"isAdmin": {
+						"type": "boolean",
+						"description": "True when the signed in caller is an org admin of the organization."
 					},
 					"dateCreated": {
 						"type": "string",
@@ -5981,11 +7763,18 @@
 					"proof": {
 						"$ref": "https://schema.3sixty.global/w3c-did/Proof"
 					},
-					"publicProfile": {
+					"profile": {
 						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
 					},
-					"privateProfile": {
+					"logo": {
 						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+					},
+					"publicData": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The paths of the data that is public, such as profile.name or logo."
 					}
 				}
 			},
@@ -6014,6 +7803,52 @@
 					"version",
 					"identity"
 				]
+			},
+			"OrganizationMember": {
+				"description": "A member of an organization.",
+				"type": "object",
+				"properties": {
+					"accountId": {
+						"type": "string",
+						"description": "The account of the member."
+					},
+					"email": {
+						"type": "string",
+						"description": "The e-mail address from the profile of the member, when it has one."
+					},
+					"name": {
+						"type": "string",
+						"description": "The name from the profile of the member, when it has one."
+					},
+					"isAdmin": {
+						"type": "boolean",
+						"description": "True when the member is an org admin of the organization."
+					}
+				},
+				"required": [
+					"accountId",
+					"isAdmin"
+				]
+			},
+			"OrganizationMemberQueryResponse": {
+				"type": "object",
+				"properties": {
+					"entities": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/OrganizationMember"
+						},
+						"description": "The returned members."
+					},
+					"cursor": {
+						"type": "string",
+						"description": "The cursor to retrieve the next page, if any."
+					}
+				},
+				"required": [
+					"entities"
+				],
+				"description": "The response body."
 			},
 			"OrganizationQueryResponse": {
 				"type": "object",
@@ -6160,14 +7995,29 @@
 			"OrganizationUpdateRequest": {
 				"type": "object",
 				"properties": {
-					"publicProfile": {
+					"profile": {
 						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
 					},
-					"privateProfile": {
-						"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+					"logo": {
+						"anyOf": [
+							{
+								"$ref": "https://schema.3sixty.global/json-ld/JsonLdNodeObject"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "The logo, a schema.org ImageObject holding a data URL, null removes it."
+					},
+					"publicData": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The paths of the data that is public, such as profile.name or logo."
 					}
 				},
-				"description": "The profiles, those omitted are unchanged."
+				"description": "The changes, those omitted are unchanged."
 			}
 		},
 		"securitySchemes": {

@@ -15,6 +15,9 @@ import type {
 	IAccountIdentityImportRequest,
 	IAccountIdentityImportResponse,
 	IAccountIdentityImportResult,
+	IAccountOrganizationCreate,
+	IAccountOrganizationCreateRequest,
+	IAccountOrganizationCreateResponse,
 	IAccountOrganizationGetResponse,
 	IAccountOrganizationJoinRequest,
 	IAccountOrganizationLeaveRequest,
@@ -24,8 +27,12 @@ import type {
 	IAccountProfileImportRequest,
 	IAccountProfileImportResponse,
 	IAccountProfileImportResult,
+	IAccountPublicAccountGetRequest,
+	IAccountPublicDataGetResponse,
+	IAccountPublicIdentityGetRequest,
 	IAuthenticationAccountComponent,
 	IAuthenticationAccountData,
+	IOrganization,
 	IOrganizationRequest
 } from "@3sixty/api-auth-models";
 import { BaseRestClient } from "@3sixty/api-core";
@@ -219,6 +226,76 @@ export class EntityStorageAuthenticationAccountRestClient
 				body: { organization }
 			}
 		);
+	}
+
+	/**
+	 * Create an organization for the signed in account, which becomes its member and org admin.
+	 * @param details The profile, logo and public data of the organization.
+	 * @returns The organization.
+	 */
+	public async createOrganization(details: IAccountOrganizationCreate): Promise<IOrganization> {
+		Guards.object<IAccountOrganizationCreate>(
+			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
+			nameof(details),
+			details
+		);
+
+		const response = await this.fetch<
+			IAccountOrganizationCreateRequest,
+			IAccountOrganizationCreateResponse
+		>("/organization/create", HttpMethod.POST, {
+			body: details
+		});
+
+		return response.body;
+	}
+
+	/**
+	 * Get the public data of the organization or account that holds a DID.
+	 * @param identity The DID.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 */
+	public async getPublicDataByIdentity(
+		identity: string
+	): Promise<IAccountPublicDataGetResponse["body"]> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
+			nameof(identity),
+			identity
+		);
+
+		const response = await this.fetch<
+			IAccountPublicIdentityGetRequest,
+			IAccountPublicDataGetResponse
+		>("/public/identity/:identity", HttpMethod.GET, {
+			pathParams: { identity }
+		});
+
+		return response.body;
+	}
+
+	/**
+	 * Get the public data of an account or organization.
+	 * @param accountId The account id, or the unique identifier or DID of an organization.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 */
+	public async getPublicDataByAccount(
+		accountId: string
+	): Promise<IAccountPublicDataGetResponse["body"]> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
+			nameof(accountId),
+			accountId
+		);
+
+		const response = await this.fetch<
+			IAccountPublicAccountGetRequest,
+			IAccountPublicDataGetResponse
+		>("/public/account/:accountId", HttpMethod.GET, {
+			pathParams: { accountId }
+		});
+
+		return response.body;
 	}
 
 	/**

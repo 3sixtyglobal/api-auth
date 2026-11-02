@@ -31,7 +31,7 @@ import {
 	type IFakeIdentityComponent
 } from "../helpers/fakeIdentityComponent.js";
 import {
-	createAuthorizationComponent,
+	createRoleAuthorizationComponent,
 	createRateComponent,
 	createUserStorage
 } from "../helpers/testDependencies.js";
@@ -102,7 +102,10 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 		EntityStorageConnectorFactory.register("authentication-user", () => userStorage);
 		identityComponent = createFakeIdentityComponent();
 		rateService = createRateComponent();
-		const authorization = createAuthorizationComponent();
+		// The admin is an org admin of the organization, so manages its members.
+		const authorization = createRoleAuthorizationComponent({
+			"admin-1": [`org-admin:${ORGANIZATION}`]
+		});
 		ComponentFactory.register("identity-service", () => identityComponent);
 		ComponentFactory.register("authentication-rate", () => rateService);
 		ComponentFactory.register("authorization", () => authorization);
@@ -181,7 +184,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 					"vc",
 					membershipCredential(ORGANIZATION, { id: identity }, undefined, "forged")
 				);
-				await service.create("public-profile", { name: "Alice" });
+				await service.create("profile", { name: "Alice" });
 				await requests.set({
 					id: "request-1",
 					accountId: "account-1",
@@ -213,7 +216,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 					await expect(service.query(type)).resolves.toMatchObject({ entities: [] });
 				}
 				// The profile stays, only the identity and what moves with it is removed.
-				await expect(service.query("public-profile")).resolves.toMatchObject({
+				await expect(service.query("profile")).resolves.toMatchObject({
 					entities: [{ data: { name: "Alice" } }]
 				});
 				await expect(requests.get("request-1")).resolves.toBeUndefined();
@@ -773,6 +776,12 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 	});
 
 	describe("admin export and import", () => {
+		beforeEach(async () => {
+			await asSystem(async () =>
+				admin.create("admin-1", "organization", organizationData(ORGANIZATION))
+			);
+		});
+
 		it("should move an identity with its membership into another account", async () => {
 			const identity = await setupMember("account-1");
 			const exported = await asSystem(async () => admin.exportIdentity("account-1"));
@@ -874,27 +883,25 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 		});
 
 		it("should export and replace the profile of an account", async () => {
-			await asAccount("account-1", async () =>
-				service.create("public-profile", { name: "Old" }, true)
-			);
+			await asAccount("account-1", async () => service.create("profile", { name: "Old" }, true));
 
 			const exported = await asSystem(async () => admin.exportProfile("account-1"));
 			expect(exported).toMatchObject({
 				type: "account-profile",
 				version: 1,
-				items: [{ type: "public-profile", data: { name: "Old" } }]
+				items: [{ type: "profile", data: { name: "Old" } }]
 			});
 
 			await expect(
 				asSystem(async () =>
 					admin.importProfile("account-2", {
 						...exported,
-						items: [{ type: "public-profile", data: { name: "New" }, isDefault: true }]
+						items: [{ type: "profile", data: { name: "New" }, isDefault: true }]
 					})
 				)
 			).resolves.toEqual({ itemsImported: 1, itemsRemoved: 0, skippedTypes: [] });
 			await expect(
-				asAccount("account-2", async () => service.query("public-profile"))
+				asAccount("account-2", async () => service.query("profile"))
 			).resolves.toMatchObject({ entities: [{ data: { name: "New" } }] });
 		});
 	});
@@ -1041,14 +1048,14 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 		it("should export the profile without the identity, organizations or credentials", async () => {
 			await setupMember("account-1");
 			await asAccount("account-1", async () => {
-				await service.create("public-profile", { name: "Alice" }, true);
+				await service.create("profile", { name: "Alice" }, true);
 				await service.create("address", { line: "1" });
 				await service.create("address", { line: "2" }, true);
 
 				const exported = await service.exportProfile();
 				expect(exported.version).toBe(1);
 				expect(exported.items.map(item => [item.type, item.data, item.isDefault])).toEqual([
-					["public-profile", { name: "Alice" }, true],
+					["profile", { name: "Alice" }, true],
 					["address", { line: "1" }, false],
 					["address", { line: "2" }, true]
 				]);
@@ -1059,7 +1066,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 		it("should replace the profile, keeping the order and the first default of each type", async () => {
 			await setupMember("account-1");
 			await asAccount("account-1", async () => {
-				await service.create("public-profile", { name: "Old" });
+				await service.create("profile", { name: "Old" });
 				await service.create("address", { line: "old" });
 
 				await expect(
@@ -1067,7 +1074,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 						type: "account-profile",
 						version: 1,
 						items: [
-							{ type: "PublicProfile", data: { name: "New" }, isDefault: true },
+							{ type: "Profile", data: { name: "New" }, isDefault: true },
 							{ type: "address", data: { line: "a" } },
 							{ type: "address", data: { line: "b" }, isDefault: true },
 							{ type: "address", data: { line: "c" }, isDefault: true }
@@ -1077,7 +1084,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 
 				const exported = await service.exportProfile();
 				expect(exported.items.map(item => [item.type, item.data, item.isDefault])).toEqual([
-					["public-profile", { name: "New" }, true],
+					["profile", { name: "New" }, true],
 					["address", { line: "a" }, false],
 					["address", { line: "b" }, true],
 					["address", { line: "c" }, false]
@@ -1092,7 +1099,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 			await asSystem(async () =>
 				admin.create(
 					"account-1",
-					"public-profile",
+					"profile",
 					AuthenticationAccountHelper.markReadOnly({ name: "Provider" }),
 					true
 				)
@@ -1105,9 +1112,9 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 						type: "account-profile",
 						version: 1,
 						items: [
-							{ type: "public-profile", data: { name: "Mine" } },
+							{ type: "profile", data: { name: "Mine" } },
 							{
-								type: "private-profile",
+								type: "contact-details",
 								data: AuthenticationAccountHelper.markReadOnly({ email: "a@b.c" })
 							},
 							{ type: "address", data: { line: "new" } }
@@ -1116,7 +1123,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 				).resolves.toEqual({
 					itemsImported: 1,
 					itemsRemoved: 1,
-					skippedTypes: ["public-profile", "private-profile"]
+					skippedTypes: ["profile", "contact-details"]
 				});
 
 				const exported = await service.exportProfile();

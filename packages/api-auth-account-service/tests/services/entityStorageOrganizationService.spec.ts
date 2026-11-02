@@ -7,7 +7,7 @@ import {
 } from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context";
-import { ComponentFactory, GeneralError } from "@3sixty/core";
+import { ComponentFactory, GeneralError, Is } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
@@ -29,7 +29,11 @@ import {
 	createFakeIdentityComponent,
 	type IFakeIdentityComponent
 } from "../helpers/fakeIdentityComponent.js";
-import { createRateComponent, createUserStorage } from "../helpers/testDependencies.js";
+import {
+	createRateComponent,
+	createRoleAuthorizationComponent,
+	createUserStorage
+} from "../helpers/testDependencies.js";
 
 initSchema();
 
@@ -42,16 +46,16 @@ const MEMBERSHIP_CREDENTIAL = membershipCredential(ORGANIZATION, {
 	id: "did:example:member",
 	memberOf: { id: ORGANIZATION }
 });
+/**
+ * The public properties of the profile, its name.
+ */
 const PUBLIC_PROFILE = {
 	"@context": "https://schema.org",
 	"@type": "Organization",
 	name: "Example Ltd"
 };
-const PRIVATE_PROFILE = {
-	"@context": "https://schema.org",
-	"@type": "Organization",
-	email: "office@example.com"
-};
+const PROFILE = { ...PUBLIC_PROFILE, email: "office@example.com" };
+const PUBLIC_DATA = ["profile.name"];
 
 /**
  * Create a proof made with an authentication method of a DID.
@@ -147,16 +151,7 @@ describe("EntityStorageOrganizationService", () => {
 			proofVerify: vi.fn().mockResolvedValue(true)
 		} as unknown as IIdentityComponent;
 		roles = { "global-1": ["global-admin"] };
-		authorization = {
-			className: () => "authorization",
-			hasRoleForSubject: vi.fn(
-				async (modelId: string, subject: string, role: string) =>
-					roles[subject]?.includes(role) ?? false
-			),
-			addRoleForSubject: vi.fn(async (modelId: string, subject: string, role: string) => {
-				roles[subject] = [...(roles[subject] ?? []), role];
-			})
-		} as unknown as IAuthorizationComponent;
+		authorization = createRoleAuthorizationComponent(roles);
 		ComponentFactory.register("identity-service", () => identityComponent);
 		ComponentFactory.register("authorization", () => authorization);
 		ComponentFactory.register("authentication-rate", () => createRateComponent());
@@ -179,7 +174,7 @@ describe("EntityStorageOrganizationService", () => {
 
 	it("should create a node controlled DID with the trust verification method", async () => {
 		const created = await asAccount("global-1", async () =>
-			service.create({ publicProfile: PUBLIC_PROFILE, privateProfile: PRIVATE_PROFILE })
+			service.create({ profile: PROFILE, publicData: PUBLIC_DATA })
 		);
 
 		expect(identityComponent.identityCreate).toHaveBeenCalledWith(undefined, "did:example:node");
@@ -189,30 +184,37 @@ describe("EntityStorageOrganizationService", () => {
 			"trust-assertion",
 			"did:example:node"
 		);
-		expect(created).toMatchObject({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
+		expect(created).toMatchObject({
+			identity: ORGANIZATION,
+			profile: PROFILE,
+			publicData: PUBLIC_DATA,
+			isAdmin: true
+		});
 		expect(await organizations.get(created.id)).toMatchObject({ identity: ORGANIZATION });
 
-		const publicProfile = await AccountDataHelper.getDefault(
+		const profile = await AccountDataHelper.getDefault(
 			accountData,
 			created.identity,
-			AuthenticationAccountDataType.PublicProfile
+			AuthenticationAccountDataType.Profile
 		);
-		expect(publicProfile?.data).toEqual(PUBLIC_PROFILE);
+		expect(profile?.data).toEqual(PROFILE);
+		expect(roles["global-1"]).toContain(`org-admin:${ORGANIZATION}`);
 	});
 
 	it("should search the organizations by the start of their name for any account", async () => {
 		await service.create({
 			identity: "did:example:one",
-			publicProfile: PUBLIC_PROFILE,
-			privateProfile: PRIVATE_PROFILE
+			profile: PROFILE,
+			publicData: PUBLIC_DATA
 		});
 		await service.create({
 			identity: "did:example:two",
-			publicProfile: { ...PUBLIC_PROFILE, name: "Exemplar Group" }
+			profile: { ...PROFILE, name: "Exemplar Group" },
+			publicData: PUBLIC_DATA
 		});
 		await service.create({
 			identity: "did:example:three",
-			publicProfile: { ...PUBLIC_PROFILE, name: "Other Co" }
+			profile: { ...PROFILE, name: "Other Co" }
 		});
 
 		const found = await asAccount("user-1", async () => service.search("EX"));
@@ -226,7 +228,7 @@ describe("EntityStorageOrganizationService", () => {
 			{
 				id: expect.any(String),
 				identity: "did:example:one",
-				publicProfile: PUBLIC_PROFILE,
+				public: [{ ...PUBLIC_PROFILE, identifier: "did:example:one" }],
 				dateCreated: expect.any(String),
 				dateModified: expect.any(String)
 			}
@@ -239,17 +241,17 @@ describe("EntityStorageOrganizationService", () => {
 	});
 
 	it("should only change the profiles through the organization service", async () => {
-		await service.create({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
+		await service.create({ identity: ORGANIZATION, profile: PROFILE });
 		const accountAdmin = new EntityStorageAuthenticationAccountAdminService();
 		const profile = await AccountDataHelper.getDefault(
 			accountData,
 			ORGANIZATION,
-			AuthenticationAccountDataType.PublicProfile
+			AuthenticationAccountDataType.Profile
 		);
 
 		for (const attempt of [
 			async () =>
-				accountAdmin.create(ORGANIZATION, AuthenticationAccountDataType.PublicProfile, {
+				accountAdmin.create(ORGANIZATION, AuthenticationAccountDataType.Profile, {
 					name: "Renamed Ltd"
 				}),
 			async () => accountAdmin.update(profile?.id ?? "", { name: "Renamed Ltd" }),
@@ -263,13 +265,13 @@ describe("EntityStorageOrganizationService", () => {
 		expect((await service.search("example")).entities).toHaveLength(1);
 	});
 
-	it("should search by the name of the latest public profile", async () => {
+	it("should search by the name of the latest profile", async () => {
 		const created = await service.create({
 			identity: "did:example:one",
-			publicProfile: PUBLIC_PROFILE
+			profile: PROFILE
 		});
 		await asAccount("global-1", async () =>
-			service.update(created.id, { ...PUBLIC_PROFILE, name: "Renamed Ltd" })
+			service.update(created.id, { profile: { ...PROFILE, name: "Renamed Ltd" } })
 		);
 
 		expect((await service.search("example")).entities).toEqual([]);
@@ -335,8 +337,12 @@ describe("EntityStorageOrganizationService", () => {
 		).toMatchObject({
 			isDefault: false
 		});
-		// The caller already holds the member admin role, granting it to itself would be refused.
-		expect(authorization.addRoleForSubject).not.toHaveBeenCalled();
+		// The first member is made an org admin of the organization.
+		expect(authorization.addRoleForSubject).toHaveBeenCalledWith(
+			"system",
+			"account-1",
+			"org-admin:did:example:existing"
+		);
 
 		await expect(service.create({ identity: "did:example:existing" })).rejects.toMatchObject({
 			name: "ConflictError",
@@ -346,7 +352,7 @@ describe("EntityStorageOrganizationService", () => {
 
 	it("should make the organization the default of a first member without one", async () => {
 		roles["account-2"] = ["user-admin"];
-		await asAccount("account-2", async () => service.create({ publicProfile: PUBLIC_PROFILE }));
+		await asAccount("account-2", async () => service.create({ profile: PROFILE }));
 
 		const membership = await AccountDataHelper.getDefault(
 			accountData,
@@ -368,7 +374,8 @@ describe("EntityStorageOrganizationService", () => {
 		await expect(AdminScopeHelper.isMember(accountData, "global-2", ORGANIZATION)).resolves.toBe(
 			false
 		);
-		expect(authorization.addRoleForSubject).not.toHaveBeenCalled();
+		expect(roles["admin-1"]).toContain(`org-admin:${ORGANIZATION}`);
+		expect(roles["global-2"]).not.toContain(`org-admin:${ORGANIZATION}`);
 	});
 
 	it("should create an organization without members for a system call", async () => {
@@ -383,38 +390,44 @@ describe("EntityStorageOrganizationService", () => {
 	it("should store the search name with the organization in a single write", async () => {
 		const setSpy = vi.spyOn(organizations, "set");
 
-		await service.create({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
+		await service.create({ identity: ORGANIZATION, profile: PROFILE });
 
 		expect(setSpy).toHaveBeenCalledTimes(1);
 		expect(setSpy.mock.calls[0][0]).toMatchObject({ searchName: "example ltd" });
 	});
 
-	it("should read the public profiles of every match with one query when searching", async () => {
+	it("should return the name of every match when searching, with only the public data", async () => {
 		for (const [identity, name] of [
 			["did:example:one", "Example One"],
 			["did:example:two", "Example Two"],
 			["did:example:three", "Example Three"]
 		]) {
-			await service.create({ identity, publicProfile: { ...PUBLIC_PROFILE, name } });
+			await service.create({ identity, profile: { ...PROFILE, name } });
 		}
 		await AccountDataHelper.create(
 			accountData,
 			"did:example:two",
-			AuthenticationAccountDataType.PublicProfile,
-			{ ...PUBLIC_PROFILE, name: "Example Two Later" }
+			AuthenticationAccountDataType.Profile,
+			{
+				...PROFILE,
+				name: "Example Two Later"
+			}
 		);
-		const querySpy = vi.spyOn(accountData, "query");
-
 		const found = await asAccount("user-1", async () => service.search("example"));
 
-		expect(querySpy).toHaveBeenCalledTimes(1);
 		expect(
-			Object.fromEntries(found.entities.map(item => [item.identity, item.publicProfile?.name]))
+			Object.fromEntries(found.entities.map(item => [item.identity, item.public?.[0]?.name]))
 		).toEqual({
 			"did:example:one": "Example One",
 			"did:example:two": "Example Two",
 			"did:example:three": "Example Three"
 		});
+		// Only the name and the public properties are returned.
+		expect(
+			found.entities.every(
+				item => Is.undefined(item.profile) && Is.undefined(item.public?.[0]?.email)
+			)
+		).toBe(true);
 	});
 
 	it("should find members through the indexed organization column with a single read", async () => {
@@ -439,7 +452,7 @@ describe("EntityStorageOrganizationService", () => {
 			message: "entityStorageOrganizationService.organizationHasMembers"
 		});
 		expect(querySpy).toHaveBeenCalledTimes(1);
-		expect(querySpy.mock.calls[0][4]).toBe(1);
+		expect(querySpy.mock.calls[0][4]).toBe(2);
 	});
 
 	it("should only let admins create, query and remove", async () => {
@@ -460,12 +473,13 @@ describe("EntityStorageOrganizationService", () => {
 		expect(page.entities.map(o => o.identity)).toEqual([ORGANIZATION]);
 	});
 
-	it("should let user admins manage every organization of the tenant", async () => {
+	it("should let user admins manage the organizations they are an org admin of", async () => {
 		roles["admin-1"] = ["user-admin"];
+		await service.create({ identity: "did:example:unrelated" });
 
 		const created = await asAccount(
 			"admin-1",
-			async () => service.create({ publicProfile: PUBLIC_PROFILE }),
+			async () => service.create({ profile: PROFILE }),
 			"did:example:other"
 		);
 		const page = await asAccount("admin-1", async () => service.query());
@@ -517,11 +531,11 @@ describe("EntityStorageOrganizationService", () => {
 		});
 	});
 
-	it("should show the private profile only to members and escalated callers", async () => {
+	it("should show the whole profile only to members and admins", async () => {
 		const created = await service.create({
 			identity: ORGANIZATION,
-			publicProfile: PUBLIC_PROFILE,
-			privateProfile: PRIVATE_PROFILE
+			profile: PROFILE,
+			publicData: PUBLIC_DATA
 		});
 		await AccountDataHelper.create(
 			accountData,
@@ -532,58 +546,125 @@ describe("EntityStorageOrganizationService", () => {
 		);
 
 		const asOutsider = await asAccount("outsider-1", async () => service.get(ORGANIZATION));
-		expect(asOutsider.publicProfile).toEqual(PUBLIC_PROFILE);
-		expect(asOutsider.privateProfile).toBeUndefined();
+		expect(asOutsider.public).toEqual([{ ...PUBLIC_PROFILE, identifier: ORGANIZATION }]);
+		expect(asOutsider.profile).toBeUndefined();
+		expect(asOutsider.publicData).toBeUndefined();
+		expect(asOutsider.isAdmin).toBe(false);
 
 		const asMember = await asAccount("member-1", async () => service.get(created.id));
-		expect(asMember.privateProfile).toEqual(PRIVATE_PROFILE);
+		expect(asMember).toMatchObject({ profile: PROFILE, publicData: PUBLIC_DATA, isAdmin: false });
 
 		const asGlobal = await asAccount("global-1", async () => service.get(created.id));
-		expect(asGlobal.privateProfile).toEqual(PRIVATE_PROFILE);
+		expect(asGlobal.profile).toEqual(PROFILE);
 
 		roles["admin-1"] = ["user-admin"];
 		const asAdmin = await asAccount("admin-1", async () => service.get(created.id));
-		expect(asAdmin.privateProfile).toEqual(PRIVATE_PROFILE);
+		expect(asAdmin.profile).toEqual(PROFILE);
+
+		roles["org-admin-1"] = [`org-admin:${ORGANIZATION}`];
+		const asOrgAdmin = await asAccount("org-admin-1", async () => service.get(created.id));
+		expect(asOrgAdmin).toMatchObject({ profile: PROFILE, isAdmin: true });
 
 		await expect(service.get("did:example:missing")).rejects.toMatchObject({
 			name: "NotFoundError"
 		});
 	});
 
-	it("should let user admins update the profiles of any organization", async () => {
-		const created = await service.create({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
-		roles["admin-1"] = ["user-admin"];
-		const updated = { ...PUBLIC_PROFILE, name: "Renamed Ltd" };
+	it("should let org admins and global admins update the profile, logo and public data", async () => {
+		const created = await service.create({ identity: ORGANIZATION, profile: PROFILE });
+		roles["org-admin-1"] = [`org-admin:${ORGANIZATION}`];
+		const updated = { ...PROFILE, name: "Renamed Ltd" };
+		const logo = {
+			"@context": "https://schema.org",
+			"@type": "ImageObject",
+			encodingFormat: "image/svg+xml",
+			contentUrl: "data:image/svg+xml;base64,PHN2Zy8+"
+		};
 
-		await asAccount(
-			"admin-1",
-			async () => service.update(created.id, updated, PRIVATE_PROFILE),
-			ORGANIZATION
+		await asAccount("org-admin-1", async () =>
+			service.update(created.id, { profile: updated, logo, publicData: ["profile.name", "logo"] })
 		);
 
 		const organization = await service.get(created.id);
-		expect(organization.publicProfile).toEqual(updated);
-		expect(organization.privateProfile).toEqual(PRIVATE_PROFILE);
+		expect(organization).toMatchObject({
+			profile: updated,
+			logo,
+			publicData: ["profile.name", "logo"]
+		});
 		const profiles = await AccountDataHelper.query(
 			accountData,
 			created.identity,
-			AuthenticationAccountDataType.PublicProfile
+			AuthenticationAccountDataType.Profile
 		);
 		expect(profiles.entities).toHaveLength(1);
+		const asOutsider = await asAccount("outsider-1", async () => service.get(created.id));
+		expect(asOutsider.public).toEqual([
+			{ ...PUBLIC_PROFILE, name: "Renamed Ltd", identifier: ORGANIZATION },
+			{ ...logo, identifier: ORGANIZATION }
+		]);
 
+		// A null logo removes it, the omitted fields are unchanged.
+		await asAccount("global-1", async () => service.update(created.id, { logo: null }));
+		const withoutLogo = await service.get(created.id);
+		expect(withoutLogo.logo).toBeUndefined();
+		expect(withoutLogo.profile).toEqual(updated);
+
+		// A user admin that is not an org admin of the organization, and a member, may not.
 		roles["admin-2"] = ["user-admin"];
-		await asAccount(
-			"admin-2",
-			async () => service.update(created.id, updated),
-			"did:example:other"
-		);
+		for (const accountId of ["admin-2", "member-1"]) {
+			await expect(
+				asAccount(
+					accountId,
+					async () => service.update(created.id, { profile: updated }),
+					ORGANIZATION
+				)
+			).rejects.toMatchObject({ name: "ForbiddenError" });
+		}
+	});
+
+	it("should refuse a logo or public data that is not valid", async () => {
+		const created = await service.create({ identity: ORGANIZATION, profile: PROFILE });
+		const logo = {
+			"@context": "https://schema.org",
+			"@type": "ImageObject",
+			encodingFormat: "image/gif",
+			contentUrl: "data:image/gif;base64,R0lGOD=="
+		};
+		const tooLarge = {
+			...logo,
+			encodingFormat: "image/png",
+			contentUrl: `data:image/png;base64,${"A".repeat(350000)}`
+		};
+
 		await expect(
-			asAccount("member-1", async () => service.update(created.id, updated), ORGANIZATION)
-		).rejects.toMatchObject({ name: "ForbiddenError" });
+			asAccount("global-1", async () => service.update(created.id, { logo }))
+		).rejects.toMatchObject({
+			name: "UnprocessableError",
+			message: "accountDataHelper.logoInvalid"
+		});
+		await expect(
+			asAccount("global-1", async () => service.update(created.id, { logo: tooLarge }))
+		).rejects.toMatchObject({
+			name: "UnprocessableError",
+			message: "accountDataHelper.logoTooLarge"
+		});
+		for (const publicData of [["Profile.name"], ["profile..name"], ["profile.__proto__"], [1]]) {
+			await expect(
+				asAccount("global-1", async () =>
+					service.update(created.id, { publicData: publicData as string[] })
+				)
+			).rejects.toMatchObject({
+				name: "UnprocessableError",
+				message: "publicDataHelper.publicDataInvalid"
+			});
+		}
+		await expect(service.create({ logo })).rejects.toMatchObject({
+			message: "accountDataHelper.logoInvalid"
+		});
 	});
 
 	it("should remove an organization without members and refuse one with members", async () => {
-		const created = await service.create({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
+		const created = await service.create({ identity: ORGANIZATION, profile: PROFILE });
 		await AccountDataHelper.create(
 			accountData,
 			"member-1",
@@ -610,7 +691,7 @@ describe("EntityStorageOrganizationService", () => {
 	});
 
 	it("should reject the pending requests to join an organization that is removed", async () => {
-		const created = await service.create({ identity: ORGANIZATION, publicProfile: PUBLIC_PROFILE });
+		const created = await service.create({ identity: ORGANIZATION, profile: PROFILE });
 		const now = new Date().toISOString();
 		const request = (id: string, organization: string, status: string): OrganizationRequest => ({
 			id,
@@ -775,16 +856,8 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		);
 		identityComponent = createFakeIdentityComponent();
 		roles = { "global-1": ["global-admin"], "admin-1": ["user-admin"] };
-		const authorization = {
-			className: () => "authorization",
-			hasRoleForSubject: vi.fn(
-				async (modelId: string, subject: string, role: string) =>
-					roles[subject]?.includes(role) ?? false
-			),
-			addRoleForSubject: vi.fn(async (modelId: string, subject: string, role: string) => {
-				roles[subject] = [...(roles[subject] ?? []), role];
-			})
-		} as unknown as IAuthorizationComponent;
+		// The user admin is an org admin of every organization in these tests.
+		const authorization = createRoleAuthorizationComponent(roles, ["admin-1"]);
 		rate = { className: () => "rate", check: vi.fn() };
 		ComponentFactory.register("identity-service", () => identityComponent);
 		ComponentFactory.register("authorization", () => authorization);
@@ -804,9 +877,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 	});
 
 	it("should export the identity of an organization the node created to an admin", async () => {
-		const created = await run(undefined, async () =>
-			service.create({ publicProfile: PUBLIC_PROFILE })
-		);
+		const created = await run(undefined, async () => service.create({ profile: PROFILE }));
 
 		const exported = await run("admin-1", async () =>
 			service.exportIdentity(created.id, nowSeconds())
@@ -867,7 +938,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		await AccountDataHelper.createIdentity(accountData, "admin-1", "did:example:admin");
 
 		const imported = await run("admin-1", async () =>
-			service.create({ identityImport: file, publicProfile: PUBLIC_PROFILE })
+			service.create({ identityImport: file, profile: PROFILE, publicData: PUBLIC_DATA })
 		);
 
 		expect(imported.identity).toBe(created.identity);
@@ -878,7 +949,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 			true
 		);
 		await expect(run(undefined, async () => service.get(imported.id))).resolves.toMatchObject({
-			publicProfile: PUBLIC_PROFILE
+			profile: PROFILE
 		});
 	});
 
@@ -924,7 +995,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 
 	it("should carry on the revocation index of an existing DID registered again", async () => {
 		const first = await run(undefined, async () =>
-			service.create({ identity: "did:example:existing", publicProfile: PUBLIC_PROFILE })
+			service.create({ identity: "did:example:existing", profile: PROFILE })
 		);
 		await OrganizationHelper.allocateRevocationIndex(organizations, first.identity);
 		await OrganizationHelper.allocateRevocationIndex(organizations, first.identity);
@@ -1166,9 +1237,9 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 	it("should remove a created DID and the organization when storing the profiles fails", async () => {
 		vi.spyOn(accountData, "set").mockRejectedValueOnce(new Error("storage failed"));
 
-		await expect(
-			run(undefined, async () => service.create({ publicProfile: PUBLIC_PROFILE }))
-		).rejects.toThrow("storage failed");
+		await expect(run(undefined, async () => service.create({ profile: PROFILE }))).rejects.toThrow(
+			"storage failed"
+		);
 
 		expect(identityComponent.held.size).toBe(0);
 		expect(identityComponent.identityRemove).toHaveBeenCalledWith(
@@ -1192,9 +1263,9 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 		service = new EntityStorageOrganizationService();
 		vi.spyOn(accountData, "remove").mockRejectedValueOnce(new Error("remove failed"));
 
-		await expect(
-			run("admin-1", async () => service.create({ publicProfile: PUBLIC_PROFILE }))
-		).rejects.toThrow("signing failed");
+		await expect(run("admin-1", async () => service.create({ profile: PROFILE }))).rejects.toThrow(
+			"signing failed"
+		);
 		ComponentFactory.unregister("logging");
 
 		expect(identityComponent.held.size).toBe(0);

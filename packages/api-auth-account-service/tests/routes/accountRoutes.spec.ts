@@ -13,18 +13,25 @@ import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
 import {
+	authenticationAccountAdminAddRole,
+	authenticationAccountAdminAssignableRoles,
 	authenticationAccountAdminCreate,
 	authenticationAccountAdminCreateIdentity,
 	authenticationAccountAdminExportIdentity,
 	authenticationAccountAdminExportProfile,
+	authenticationAccountAdminGetRoles,
 	authenticationAccountAdminImportIdentity,
 	authenticationAccountAdminImportProfile,
+	authenticationAccountAdminManaged,
 	authenticationAccountAdminQuery,
+	authenticationAccountAdminRemoveRole,
+	authenticationAccountAdminUpdate,
 	generateRestRoutesAuthenticationAccountAdmin
 } from "../../src/routes/entityStorageAuthenticationAccountAdminRoutes.js";
 import {
 	authenticationAccountAdoptIdentity,
 	authenticationAccountCreate,
+	authenticationAccountCreateOrganization,
 	authenticationAccountExportIdentity,
 	authenticationAccountExportProfile,
 	authenticationAccountGet,
@@ -35,6 +42,8 @@ import {
 	authenticationAccountImportProfile,
 	authenticationAccountJoinOrganization,
 	authenticationAccountLeaveOrganization,
+	authenticationAccountPublicAccount,
+	authenticationAccountPublicIdentity,
 	authenticationAccountQuery,
 	authenticationAccountRemove,
 	authenticationAccountRemoveIdentity,
@@ -81,7 +90,10 @@ describe("account routes", () => {
 			["GET", "authentication/account/organization/request", false, undefined],
 			["DELETE", "authentication/account/organization/request", false, undefined],
 			["POST", "authentication/account/organization", false, undefined],
+			["POST", "authentication/account/organization/create", false, undefined],
 			["DELETE", "authentication/account/organization/:organization", false, undefined],
+			["GET", "authentication/account/public/identity/:identity", undefined, true],
+			["GET", "authentication/account/public/account/:accountId", false, undefined],
 			["POST", "authentication/account", false, undefined],
 			["GET", "authentication/account/:id", false, undefined],
 			["PUT", "authentication/account/:id", false, undefined],
@@ -109,7 +121,7 @@ describe("account routes", () => {
 		const profile = {
 			type: "account-profile" as const,
 			version: 1,
-			items: [{ type: "public-profile", data: { name: "A" } }]
+			items: [{ type: "profile", data: { name: "A" } }]
 		};
 		const component = {
 			className: () => "account",
@@ -180,6 +192,11 @@ describe("account routes", () => {
 			["POST", "authentication/admin/account/:accountId/identity/import", "user-admin:write"],
 			["GET", "authentication/admin/account/:accountId/export", "user-admin:read"],
 			["POST", "authentication/admin/account/:accountId/import", "user-admin:write"],
+			["GET", "authentication/admin/account/managed", "user-admin:read"],
+			["GET", "authentication/admin/account/roles/assignable", "user-admin:read"],
+			["GET", "authentication/admin/account/:accountId/roles", "user-admin:read"],
+			["PUT", "authentication/admin/account/:accountId/roles/:role", "user-admin:write"],
+			["DELETE", "authentication/admin/account/:accountId/roles/:role", "user-admin:write"],
 			["GET", "authentication/admin/account/:id", "user-admin:read"],
 			["PUT", "authentication/admin/account/:id", "user-admin:write"],
 			["DELETE", "authentication/admin/account/:id", "user-admin:write"],
@@ -373,10 +390,10 @@ describe("account routes", () => {
 		const created = await authenticationAccountCreate(
 			CONTEXT,
 			"account",
-			{ body: { type: "public-profile", data: { name: "Alice" } } },
+			{ body: { type: "profile", data: { name: "Alice" } } },
 			"authentication/account"
 		);
-		expect(component.create).toHaveBeenCalledWith("public-profile", { name: "Alice" }, undefined);
+		expect(component.create).toHaveBeenCalledWith("profile", { name: "Alice" }, undefined);
 		expect(created.statusCode).toBe(HttpStatusCode.created);
 		expect(created.headers?.[HeaderTypes.Location]).toBe(
 			"https://node.example.com/authentication/account/item-1"
@@ -429,6 +446,7 @@ describe("account routes", () => {
 			"organization",
 			organizationData("did:example:org"),
 			true,
+			undefined,
 			undefined
 		);
 
@@ -451,13 +469,118 @@ describe("account routes", () => {
 			"identity",
 			identityData("did:example:2"),
 			undefined,
-			proof
+			proof,
+			undefined
 		);
 
 		await authenticationAccountAdminQuery(CONTEXT, "accountAdmin", {
 			query: { accountId: "account-1", type: "identity" }
 		});
 		expect(component.query).toHaveBeenCalledWith("account-1", "identity", undefined, undefined);
+	});
+
+	it("should pass the admin only flag, and the managed accounts, through the admin routes", async () => {
+		const component = {
+			className: () => "accountAdmin",
+			create: vi.fn().mockResolvedValue("item-1"),
+			update: vi.fn().mockResolvedValue(undefined),
+			getManagedAccounts: vi.fn().mockResolvedValue(["account-1"])
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		await authenticationAccountAdminCreate(
+			CONTEXT,
+			"accountAdmin",
+			{ body: { accountId: "account-1", type: "note", data: { a: 1 }, adminOnly: true } },
+			"authentication/admin/account"
+		);
+		expect(component.create).toHaveBeenCalledWith(
+			"account-1",
+			"note",
+			{ a: 1 },
+			undefined,
+			undefined,
+			true
+		);
+		await authenticationAccountAdminUpdate(CONTEXT, "accountAdmin", {
+			pathParams: { id: "item-1" },
+			body: { data: { a: 2 }, adminOnly: false }
+		});
+		expect(component.update).toHaveBeenCalledWith("item-1", { a: 2 }, undefined, false);
+		await expect(authenticationAccountAdminManaged(CONTEXT, "accountAdmin")).resolves.toEqual({
+			body: { accountIds: ["account-1"] }
+		});
+	});
+
+	it("should pass the role requests through the admin routes", async () => {
+		const component = {
+			className: () => "accountAdmin",
+			getRoles: vi.fn().mockResolvedValue(["user"]),
+			getAssignableRoles: vi.fn().mockResolvedValue(["user", "user-admin"]),
+			addRole: vi.fn().mockResolvedValue(undefined),
+			removeRole: vi.fn().mockResolvedValue(undefined)
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		await expect(
+			authenticationAccountAdminAssignableRoles(CONTEXT, "accountAdmin")
+		).resolves.toEqual({ body: { roles: ["user", "user-admin"] } });
+		await expect(
+			authenticationAccountAdminGetRoles(CONTEXT, "accountAdmin", {
+				pathParams: { accountId: "account-1" }
+			})
+		).resolves.toEqual({ body: { roles: ["user"] } });
+		await expect(
+			authenticationAccountAdminAddRole(CONTEXT, "accountAdmin", {
+				pathParams: { accountId: "account-1", role: "user-admin" }
+			})
+		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
+		expect(component.addRole).toHaveBeenCalledWith("account-1", "user-admin");
+		await expect(
+			authenticationAccountAdminRemoveRole(CONTEXT, "accountAdmin", {
+				pathParams: { accountId: "account-1", role: "user-admin" }
+			})
+		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
+		expect(component.removeRole).toHaveBeenCalledWith("account-1", "user-admin");
+		await expect(
+			authenticationAccountAdminAddRole(CONTEXT, "accountAdmin", {} as never)
+		).rejects.toMatchObject({ name: "GuardError" });
+	});
+
+	it("should pass the organization create and public data requests to the component", async () => {
+		const organization = { id: "org-1", identity: "did:example:org", isAdmin: true };
+		const objects = [{ "@type": "Organization", name: "Example Ltd" }];
+		const component = {
+			className: () => "account",
+			createOrganization: vi.fn().mockResolvedValue(organization),
+			getPublicDataByIdentity: vi.fn().mockResolvedValue(objects),
+			getPublicDataByAccount: vi.fn().mockResolvedValue(objects)
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		const created = await authenticationAccountCreateOrganization(
+			CONTEXT,
+			"account",
+			{ body: { publicData: ["profile.name"] } },
+			"authentication/account"
+		);
+		expect(created).toMatchObject({ statusCode: HttpStatusCode.created, body: organization });
+		expect(created.headers.location).toContain("authentication/account/organization");
+		expect(component.createOrganization).toHaveBeenCalledWith({ publicData: ["profile.name"] });
+
+		await expect(
+			authenticationAccountPublicIdentity(CONTEXT, "account", {
+				pathParams: { identity: "did:example:org" }
+			})
+		).resolves.toEqual({ body: objects });
+		expect(component.getPublicDataByIdentity).toHaveBeenCalledWith("did:example:org");
+		await expect(
+			authenticationAccountPublicAccount(CONTEXT, "account", { pathParams: { accountId: "a-1" } })
+		).resolves.toEqual({ body: objects });
+		expect(component.getPublicDataByAccount).toHaveBeenCalledWith("a-1");
+		await expect(
+			authenticationAccountPublicIdentity(CONTEXT, "account", {} as never)
+		).rejects.toMatchObject({ name: "GuardError" });
 	});
 });
 

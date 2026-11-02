@@ -86,4 +86,16 @@ export interface IEntityStorageAuthenticationAccountServiceConfig {
 	 * @default trust-assertion
 	 */
 	verificationMethodId?: string;
+
+	/**
+	 * The authorization model ID the org admin roles are held in.
+	 * @default system
+	 */
+	authorizationModelId?: string;
+
+	/**
+	 * The prefix of the org admin role of an organization, followed by its DID.
+	 * @default org-admin:
+	 */
+	organizationAdminRolePrefix?: string;
 }

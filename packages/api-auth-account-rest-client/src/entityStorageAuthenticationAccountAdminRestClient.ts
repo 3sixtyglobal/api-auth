@@ -15,13 +15,17 @@ import type {
 	IAccountProfileExportResponse,
 	IAccountProfileImportResponse,
 	IAccountProfileImportResult,
+	IAccountAdminManagedResponse,
+	IAccountAdminRolesGetRequest,
+	IAccountAdminRolesResponse,
+	IAccountAdminRoleUpdateRequest,
 	IAccountDataAdminCreateRequest,
+	IAccountDataAdminUpdateRequest,
 	IAccountDataGetRequest,
 	IAccountDataGetResponse,
 	IAccountDataAdminQueryRequest,
 	IAccountDataQueryResponse,
 	IAccountDataRemoveRequest,
-	IAccountDataUpdateRequest,
 	IAuthenticationAccountAdminComponent,
 	IAuthenticationAccountData
 } from "@3sixty/api-auth-models";
@@ -78,6 +82,7 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 	 * @param isDefault True to use the item first for its type, clearing any other default.
 	 * @param proof A proof by the DID over the identity proof document, required when a caller
 	 * without escalated privilege stores an identity.
+	 * @param adminOnly True when only admins may see and change the item.
 	 * @returns The unique identifier of the item.
 	 */
 	public async create(
@@ -85,7 +90,8 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 		type: string,
 		data: unknown,
 		isDefault?: boolean,
-		proof?: IProof
+		proof?: IProof,
+		adminOnly?: boolean
 	): Promise<string> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
@@ -107,7 +113,7 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 			"/",
 			HttpMethod.POST,
 			{
-				body: { accountId, type, data, isDefault, proof }
+				body: { accountId, type, data, isDefault, proof, adminOnly }
 			}
 		);
 
@@ -142,9 +148,15 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 	 * @param id The unique identifier of the item.
 	 * @param data The new value of the item.
 	 * @param isDefault True to use the item first for its type, clearing any other default, unchanged when omitted.
+	 * @param adminOnly True when only admins may see and change the item, unchanged when omitted.
 	 * @returns A promise that resolves when the item has been updated.
 	 */
-	public async update(id: string, data: unknown, isDefault?: boolean): Promise<void> {
+	public async update(
+		id: string,
+		data: unknown,
+		isDefault?: boolean,
+		adminOnly?: boolean
+	): Promise<void> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
 			nameof(id),
@@ -156,9 +168,9 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 			data
 		);
 
-		await this.fetch<IAccountDataUpdateRequest, INoContentResponse>("/:id", HttpMethod.PUT, {
+		await this.fetch<IAccountDataAdminUpdateRequest, INoContentResponse>("/:id", HttpMethod.PUT, {
 			pathParams: { id },
-			body: { data, isDefault }
+			body: { data, isDefault, adminOnly }
 		});
 	}
 
@@ -321,5 +333,96 @@ export class EntityStorageAuthenticationAccountAdminRestClient
 			entities: response.body.entities,
 			cursor: response.body.cursor
 		};
+	}
+
+	/**
+	 * Get the accounts the caller may manage.
+	 * @returns The account ids, or undefined when the caller may manage every account.
+	 */
+	public async getManagedAccounts(): Promise<string[] | undefined> {
+		const response = await this.fetch<never, IAccountAdminManagedResponse>(
+			"/managed",
+			HttpMethod.GET
+		);
+		return response.body.accountIds;
+	}
+
+	/**
+	 * Get the roles of an account.
+	 * @param accountId The account.
+	 * @returns The roles.
+	 */
+	public async getRoles(accountId: string): Promise<string[]> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
+			nameof(accountId),
+			accountId
+		);
+		const response = await this.fetch<IAccountAdminRolesGetRequest, IAccountAdminRolesResponse>(
+			"/:accountId/roles",
+			HttpMethod.GET,
+			{ pathParams: { accountId } }
+		);
+		return response.body.roles;
+	}
+
+	/**
+	 * Get the roles the caller may grant and revoke.
+	 * @returns The roles.
+	 */
+	public async getAssignableRoles(): Promise<string[]> {
+		const response = await this.fetch<never, IAccountAdminRolesResponse>(
+			"/roles/assignable",
+			HttpMethod.GET
+		);
+		return response.body.roles;
+	}
+
+	/**
+	 * Grant a role to an account.
+	 * @param accountId The account.
+	 * @param role The role.
+	 * @returns A promise that resolves when the role has been granted.
+	 */
+	public async addRole(accountId: string, role: string): Promise<void> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
+			nameof(accountId),
+			accountId
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
+			nameof(role),
+			role
+		);
+		await this.fetch<IAccountAdminRoleUpdateRequest, INoContentResponse>(
+			"/:accountId/roles/:role",
+			HttpMethod.PUT,
+			{ pathParams: { accountId, role } }
+		);
+	}
+
+	/**
+	 * Revoke a role of an account.
+	 * @param accountId The account.
+	 * @param role The role.
+	 * @returns A promise that resolves when the role has been revoked.
+	 */
+	public async removeRole(accountId: string, role: string): Promise<void> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
+			nameof(accountId),
+			accountId
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountAdminRestClient.CLASS_NAME,
+			nameof(role),
+			role
+		);
+		await this.fetch<IAccountAdminRoleUpdateRequest, INoContentResponse>(
+			"/:accountId/roles/:role",
+			HttpMethod.DELETE,
+			{ pathParams: { accountId, role } }
+		);
 	}
 }

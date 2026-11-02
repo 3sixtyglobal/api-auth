@@ -17,14 +17,30 @@ export interface IOrganization {
 	identity: string;
 
 	/**
-	 * The profile shown to others, such as a schema.org Organization.
+	 * The profile, such as a schema.org Organization, only for its members and admins.
 	 */
-	publicProfile?: IJsonLdNodeObject;
+	profile?: IJsonLdNodeObject;
 
 	/**
-	 * The profile only shown to the members and admins of the organization.
+	 * The logo, a schema.org ImageObject holding a data URL, only for its members and admins.
 	 */
-	privateProfile?: IJsonLdNodeObject;
+	logo?: IJsonLdNodeObject;
+
+	/**
+	 * The paths of the data that is public, only for its members and admins.
+	 */
+	publicData?: string[];
+
+	/**
+	 * The public data, a JSON-LD object for each type its public data paths name, for callers who
+	 * are not its members or admins, and in a search, where the name is always included.
+	 */
+	public?: IJsonLdNodeObject[];
+
+	/**
+	 * True when the signed in caller is an org admin of the organization.
+	 */
+	isAdmin?: boolean;
 
 	/**
 	 * When the organization was created, in ISO date format.

@@ -11,13 +11,17 @@ import type {
 	IAccountIdentityImportResponse,
 	IAccountProfileExportResponse,
 	IAccountProfileImportResponse,
+	IAccountAdminManagedResponse,
+	IAccountAdminRolesGetRequest,
+	IAccountAdminRolesResponse,
+	IAccountAdminRoleUpdateRequest,
 	IAccountDataAdminCreateRequest,
+	IAccountDataAdminUpdateRequest,
 	IAccountDataGetRequest,
 	IAccountDataGetResponse,
 	IAccountDataAdminQueryRequest,
 	IAccountDataQueryResponse,
 	IAccountDataRemoveRequest,
-	IAccountDataUpdateRequest,
 	IAuthenticationAccountAdminComponent
 } from "@3sixty/api-auth-models";
 import {
@@ -28,6 +32,7 @@ import {
 	type ICreatedResponse,
 	type IForbiddenResponse,
 	type IHttpRequestContext,
+	type INoContentRequest,
 	type INoContentResponse,
 	type INotFoundResponse,
 	type IRestRoute,
@@ -209,7 +214,204 @@ export function generateRestRoutesAuthenticationAccountAdmin(
 		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
 	};
 
-	const updateRoute: IRestRoute<IAccountDataUpdateRequest, INoContentResponse> = {
+	const managedRoute: IRestRoute<INoContentRequest, IAccountAdminManagedResponse> = {
+		operationId: "authenticationAccountAdminManaged",
+		summary: "Get the accounts the caller may manage",
+		tag: tagsAuthenticationAccountAdmin[0].name,
+		method: "GET",
+		path: `${baseRouteName}/managed`,
+		handler: async httpRequestContext =>
+			authenticationAccountAdminManaged(httpRequestContext, componentName),
+		responseType: [
+			{
+				type: nameof<IAccountAdminManagedResponse>(),
+				examples: [
+					{
+						id: "authenticationAccountAdminManagedResponseExample",
+						description:
+							"The members of the organizations the caller is an org admin of, accountIds is omitted for a caller who manages every account.",
+						response: {
+							body: {
+								accountIds: [EXAMPLE_ACCOUNT_ID]
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+	};
+
+	const assignableRolesRoute: IRestRoute<INoContentRequest, IAccountAdminRolesResponse> = {
+		operationId: "authenticationAccountAdminAssignableRoles",
+		summary: "Get the roles the caller may grant and revoke",
+		tag: tagsAuthenticationAccountAdmin[0].name,
+		method: "GET",
+		path: `${baseRouteName}/roles/assignable`,
+		handler: async httpRequestContext =>
+			authenticationAccountAdminAssignableRoles(httpRequestContext, componentName),
+		responseType: [
+			{
+				type: nameof<IAccountAdminRolesResponse>(),
+				examples: [
+					{
+						id: "authenticationAccountAdminAssignableRolesResponseExample",
+						description: "The roles a user admin holds itself, other than global-admin.",
+						response: {
+							body: {
+								roles: ["user", "user-admin"]
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+	};
+
+	const getRolesRoute: IRestRoute<IAccountAdminRolesGetRequest, IAccountAdminRolesResponse> = {
+		operationId: "authenticationAccountAdminGetRoles",
+		summary: "Get the roles of an account",
+		tag: tagsAuthenticationAccountAdmin[0].name,
+		method: "GET",
+		path: `${baseRouteName}/:accountId/roles`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountAdminGetRoles(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountAdminRolesGetRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountAdminGetRolesRequestExample",
+					description: "The request to get the roles of an account.",
+					request: {
+						pathParams: {
+							accountId: EXAMPLE_ACCOUNT_ID
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAccountAdminRolesResponse>(),
+				examples: [
+					{
+						id: "authenticationAccountAdminGetRolesResponseExample",
+						description: "The roles of the account.",
+						response: {
+							body: {
+								roles: ["user", "org-admin:did:example:organization"]
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+	};
+
+	const addRoleRoute: IRestRoute<IAccountAdminRoleUpdateRequest, INoContentResponse> = {
+		operationId: "authenticationAccountAdminAddRole",
+		summary: "Grant a role to an account",
+		tag: tagsAuthenticationAccountAdmin[0].name,
+		method: "PUT",
+		path: `${baseRouteName}/:accountId/roles/:role`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountAdminAddRole(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountAdminRoleUpdateRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountAdminAddRoleRequestExample",
+					description: "The request to make an account a user admin.",
+					request: {
+						pathParams: {
+							accountId: EXAMPLE_ACCOUNT_ID,
+							role: "user-admin"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
+			},
+			{
+				type: nameof<IUnprocessableEntityResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+	};
+
+	const removeRoleRoute: IRestRoute<IAccountAdminRoleUpdateRequest, INoContentResponse> = {
+		operationId: "authenticationAccountAdminRemoveRole",
+		summary: "Revoke a role of an account",
+		tag: tagsAuthenticationAccountAdmin[0].name,
+		method: "DELETE",
+		path: `${baseRouteName}/:accountId/roles/:role`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountAdminRemoveRole(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountAdminRoleUpdateRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountAdminRemoveRoleRequestExample",
+					description: "The request to stop an account being a user admin.",
+					request: {
+						pathParams: {
+							accountId: EXAMPLE_ACCOUNT_ID,
+							role: "user-admin"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IConflictResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
+			},
+			{
+				type: nameof<IUnprocessableEntityResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+	};
+
+	const updateRoute: IRestRoute<IAccountDataAdminUpdateRequest, INoContentResponse> = {
 		operationId: "authenticationAccountAdminUpdate",
 		summary: "Replace the value of an item of account data",
 		tag: tagsAuthenticationAccountAdmin[0].name,
@@ -218,7 +420,7 @@ export function generateRestRoutesAuthenticationAccountAdmin(
 		handler: async (httpRequestContext, request) =>
 			authenticationAccountAdminUpdate(httpRequestContext, componentName, request),
 		requestType: {
-			type: nameof<IAccountDataUpdateRequest>(),
+			type: nameof<IAccountDataAdminUpdateRequest>(),
 			examples: [
 				{
 					id: "authenticationAccountAdminUpdateRequestExample",
@@ -530,6 +732,12 @@ export function generateRestRoutesAuthenticationAccountAdmin(
 		importIdentityRoute,
 		exportProfileRoute,
 		importProfileRoute,
+		// Before getting an item, whose path would otherwise read managed or roles as the id.
+		managedRoute,
+		assignableRolesRoute,
+		getRolesRoute,
+		addRoleRoute,
+		removeRoleRoute,
 		getRoute,
 		updateRoute,
 		removeRoute,
@@ -708,7 +916,8 @@ export async function authenticationAccountAdminCreate(
 		request.body.type,
 		request.body.data,
 		request.body.isDefault,
-		request.body.proof
+		request.body.proof,
+		request.body.adminOnly
 	);
 
 	const contextIds = await ContextIdStore.getContextIds();
@@ -762,22 +971,27 @@ export async function authenticationAccountAdminGet(
 export async function authenticationAccountAdminUpdate(
 	httpRequestContext: IHttpRequestContext,
 	componentName: string,
-	request: IAccountDataUpdateRequest
+	request: IAccountDataAdminUpdateRequest
 ): Promise<INoContentResponse> {
-	Guards.object<IAccountDataUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
-	Guards.object<IAccountDataUpdateRequest["pathParams"]>(
+	Guards.object<IAccountDataAdminUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountDataAdminUpdateRequest["pathParams"]>(
 		ROUTES_SOURCE,
 		nameof(request.pathParams),
 		request.pathParams
 	);
-	Guards.object<IAccountDataUpdateRequest["body"]>(
+	Guards.object<IAccountDataAdminUpdateRequest["body"]>(
 		ROUTES_SOURCE,
 		nameof(request.body),
 		request.body
 	);
 
 	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
-	await component.update(request.pathParams.id, request.body.data, request.body.isDefault);
+	await component.update(
+		request.pathParams.id,
+		request.body.data,
+		request.body.isDefault,
+		request.body.adminOnly
+	);
 
 	return {
 		statusCode: HttpStatusCode.noContent
@@ -835,5 +1049,120 @@ export async function authenticationAccountAdminQuery(
 
 	return {
 		body: result
+	};
+}
+
+/**
+ * Get the accounts the caller may manage.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountAdminManaged(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string
+): Promise<IAccountAdminManagedResponse> {
+	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
+	return {
+		body: {
+			accountIds: await component.getManagedAccounts()
+		}
+	};
+}
+
+/**
+ * Get the roles the caller may grant and revoke.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountAdminAssignableRoles(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string
+): Promise<IAccountAdminRolesResponse> {
+	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
+	return {
+		body: {
+			roles: await component.getAssignableRoles()
+		}
+	};
+}
+
+/**
+ * Get the roles of an account.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountAdminGetRoles(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountAdminRolesGetRequest
+): Promise<IAccountAdminRolesResponse> {
+	Guards.object<IAccountAdminRolesGetRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountAdminRolesGetRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
+	return {
+		body: {
+			roles: await component.getRoles(request.pathParams.accountId)
+		}
+	};
+}
+
+/**
+ * Grant a role to an account.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountAdminAddRole(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountAdminRoleUpdateRequest
+): Promise<INoContentResponse> {
+	Guards.object<IAccountAdminRoleUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountAdminRoleUpdateRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
+	await component.addRole(request.pathParams.accountId, request.pathParams.role);
+	return {
+		statusCode: HttpStatusCode.noContent
+	};
+}
+
+/**
+ * Revoke a role of an account.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountAdminRemoveRole(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountAdminRoleUpdateRequest
+): Promise<INoContentResponse> {
+	Guards.object<IAccountAdminRoleUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountAdminRoleUpdateRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountAdminComponent>(componentName);
+	await component.removeRole(request.pathParams.accountId, request.pathParams.role);
+	return {
+		statusCode: HttpStatusCode.noContent
 	};
 }

@@ -143,6 +143,7 @@ describe("account lifecycle", () => {
 			},
 			"authentication-account-admin": {
 				className: () => "account-admin",
+				getManagedAccounts: vi.fn().mockResolvedValue(undefined),
 				query: vi.fn().mockResolvedValue({ entities: [] }),
 				create: vi.fn(),
 				update: vi.fn(),

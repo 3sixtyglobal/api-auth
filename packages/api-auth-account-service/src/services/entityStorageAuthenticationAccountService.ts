@@ -7,17 +7,20 @@ import {
 	AuthenticationAccountHelper,
 	type IAccountIdentityExport,
 	type IAccountIdentityImportResult,
+	type IAccountOrganizationCreate,
 	type IAccountProfileExport,
 	type IAccountProfileImportResult,
 	type IAuthenticationAccountComponent,
 	type IAuthenticationAccountData,
 	type IAuthenticationRateActionConfig,
 	type IAuthenticationRateComponent,
+	type IOrganization,
 	type IOrganizationRequest,
 	OrganizationRequestStatus,
 	RecentSignInHelper
 } from "@3sixty/api-auth-models";
 import { ForbiddenError } from "@3sixty/api-models";
+import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdHelper, ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
 	BaseError,
@@ -50,8 +53,10 @@ import { AccountProfileHelper } from "../utils/accountProfileHelper.js";
 import { AdminScopeHelper } from "../utils/adminScopeHelper.js";
 import { IdentityProofHelper } from "../utils/identityProofHelper.js";
 import { MembershipRemovalHelper } from "../utils/membershipRemovalHelper.js";
+import { OrganizationAdminRoles } from "../utils/organizationAdminRoles.js";
 import { OrganizationHelper } from "../utils/organizationHelper.js";
 import { OrganizationMembershipHelper } from "../utils/organizationMembershipHelper.js";
+import { OrganizationProfileHelper } from "../utils/organizationProfileHelper.js";
 import { OrganizationRequestHelper } from "../utils/organizationRequestHelper.js";
 import { PendingMembershipHelper } from "../utils/pendingMembershipHelper.js";
 
@@ -116,6 +121,11 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	public static readonly DEFAULT_VERIFICATION_METHOD_ID: string = "trust-assertion";
 
 	/**
+	 * The default authorization model ID the org admin roles are held in.
+	 */
+	public static readonly DEFAULT_AUTHORIZATION_MODEL_ID: string = "system";
+
+	/**
 	 * The default most items an account may store itself.
 	 */
 	public static readonly DEFAULT_MAX_ITEMS: number = 1000;
@@ -138,8 +148,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private static readonly _PROFILE_TYPES: string[] = [
-		AuthenticationAccountDataType.PublicProfile,
-		AuthenticationAccountDataType.PrivateProfile,
+		AuthenticationAccountDataType.Profile,
 		AuthenticationAccountDataType.Avatar
 	];
 
@@ -222,6 +231,12 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	private readonly _maxItems: number;
 
 	/**
+	 * The org admin roles of the organizations.
+	 * @internal
+	 */
+	private readonly _adminRoles: OrganizationAdminRoles;
+
+	/**
 	 * The most items of a type an account may store itself, by normalised type.
 	 * @internal
 	 */
@@ -289,6 +304,14 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		);
 		this._maxItems =
 			config?.maxItems ?? EntityStorageAuthenticationAccountService.DEFAULT_MAX_ITEMS;
+		this._adminRoles = new OrganizationAdminRoles(
+			ComponentFactory.get<IAuthorizationComponent>(
+				options?.authorizationComponentType ?? "authorization"
+			),
+			config?.authorizationModelId ??
+				EntityStorageAuthenticationAccountService.DEFAULT_AUTHORIZATION_MODEL_ID,
+			config?.organizationAdminRolePrefix
+		);
 		this._maxItemsByType = {};
 		for (const [type, maxItems] of Object.entries({
 			...EntityStorageAuthenticationAccountService.DEFAULT_MAX_ITEMS_BY_TYPE,
@@ -622,6 +645,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 				this._accountDataEntityStorage,
 				this._organizationRequestEntityStorage,
 				this._identityComponent,
+				this._adminRoles,
 				accountId
 			);
 		} finally {
@@ -632,10 +656,12 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	/**
 	 * Leave an organization with the signed in account, removing the organization and the membership
 	 * credentials it issued, which are revoked when they can be and the node signs for the
-	 * organization. Membership grants no role so none is removed, and requests to join are kept.
+	 * organization. The org admin role of the organization is removed, and requests to join are kept.
+	 * The last org admin cannot leave, as an organization needs one.
 	 * @param organization The DID of the organization.
 	 * @returns A promise that resolves when the account has left.
 	 * @throws NotFoundError when the account is not in the organization.
+	 * @throws ConflictError when the account is the last org admin of the organization.
 	 */
 	public async leaveOrganization(organization: string): Promise<void> {
 		Did.guard(
@@ -645,9 +671,19 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		);
 		const accountId = await this.signedInAccount();
 
+		const admins = await this._adminRoles.admins(organization);
+		if (admins.length === 1 && admins[0] === accountId) {
+			throw new ConflictError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"organizationLastAdmin",
+				organization
+			);
+		}
+
 		const left = await MembershipRemovalHelper.leave(
 			this._accountDataEntityStorage,
 			this._identityComponent,
+			this._adminRoles,
 			accountId,
 			organization
 		);
@@ -848,6 +884,257 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	}
 
 	/**
+	 * Create an organization with a DID the node holds for the signed in account, which becomes its
+	 * member, with a membership credential issued by the organization, and its org admin. An
+	 * organization identity export may be given, imported controlled by the node instead of creating
+	 * a DID, so an organization moved from another node keeps its DID. Everything created is removed
+	 * again when a step fails.
+	 * @param details The profile, logo and public data of the organization, and an identity export.
+	 * @returns The organization.
+	 * @throws UnprocessableError when the account has no identity, or the details or identity export
+	 * are not valid.
+	 * @throws ConflictError when the account has an organization or a request to join one pending, or
+	 * the imported DID is registered, in use or already held by the node.
+	 * @throws TooManyRequestsError when the account imports too often.
+	 * @throws GeneralError when creating the organization fails.
+	 */
+	public async createOrganization(details: IAccountOrganizationCreate): Promise<IOrganization> {
+		Guards.object<IAccountOrganizationCreate>(
+			EntityStorageAuthenticationAccountService.CLASS_NAME,
+			nameof(details),
+			details
+		);
+		const identityImport = details.identityImport;
+		let importedRevocationIndex: number | undefined;
+		if (!Is.undefined(identityImport)) {
+			// Checked before anything else, so the wrong kind of file is refused at once.
+			ExportFileHelper.guard(identityImport, ExportFileType.OrganizationIdentity);
+			importedRevocationIndex = identityImport.nextRevocationIndex;
+			if (
+				!Is.undefined(importedRevocationIndex) &&
+				(!Is.integer(importedRevocationIndex) || importedRevocationIndex < 0)
+			) {
+				throw new UnprocessableError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"nextRevocationIndexInvalid"
+				);
+			}
+		}
+		const changes = {
+			profile: details.profile,
+			logo: details.logo,
+			publicData: details.publicData
+		};
+		OrganizationProfileHelper.validate(changes);
+		const contextIds = await ContextIdStore.getContextIds();
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
+		ContextIdHelper.guard(contextIds, ContextIdKeys.Node);
+		const accountId = contextIds[ContextIdKeys.Account];
+		const nodeIdentity = contextIds[ContextIdKeys.Node];
+
+		// Concurrent requests for the account are serialised, so only one organization is created.
+		const lockKey = AccountDataHelper.identityLockKey(accountId);
+		await Mutex.lock(lockKey, { throwOnTimeout: true });
+		try {
+			const [identity, organizations, pending] = await Promise.all([
+				OrganizationMembershipHelper.loadIdentity(this._accountDataEntityStorage, accountId),
+				OrganizationMembershipHelper.loadOrganizations(this._accountDataEntityStorage, accountId),
+				OrganizationRequestHelper.findPending(this._organizationRequestEntityStorage, accountId)
+			]);
+			// The membership credential is issued to the identity, so the account needs one first.
+			if (!Is.stringValue(identity)) {
+				throw new UnprocessableError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"identityRequired"
+				);
+			}
+			if (organizations.length > 0) {
+				throw new ConflictError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"organizationAlreadyJoined",
+					AuthenticationAccountHelper.getOrganization(organizations[0].data)
+				);
+			}
+			if (Is.object(pending)) {
+				throw new ConflictError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"organizationRequestPending",
+					pending.id
+				);
+			}
+
+			let organization: string;
+			if (Is.object(identityImport)) {
+				await this._authenticationRateService.check(
+					EntityStorageAuthenticationAccountService.RATE_ACTION_IMPORT_IDENTITY,
+					accountId
+				);
+				organization = await this.importOrganizationIdentity(identityImport.identity, nodeIdentity);
+			} else {
+				organization = await OrganizationHelper.createNodeIdentity(
+					this._identityComponent,
+					nodeIdentity,
+					this._verificationMethodId
+				);
+			}
+			const imported = Is.object(identityImport);
+			let stored: Organization | undefined;
+			try {
+				// An imported DID may have issued credentials before, on another node or when registered
+				// here before, so the counter carries on from the highest index it reached.
+				const retiredRevocationIndex = imported
+					? await OrganizationHelper.getRetiredRevocationIndex(
+							this._accountDataEntityStorage,
+							organization
+						)
+					: undefined;
+				const registered = await OrganizationHelper.register(
+					this._organizationEntityStorage,
+					organization,
+					OrganizationHelper.searchName(details.profile),
+					true,
+					Math.max(retiredRevocationIndex ?? 0, importedRevocationIndex ?? 0)
+				);
+				if (!registered.created) {
+					throw new ConflictError(
+						EntityStorageAuthenticationAccountService.CLASS_NAME,
+						"organizationExists",
+						organization
+					);
+				}
+				stored = registered.organization;
+				// A created DID has no profile yet, an imported one may.
+				await OrganizationProfileHelper.store(
+					this._accountDataEntityStorage,
+					organization,
+					changes,
+					!imported
+				);
+				await OrganizationMembershipHelper.join(
+					this._accountDataEntityStorage,
+					this._organizationEntityStorage,
+					this._identityComponent,
+					this._verificationMethodId,
+					accountId,
+					organization,
+					true,
+					{ identity, organizations }
+				);
+				await this._adminRoles.add(accountId, organization);
+
+				return {
+					id: stored.id,
+					identity: stored.identity,
+					profile: details.profile,
+					logo: details.logo,
+					publicData: details.publicData ?? [],
+					isAdmin: true,
+					dateCreated: stored.dateCreated,
+					dateModified: stored.dateModified
+				};
+			} catch (error) {
+				await this.rollbackCreateOrganization(
+					accountId,
+					organization,
+					nodeIdentity,
+					stored,
+					imported
+				);
+				throw new GeneralError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"organizationCreateFailed",
+					undefined,
+					error
+				);
+			}
+		} finally {
+			Mutex.unlock(lockKey);
+		}
+	}
+
+	/**
+	 * Get the public data of the organization or account that holds a DID, no sign in is needed.
+	 * @param identity The DID.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 * @throws NotFoundError when no organization or account holds the DID.
+	 */
+	public async getPublicDataByIdentity(
+		identity: string
+	): Promise<NonNullable<IOrganization["profile"]>[]> {
+		Did.guard(EntityStorageAuthenticationAccountService.CLASS_NAME, nameof(identity), identity);
+
+		const organization = await OrganizationHelper.findByIdentity(
+			this._organizationEntityStorage,
+			identity
+		);
+		if (Is.object(organization)) {
+			return AccountDataHelper.buildPublicData(
+				this._accountDataEntityStorage,
+				organization.identity,
+				organization.identity
+			);
+		}
+		// The id of an identity item is derived from its DID, so it is a single get.
+		const item = await this._accountDataEntityStorage.get(AccountDataHelper.identityId(identity));
+		if (
+			item?.type === AuthenticationAccountDataType.Identity &&
+			AuthenticationAccountHelper.getIdentity(item.data) === identity
+		) {
+			return AccountDataHelper.buildPublicData(
+				this._accountDataEntityStorage,
+				item.accountId,
+				identity
+			);
+		}
+		throw new NotFoundError(
+			EntityStorageAuthenticationAccountService.CLASS_NAME,
+			"publicDataNotFound",
+			identity
+		);
+	}
+
+	/**
+	 * Get the public data of an account or organization, for a signed in account.
+	 * @param accountId The account id, or the unique identifier or DID of an organization.
+	 * @returns The public JSON-LD objects, empty when nothing is public.
+	 * @throws NotFoundError when nothing is stored for it.
+	 */
+	public async getPublicDataByAccount(
+		accountId: string
+	): Promise<NonNullable<IOrganization["profile"]>[]> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountService.CLASS_NAME,
+			nameof(accountId),
+			accountId
+		);
+		await this.signedInAccount();
+
+		const organization = await OrganizationHelper.find(this._organizationEntityStorage, accountId);
+		if (Is.object(organization)) {
+			return AccountDataHelper.buildPublicData(
+				this._accountDataEntityStorage,
+				organization.identity,
+				organization.identity
+			);
+		}
+		if (
+			AccountDataHelper.isType(accountId, AccountDataHelper.MIGRATION_TYPE) ||
+			(await AccountDataHelper.count(this._accountDataEntityStorage, accountId)) === 0
+		) {
+			throw new NotFoundError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"publicDataNotFound",
+				accountId
+			);
+		}
+		return AccountDataHelper.buildPublicData(
+			this._accountDataEntityStorage,
+			accountId,
+			await OrganizationMembershipHelper.loadIdentity(this._accountDataEntityStorage, accountId)
+		);
+	}
+
+	/**
 	 * Get the organization of the signed in account.
 	 * @returns The DID of the organization, or undefined while there is none or a request is pending.
 	 * @throws UnprocessableError when the account has no organization and its latest request to join
@@ -903,12 +1190,21 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @throws ForbiddenError when the type is reserved, or is a profile owned by the authentication provider.
 	 * @throws UnprocessableError when the account holds the most items it may, in all or of the type,
 	 * or the value is not valid for the type, such as an avatar that is not a small JPEG.
+	 * @throws ConflictError when the account holds an item of the type that only admins may change.
 	 */
 	public async create(type: string, data: unknown, isDefault?: boolean): Promise<string> {
 		type = AccountDataHelper.normaliseType(type);
 		this.guardType(type);
 		AccountDataHelper.validateData(type, data, true);
 		const accountId = await this.signedInAccount();
+
+		if (await AccountDataHelper.hasAdminOnly(this._accountDataEntityStorage, accountId, type)) {
+			throw new ConflictError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"accountDataAdminOnly",
+				type
+			);
+		}
 
 		// An account holds one avatar, so a new one replaces it, unless the provider owns it.
 		if (type === AuthenticationAccountDataType.Avatar) {
@@ -955,20 +1251,11 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * Get an item of the signed in account.
 	 * @param id The unique identifier of the item.
 	 * @returns The item.
-	 * @throws NotFoundError when the item does not exist, belongs to another account or is a node
-	 * migration record.
+	 * @throws NotFoundError when the item does not exist, belongs to another account, is a node
+	 * migration record or only admins may see it.
 	 */
 	public async get(id: string): Promise<IAuthenticationAccountData> {
-		const item = await AccountDataHelper.get(
-			this._accountDataEntityStorage,
-			id,
-			await this.signedInAccount()
-		);
-		// The node migration records are reported as missing, as with the item of another account.
-		if (AccountDataHelper.isType(item.type, AccountDataHelper.MIGRATION_TYPE)) {
-			throw new NotFoundError(AccountDataHelper.CLASS_NAME, "accountDataNotFound", id);
-		}
-		return item;
+		return this.getOwnItem(id, await this.signedInAccount());
 	}
 
 	/**
@@ -977,14 +1264,15 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @param data The new value of the item.
 	 * @param isDefault True to use the item first for its type, clearing any other default, unchanged when omitted.
 	 * @returns A promise that resolves when the item has been updated.
-	 * @throws NotFoundError when the item does not exist or belongs to another account.
+	 * @throws NotFoundError when the item does not exist, belongs to another account or only admins
+	 * may see it.
 	 * @throws ForbiddenError when the item is of a reserved type, or is read only, or is made the
 	 * default profile in place of one owned by the authentication provider.
 	 * @throws UnprocessableError when the value is not valid for the type.
 	 */
 	public async update(id: string, data: unknown, isDefault?: boolean): Promise<void> {
 		const accountId = await this.signedInAccount();
-		const item = await AccountDataHelper.get(this._accountDataEntityStorage, id, accountId);
+		const item = await this.getOwnItem(id, accountId);
 		this.guardType(item.type);
 		this.guardWritable(item);
 		AccountDataHelper.validateData(item.type, data, true);
@@ -1008,19 +1296,21 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * Remove an item of the signed in account.
 	 * @param id The unique identifier of the item.
 	 * @returns A promise that resolves when the item has been removed.
-	 * @throws NotFoundError when the item does not exist or belongs to another account.
+	 * @throws NotFoundError when the item does not exist, belongs to another account or only admins
+	 * may see it.
 	 * @throws ForbiddenError when the item is of a reserved type, or is read only.
 	 */
 	public async remove(id: string): Promise<void> {
 		const accountId = await this.signedInAccount();
-		const item = await AccountDataHelper.get(this._accountDataEntityStorage, id, accountId);
+		const item = await this.getOwnItem(id, accountId);
 		this.guardType(item.type);
 		this.guardWritable(item);
 		await AccountDataHelper.removeItem(this._accountDataEntityStorage, item);
 	}
 
 	/**
-	 * Query the items of the signed in account, other than the node migration records.
+	 * Query the items of the signed in account, other than the node migration records and the items
+	 * only admins may see.
 	 * @param type The type of the items to return, all types when omitted.
 	 * @param cursor The cursor to request the next page.
 	 * @param limit The maximum number of items to return.
@@ -1041,9 +1331,166 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		) {
 			return { entities: [] };
 		}
-		return AccountDataHelper.query(this._accountDataEntityStorage, accountId, type, cursor, limit, [
-			EntityStorageAuthenticationAccountService.MIGRATION_TYPE
-		]);
+		return AccountDataHelper.query(
+			this._accountDataEntityStorage,
+			accountId,
+			type,
+			cursor,
+			limit,
+			[EntityStorageAuthenticationAccountService.MIGRATION_TYPE],
+			true
+		);
+	}
+
+	/**
+	 * Get an item of an account, the node migration records and the items only admins may see are
+	 * reported as missing, as with the item of another account.
+	 * @param id The unique identifier of the item.
+	 * @param accountId The account id.
+	 * @returns The item.
+	 * @throws NotFoundError when the item does not exist, belongs to another account, is a node
+	 * migration record or only admins may see it.
+	 * @internal
+	 */
+	private async getOwnItem(id: string, accountId: string): Promise<IAuthenticationAccountData> {
+		const item = await AccountDataHelper.get(this._accountDataEntityStorage, id, accountId);
+		if (
+			item.adminOnly === true ||
+			AccountDataHelper.isType(item.type, AccountDataHelper.MIGRATION_TYPE)
+		) {
+			throw new NotFoundError(AccountDataHelper.CLASS_NAME, "accountDataNotFound", id);
+		}
+		return item;
+	}
+
+	/**
+	 * Import an organization identity controlled by the node, for an organization the account
+	 * creates, after checking it may be registered: it is not a registered organization, the node,
+	 * the tenant's organization or an account's identity. The export is not put in an error, as it
+	 * holds keys.
+	 * @param exported The identity export.
+	 * @param nodeIdentity The DID of the node, which controls the imported identity.
+	 * @returns The DID of the imported identity.
+	 * @throws UnprocessableError when the export is not valid.
+	 * @throws ConflictError when the DID is registered, in use or already held by the node.
+	 * @internal
+	 */
+	private async importOrganizationIdentity(
+		exported: IIdentityExport,
+		nodeIdentity: string
+	): Promise<string> {
+		const identity: unknown = Is.object<IIdentityExport>(exported)
+			? exported.document?.id
+			: undefined;
+		if (!Is.stringValue(identity) || !identity.startsWith("did:")) {
+			throw new UnprocessableError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"identityExportInvalid"
+			);
+		}
+		if (
+			Is.object(await OrganizationHelper.findByIdentity(this._organizationEntityStorage, identity))
+		) {
+			throw new ConflictError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"organizationExists",
+				identity
+			);
+		}
+		const contextIds = await ContextIdStore.getContextIds();
+		if (
+			contextIds?.[ContextIdKeys.Node] === identity ||
+			contextIds?.[ContextIdKeys.Organization] === identity ||
+			Is.object(await this._accountDataEntityStorage.get(AccountDataHelper.identityId(identity)))
+		) {
+			throw new ConflictError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"organizationIdentityInUse",
+				identity
+			);
+		}
+
+		// The import proves the keys match the document before anything is stored.
+		try {
+			await this._identityComponent.identityImport(exported, nodeIdentity);
+		} catch (error) {
+			// The node already holds the DID, which is a conflict rather than a failure.
+			if (BaseError.someErrorName(error, ConflictError.CLASS_NAME)) {
+				throw new ConflictError(
+					EntityStorageAuthenticationAccountService.CLASS_NAME,
+					"identityImportConflict",
+					identity,
+					undefined,
+					undefined,
+					error
+				);
+			}
+			// The keys do not match the document, or the export is otherwise refused.
+			throw new UnprocessableError(
+				EntityStorageAuthenticationAccountService.CLASS_NAME,
+				"identityExportInvalid",
+				undefined,
+				error
+			);
+		}
+		return identity;
+	}
+
+	/**
+	 * Undo creating an organization for an account that failed, ending its membership, removing the
+	 * organization with its account data and the DID the node created or imported. Each step is
+	 * attempted on its own, a failure is logged and the error of the creation is the one reported.
+	 * @param accountId The account id.
+	 * @param organization The DID of the organization.
+	 * @param nodeIdentity The DID of the node, which controls the DID of the organization.
+	 * @param stored The organization when it was registered.
+	 * @param imported True when the DID was imported, whose published document is kept so the export
+	 * can be imported again.
+	 * @returns A promise that resolves when the creation has been undone.
+	 * @internal
+	 */
+	private async rollbackCreateOrganization(
+		accountId: string,
+		organization: string,
+		nodeIdentity: string,
+		stored: Organization | undefined,
+		imported: boolean
+	): Promise<void> {
+		const steps: (() => Promise<unknown>)[] = [
+			async () =>
+				MembershipRemovalHelper.leave(
+					this._accountDataEntityStorage,
+					this._identityComponent,
+					this._adminRoles,
+					accountId,
+					organization
+				),
+			async () => OrganizationProfileHelper.removeAll(this._accountDataEntityStorage, organization)
+		];
+		if (Is.object(stored)) {
+			steps.push(async () => this._organizationEntityStorage.remove(stored.id));
+		}
+		steps.push(async () =>
+			this._identityComponent.identityRemove(
+				organization,
+				{ removeKeys: true, removeDocumentKey: true, retainDocument: imported },
+				nodeIdentity
+			)
+		);
+		for (const step of steps) {
+			try {
+				await step();
+			} catch (error) {
+				await this._logging?.log({
+					level: "warn",
+					source: EntityStorageAuthenticationAccountService.CLASS_NAME,
+					ts: Date.now(),
+					message: "organizationCreateRollbackFailed",
+					error: BaseError.fromError(error),
+					data: { accountId, organization }
+				});
+			}
+		}
 	}
 
 	/**

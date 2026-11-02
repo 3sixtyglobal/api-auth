@@ -76,6 +76,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			"authentication-audit": mockAuthenticationAuditService,
 			"authentication-account-admin": {
 				className: () => "AccountAdmin",
+				getManagedAccounts: vi.fn().mockResolvedValue(undefined),
 				get: vi.fn(),
 				create: vi.fn(),
 				query: vi.fn().mockResolvedValue({ entities: [] }),
@@ -121,6 +122,54 @@ describe("EntityStorageAuthenticationAdminService", () => {
 
 	it("should return the class name", () => {
 		expect(service.className()).toBe(EntityStorageAuthenticationAdminService.CLASS_NAME);
+	});
+
+	it("should only let a scoped admin reach the users it manages, reporting others as missing", async () => {
+		vi.spyOn(PasswordValidator, "validatePassword").mockImplementation(() => {});
+		vi.spyOn(PasswordHelper, "hashPassword").mockResolvedValue(HASHED);
+		vi.mocked(RandomHelper.generateUuidV7)
+			.mockReturnValueOnce("user-a")
+			.mockReturnValueOnce("user-b");
+		await service.create({ email: "a@example.com", password: "correct-horse-battery" });
+		await service.create({ email: "b@example.com", password: "correct-horse-battery" });
+		let managed: string[] | undefined = ["user-a"];
+		const accountAdmin = {
+			className: () => "AccountAdmin",
+			getManagedAccounts: vi.fn(async () => managed),
+			query: vi.fn().mockResolvedValue({ entities: [] })
+		};
+		vi.mocked(ComponentFactory.getIfExists).mockImplementation(componentName => {
+			if (componentName === "authentication-audit") {
+				return mockAuthenticationAuditService;
+			}
+			if (componentName === "authentication-account-admin") {
+				return accountAdmin;
+			}
+			return undefined;
+		});
+		const scoped = new EntityStorageAuthenticationAdminService();
+
+		await expect(scoped.get("a@example.com")).resolves.toMatchObject({ accountId: "user-a" });
+		await expect(scoped.query()).resolves.toMatchObject({ entities: [{ accountId: "user-a" }] });
+		for (const attempt of [
+			async () => scoped.get("b@example.com"),
+			async () => scoped.disable("b@example.com"),
+			async () => scoped.updatePassword("user-b", "correct-horse-battery"),
+			async () => scoped.remove("b@example.com")
+		]) {
+			await expect(attempt()).rejects.toMatchObject({
+				cause: {
+					name: "NotFoundError",
+					message: "entityStorageAuthenticationAdminService.userNotFound"
+				}
+			});
+		}
+		expect(await userEntityStorage.get("user-b")).toBeDefined();
+
+		managed = [];
+		await expect(scoped.query()).resolves.toEqual({ entities: [] });
+		managed = undefined;
+		expect((await scoped.query()).entities).toHaveLength(2);
 	});
 
 	it("should create a user with an allocated account id", async () => {
@@ -503,6 +552,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		const items = [{ id: "item-1" }, { id: "item-2" }];
 		const accountAdmin = {
 			className: () => "AccountAdmin",
+			getManagedAccounts: vi.fn().mockResolvedValue(undefined),
 			query: vi.fn(async () => ({ entities: [...items] })),
 			remove: vi.fn(async (id: string) => {
 				items.splice(
@@ -544,6 +594,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		let createCallers: (string | undefined)[];
 		let accountAdmin: {
 			className: () => string;
+			getManagedAccounts: ReturnType<typeof vi.fn>;
 			query: ReturnType<typeof vi.fn>;
 			create: ReturnType<typeof vi.fn>;
 			remove: ReturnType<typeof vi.fn>;
@@ -564,6 +615,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			createCallers = [];
 			accountAdmin = {
 				className: () => "AccountAdmin",
+				getManagedAccounts: vi.fn().mockResolvedValue(undefined),
 				query: vi.fn(async (accountId: string, type?: string) => {
 					if (type !== "organization") {
 						return { entities: [] };
@@ -790,6 +842,11 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			}
 			accountAdmin = {
 				className: () => "AccountAdmin",
+				getManagedAccounts: vi.fn().mockResolvedValue(undefined),
+				getRoles: vi.fn(),
+				getAssignableRoles: vi.fn(),
+				addRole: vi.fn(),
+				removeRole: vi.fn(),
 				query: vi.fn(async (accountId?: string, type?: string, cursor?: string) => {
 					const matched = items.filter(
 						item =>

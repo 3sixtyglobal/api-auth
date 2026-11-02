@@ -44,9 +44,11 @@ import { PasswordHelper } from "../utils/passwordHelper.js";
 import { PasswordResetHelper } from "../utils/passwordResetHelper.js";
 
 /**
- * Implementation of the authentication admin component using entity storage. Callers act on every
- * account of their tenant, only callers holding the escalated privilege role may act on accounts
- * that hold it. Calls without a caller account, such as from the node CLI, are system calls.
+ * Implementation of the authentication admin component using entity storage. Callers holding the
+ * escalated privilege role act on every account of their tenant, other callers only on the members
+ * of the organizations they are an org admin of, other users are reported as missing. Only callers
+ * holding the escalated privilege role may act on accounts that hold it. Calls without a caller
+ * account, such as from the node CLI, are system calls.
  */
 export class EntityStorageAuthenticationAdminService implements IAuthenticationAdminComponent {
 	/**
@@ -267,6 +269,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 		try {
 			const user = await this.findUser(email);
+			await this.guardManaged(user.accountId, email);
 			return {
 				...this.toAuthenticationUser(user),
 				...(await this.accountContext(user.accountId))
@@ -321,6 +324,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					identity
 				);
 			}
+			await this.guardManaged(user.accountId, identity);
 			return {
 				...this.toAuthenticationUser(user),
 				...(await this.accountContext(user.accountId))
@@ -374,6 +378,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 		try {
 			const existing = await this.findUser(user.email);
+			await this.guardManaged(existing.accountId, user.email);
 			await this.guardEscalatedPrivilegeTarget(existing.accountId);
 
 			const updatedFields: string[] = [];
@@ -443,6 +448,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					"removeSelfNotPermitted"
 				);
 			}
+			await this.guardManaged(user.accountId, email);
 			await this.guardEscalatedPrivilegeTarget(user.accountId);
 
 			await AccountHelper.removeAccount(
@@ -494,6 +500,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					"resetSelfPasswordNotPermitted"
 				);
 			}
+			await this.guardManaged(user.accountId, email);
 			await this.guardEscalatedPrivilegeTarget(user.accountId);
 
 			await PasswordHelper.updatePassword(
@@ -527,7 +534,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	}
 
 	/**
-	 * Query the users of the tenant.
+	 * Query the users of the tenant the caller manages.
 	 * @param email The start of the e-mail address of the users to return, all when omitted.
 	 * @param exactEmail True to match the e-mail address exactly rather than as a prefix.
 	 * @param authProviderId The authentication provider of the users to return, all when omitted.
@@ -546,11 +553,22 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 		cursor?: string;
 	}> {
 		try {
+			const managed = await this._authenticationAccountAdmin.getManagedAccounts();
+			if (Is.array(managed) && managed.length === 0) {
+				return { entities: [] };
+			}
 			const conditions: {
 				property: keyof AuthenticationUser;
-				value: string;
+				value: string | string[];
 				comparison: (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
 			}[] = [];
+			if (Is.array(managed)) {
+				conditions.push({
+					property: "accountId",
+					value: managed,
+					comparison: ComparisonOperator.In
+				});
+			}
 			if (Is.stringValue(email)) {
 				conditions.push({
 					property: "email",
@@ -616,6 +634,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 					"disableSelfNotPermitted"
 				);
 			}
+			await this.guardManaged(user.accountId, email);
 			await this.guardEscalatedPrivilegeTarget(user.accountId);
 
 			// The password version is moved on so the tokens already issued stay invalid once enabled,
@@ -654,6 +673,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 
 		try {
 			const user = await this.findUser(email);
+			await this.guardManaged(user.accountId, email);
 			await this.guardEscalatedPrivilegeTarget(user.accountId);
 
 			if (!AccountHelper.isDisabled(user)) {
@@ -685,6 +705,25 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 				"enableUserFailed",
 				undefined,
 				error
+			);
+		}
+	}
+
+	/**
+	 * Ensure the caller manages an account, an account it does not manage is reported as missing.
+	 * @param accountId The account.
+	 * @param notFoundId The e-mail address, account id or DID the caller asked for.
+	 * @returns A promise that resolves when the caller manages the account.
+	 * @throws NotFoundError when it does not.
+	 * @internal
+	 */
+	private async guardManaged(accountId: string, notFoundId: string): Promise<void> {
+		const managed = await this._authenticationAccountAdmin.getManagedAccounts();
+		if (Is.array(managed) && !managed.includes(accountId)) {
+			throw new NotFoundError(
+				EntityStorageAuthenticationAdminService.CLASS_NAME,
+				"userNotFound",
+				notFoundId
 			);
 		}
 	}

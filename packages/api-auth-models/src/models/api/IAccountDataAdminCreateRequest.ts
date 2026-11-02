@@ -35,5 +35,10 @@ export interface IAccountDataAdminCreateRequest {
 		 * escalated privilege stores an identity.
 		 */
 		proof?: IProof;
+
+		/**
+		 * True when only admins may see and change the item.
+		 */
+		adminOnly?: boolean;
 	};
 }

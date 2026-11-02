@@ -16,7 +16,7 @@ export interface IAuthenticationAccountData<T = unknown> {
 	accountId: string;
 
 	/**
-	 * The type of the item, such as identity or public-profile, stored in kebab case.
+	 * The type of the item, such as identity or profile, stored in kebab case.
 	 */
 	type: string;
 
@@ -29,6 +29,11 @@ export interface IAuthenticationAccountData<T = unknown> {
 	 * True for the item of its type to use first, otherwise the earliest created item is used.
 	 */
 	isDefault: boolean;
+
+	/**
+	 * True when only admins may see and change the item, only present in admin responses.
+	 */
+	adminOnly?: boolean;
 
 	/**
 	 * When the item was created, in ISO date format.

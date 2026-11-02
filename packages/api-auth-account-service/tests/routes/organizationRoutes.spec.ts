@@ -5,9 +5,12 @@ import { ComponentFactory } from "@3sixty/core";
 import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import {
 	generateRestRoutesOrganization,
+	organizationAdminAdd,
+	organizationAdminRemove,
 	organizationCreate,
 	organizationExportIdentity,
 	organizationGet,
+	organizationMemberQuery,
 	organizationQuery,
 	organizationRemove,
 	organizationSearch,
@@ -40,14 +43,11 @@ describe("organization routes", () => {
 			["GET", "authentication/organization", "organization-admin:read", "user-admin", undefined],
 			["GET", "authentication/organization/search", undefined, undefined, false],
 			["GET", "authentication/organization/:id", undefined, undefined, false],
-			["PUT", "authentication/organization/:id", "organization:write", "user-admin", undefined],
-			[
-				"DELETE",
-				"authentication/organization/:id",
-				"organization-admin:write",
-				"user-admin",
-				undefined
-			],
+			["PUT", "authentication/organization/:id", undefined, undefined, false],
+			["DELETE", "authentication/organization/:id", undefined, undefined, false],
+			["GET", "authentication/organization/:id/member", undefined, undefined, false],
+			["PUT", "authentication/organization/:id/admin/:accountId", undefined, undefined, false],
+			["DELETE", "authentication/organization/:id/admin/:accountId", undefined, undefined, false],
 			[
 				"POST",
 				"authentication/organization/:id/export",
@@ -94,19 +94,55 @@ describe("organization routes", () => {
 		).resolves.toEqual({ body: { entities: [] } });
 		expect(component.search).toHaveBeenCalledWith("exam", 3);
 
-		const publicProfile = { "@context": "https://schema.org", "@type": "Organization" };
+		const profile = { "@context": "https://schema.org", "@type": "Organization" };
 		await expect(
 			organizationUpdate(CONTEXT, "organization", {
 				pathParams: { id: "org-1" },
-				body: { publicProfile }
+				body: { profile, publicData: ["profile.name"] }
 			})
 		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
-		expect(component.update).toHaveBeenCalledWith("org-1", publicProfile, undefined);
+		expect(component.update).toHaveBeenCalledWith("org-1", {
+			profile,
+			publicData: ["profile.name"]
+		});
 
 		await expect(
 			organizationRemove(CONTEXT, "organization", { pathParams: { id: "org-1" } })
 		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
 		expect(component.remove).toHaveBeenCalledWith("org-1");
+	});
+
+	it("should pass the member and org admin requests to the component", async () => {
+		const component = {
+			className: () => "organization",
+			queryMembers: vi.fn().mockResolvedValue({ entities: [{ accountId: "a-1", isAdmin: true }] }),
+			addAdmin: vi.fn().mockResolvedValue(undefined),
+			removeAdmin: vi.fn().mockResolvedValue(undefined)
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		await expect(
+			organizationMemberQuery(CONTEXT, "organization", {
+				pathParams: { id: "org-1" },
+				query: { cursor: "c1", limit: "5" }
+			})
+		).resolves.toEqual({ body: { entities: [{ accountId: "a-1", isAdmin: true }] } });
+		expect(component.queryMembers).toHaveBeenCalledWith("org-1", "c1", 5);
+		await expect(
+			organizationAdminAdd(CONTEXT, "organization", {
+				pathParams: { id: "org-1", accountId: "a-2" }
+			})
+		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
+		expect(component.addAdmin).toHaveBeenCalledWith("org-1", "a-2");
+		await expect(
+			organizationAdminRemove(CONTEXT, "organization", {
+				pathParams: { id: "org-1", accountId: "a-2" }
+			})
+		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
+		expect(component.removeAdmin).toHaveBeenCalledWith("org-1", "a-2");
+		await expect(organizationAdminAdd(CONTEXT, "organization", {} as never)).rejects.toMatchObject({
+			name: "GuardError"
+		});
 	});
 
 	it("should export the identity of an organization with the session start and no caching", async () => {

@@ -15,6 +15,8 @@ import {
 	type IAccountIdentityExportResponse,
 	type IAccountIdentityImportRequest,
 	type IAccountIdentityImportResponse,
+	type IAccountOrganizationCreateRequest,
+	type IAccountOrganizationCreateResponse,
 	type IAccountOrganizationGetResponse,
 	type IAccountOrganizationJoinRequest,
 	type IAccountOrganizationLeaveRequest,
@@ -22,6 +24,9 @@ import {
 	type IAccountProfileExportResponse,
 	type IAccountProfileImportRequest,
 	type IAccountProfileImportResponse,
+	type IAccountPublicAccountGetRequest,
+	type IAccountPublicDataGetResponse,
+	type IAccountPublicIdentityGetRequest,
 	type IAuthenticationAccountComponent
 } from "@3sixty/api-auth-models";
 import {
@@ -427,7 +432,7 @@ export function generateRestRoutesAuthenticationAccount(
 								version: ExportFileHelper.VERSION,
 								items: [
 									{
-										type: "public-profile",
+										type: "profile",
 										data: {
 											"@context": "https://schema.org",
 											"@type": "Person",
@@ -475,7 +480,7 @@ export function generateRestRoutesAuthenticationAccount(
 							version: ExportFileHelper.VERSION,
 							items: [
 								{
-									type: "public-profile",
+									type: "profile",
 									data: {
 										"@context": "https://schema.org",
 										"@type": "Person",
@@ -654,6 +659,225 @@ export function generateRestRoutesAuthenticationAccount(
 		requiresAuthorization: false
 	};
 
+	const createOrganizationRoute: IRestRoute<
+		IAccountOrganizationCreateRequest,
+		IAccountOrganizationCreateResponse
+	> = {
+		operationId: "authenticationAccountCreateOrganization",
+		summary:
+			"Create an organization for the signed in account, which becomes its member and org admin",
+		tag: tagsAuthenticationAccount[0].name,
+		method: "POST",
+		path: `${baseRouteName}/organization/create`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountCreateOrganization(
+				httpRequestContext,
+				componentName,
+				request,
+				baseRouteName
+			),
+		requestType: {
+			type: nameof<IAccountOrganizationCreateRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountCreateOrganizationRequestExample",
+					description: "The request to create an organization whose name and logo are public.",
+					request: {
+						body: {
+							profile: {
+								"@context": "https://schema.org",
+								"@type": "Organization",
+								name: "Example Ltd",
+								email: "office@example.com"
+							},
+							logo: {
+								"@context": "https://schema.org",
+								"@type": "ImageObject",
+								encodingFormat: "image/png",
+								contentUrl: "data:image/png;base64,iVBORw0KGgo="
+							},
+							publicData: ["profile.name", "logo"]
+						}
+					}
+				},
+				{
+					id: "authenticationAccountCreateOrganizationFromImportRequestExample",
+					description:
+						"The request to create an organization from an identity export of another node, keeping its DID.",
+					request: {
+						body: {
+							identityImport: {
+								type: ExportFileType.OrganizationIdentity,
+								version: ExportFileHelper.VERSION,
+								identity: {
+									version: 1,
+									namespace: "entity-storage",
+									selfControlled: false,
+									document: {
+										"@context": "https://www.w3.org/ns/did/v1",
+										id: "did:entity-storage:0xfedcba9876543210"
+									},
+									documentSignature: "base64-signature",
+									keys: [
+										{
+											id: "did",
+											type: "Ed25519",
+											privateKey: "base64-private-key",
+											publicKey: "base64-public-key"
+										}
+									]
+								},
+								nextRevocationIndex: 12
+							},
+							profile: {
+								"@context": "https://schema.org",
+								"@type": "Organization",
+								name: "Example Ltd"
+							},
+							publicData: ["profile.name"]
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAccountOrganizationCreateResponse>(),
+				examples: [
+					{
+						id: "authenticationAccountCreateOrganizationResponseExample",
+						description: "The organization created.",
+						response: {
+							statusCode: HttpStatusCode.created,
+							headers: {
+								location: "authentication/account/organization"
+							},
+							body: {
+								id: "01a17afc-611a-7d5b-a898-e0e20088b36f",
+								identity: "did:example:organization",
+								profile: {
+									"@context": "https://schema.org",
+									"@type": "Organization",
+									name: "Example Ltd",
+									email: "office@example.com"
+								},
+								publicData: ["profile.name", "logo"],
+								isAdmin: true,
+								dateCreated: "2026-01-12T09:05:23.123Z",
+								dateModified: "2026-01-12T09:05:23.123Z"
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IConflictResponse>()
+			},
+			{
+				type: nameof<IUnprocessableEntityResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		requiresAuthorization: false
+	};
+
+	const publicIdentityRoute: IRestRoute<
+		IAccountPublicIdentityGetRequest,
+		IAccountPublicDataGetResponse
+	> = {
+		operationId: "authenticationAccountPublicIdentity",
+		summary: "Get the public data of the organization or account that holds a DID",
+		tag: tagsAuthenticationAccount[0].name,
+		method: "GET",
+		path: `${baseRouteName}/public/identity/:identity`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountPublicIdentity(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountPublicIdentityGetRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountPublicIdentityRequestExample",
+					description: "The request to get the public data of an organization by its DID.",
+					request: {
+						pathParams: {
+							identity: "did:example:organization"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAccountPublicDataGetResponse>(),
+				examples: [
+					{
+						id: "authenticationAccountPublicIdentityResponseExample",
+						description: "The public data of the organization.",
+						response: {
+							body: [
+								{
+									"@context": "https://schema.org",
+									"@type": "Organization",
+									name: "Example Ltd",
+									address: {
+										"@type": "PostalAddress",
+										addressLocality: "London"
+									},
+									identifier: "did:example:organization"
+								}
+							]
+						}
+					}
+				]
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			}
+		],
+		skipAuth: true
+	};
+
+	const publicAccountRoute: IRestRoute<
+		IAccountPublicAccountGetRequest,
+		IAccountPublicDataGetResponse
+	> = {
+		operationId: "authenticationAccountPublicAccount",
+		summary: "Get the public data of an account or organization",
+		tag: tagsAuthenticationAccount[0].name,
+		method: "GET",
+		path: `${baseRouteName}/public/account/:accountId`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountPublicAccount(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountPublicAccountGetRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountPublicAccountRequestExample",
+					description: "The request to get the public data of an account.",
+					request: {
+						pathParams: {
+							accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAccountPublicDataGetResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		requiresAuthorization: false
+	};
+
 	const createRoute: IRestRoute<IAccountDataCreateRequest, ICreatedResponse> = {
 		operationId: "authenticationAccountCreate",
 		summary: "Store an item of account data",
@@ -670,7 +894,7 @@ export function generateRestRoutesAuthenticationAccount(
 					description: "The request to store an item of account data.",
 					request: {
 						body: {
-							type: "public-profile",
+							type: "profile",
 							data: {
 								"@context": "https://schema.org",
 								"@type": "Person",
@@ -900,7 +1124,11 @@ export function generateRestRoutesAuthenticationAccount(
 		// Before leaving an organization, whose path would otherwise read request as the organization.
 		cancelOrganizationRequestRoute,
 		joinOrganizationRoute,
+		createOrganizationRoute,
 		leaveOrganizationRoute,
+		// Before getting an item, whose path would otherwise read public as the id.
+		publicIdentityRoute,
+		publicAccountRoute,
 		createRoute,
 		getRoute,
 		updateRoute,
@@ -1319,5 +1547,91 @@ export async function authenticationAccountQuery(
 
 	return {
 		body: result
+	};
+}
+
+/**
+ * Create an organization for the signed in account.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @param baseRouteName The base route name to use for the location header.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountCreateOrganization(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountOrganizationCreateRequest,
+	baseRouteName: string
+): Promise<IAccountOrganizationCreateResponse> {
+	Guards.object<IAccountOrganizationCreateRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountOrganizationCreateRequest["body"]>(
+		ROUTES_SOURCE,
+		nameof(request.body),
+		request.body
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountComponent>(componentName);
+	const organization = await component.createOrganization(request.body);
+
+	const contextIds = await ContextIdStore.getContextIds();
+	const path = `${baseRouteName}/organization`;
+	return {
+		statusCode: HttpStatusCode.created,
+		headers: {
+			location:
+				HttpUrlHelper.combineOriginPath(contextIds?.[HttpContextIdKeys.PublicOrigin], path) ?? path
+		},
+		body: organization
+	};
+}
+
+/**
+ * Get the public data of the organization or account that holds a DID.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountPublicIdentity(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountPublicIdentityGetRequest
+): Promise<IAccountPublicDataGetResponse> {
+	Guards.object<IAccountPublicIdentityGetRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountPublicIdentityGetRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountComponent>(componentName);
+	return {
+		body: await component.getPublicDataByIdentity(request.pathParams.identity)
+	};
+}
+
+/**
+ * Get the public data of an account or organization.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAccountPublicAccount(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAccountPublicAccountGetRequest
+): Promise<IAccountPublicDataGetResponse> {
+	Guards.object<IAccountPublicAccountGetRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountPublicAccountGetRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAccountComponent>(componentName);
+	return {
+		body: await component.getPublicDataByAccount(request.pathParams.accountId)
 	};
 }
