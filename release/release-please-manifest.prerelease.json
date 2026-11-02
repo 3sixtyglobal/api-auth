@@ -1,15 +1,15 @@
 {
-	"packages/api-auth-models": "0.20.0-next.2",
-	"packages/api-auth-service": "0.20.0-next.2",
-	"packages/api-auth-rest-client": "0.20.0-next.2",
-	"packages/api-auth-entity-storage-models": "0.20.0-next.2",
-	"packages/api-auth-entity-storage-service": "0.20.0-next.2",
-	"packages/api-auth-entity-storage-rest-client": "0.20.0-next.2",
-	"packages/api-auth-connector-entity-storage": "0.20.0-next.2",
-	"packages/api-auth-oauth-models": "0.20.0-next.2",
-	"packages/api-auth-oauth-connector-google": "0.20.0-next.2",
-	"packages/api-auth-oauth-connector-microsoft": "0.20.0-next.2",
-	"packages/api-auth-oauth-service": "0.20.0-next.2",
-	"packages/api-auth-account-service": "0.20.0-next.2",
-	"packages/api-auth-account-rest-client": "0.20.0-next.2"
+	"packages/api-auth-models": "0.20.0-next.3",
+	"packages/api-auth-service": "0.20.0-next.3",
+	"packages/api-auth-rest-client": "0.20.0-next.3",
+	"packages/api-auth-entity-storage-models": "0.20.0-next.3",
+	"packages/api-auth-entity-storage-service": "0.20.0-next.3",
+	"packages/api-auth-entity-storage-rest-client": "0.20.0-next.3",
+	"packages/api-auth-connector-entity-storage": "0.20.0-next.3",
+	"packages/api-auth-oauth-models": "0.20.0-next.3",
+	"packages/api-auth-oauth-connector-google": "0.20.0-next.3",
+	"packages/api-auth-oauth-connector-microsoft": "0.20.0-next.3",
+	"packages/api-auth-oauth-service": "0.20.0-next.3",
+	"packages/api-auth-account-service": "0.20.0-next.3",
+	"packages/api-auth-account-rest-client": "0.20.0-next.3"
 }
