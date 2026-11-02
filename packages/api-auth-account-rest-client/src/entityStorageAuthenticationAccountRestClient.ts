@@ -21,6 +21,7 @@ import type {
 	IAccountOrganizationGetResponse,
 	IAccountOrganizationJoinRequest,
 	IAccountOrganizationLeaveRequest,
+	IAccountOrganizationRequestCancelRequest,
 	IAccountOrganizationRequestGetResponse,
 	IAccountProfileExport,
 	IAccountProfileExportResponse,
@@ -43,6 +44,7 @@ import {
 	type INoContentResponse
 } from "@3sixty/api-models";
 import { Coerce, Guards } from "@3sixty/core";
+import type { IJsonLdNodeObject } from "@3sixty/data-json-ld";
 import { nameof } from "@3sixty/nameof";
 import type { IProof } from "@3sixty/standards-w3c-did";
 import { HttpMethod } from "@3sixty/web";
@@ -255,9 +257,7 @@ export class EntityStorageAuthenticationAccountRestClient
 	 * @param identity The DID.
 	 * @returns The public JSON-LD objects, empty when nothing is public.
 	 */
-	public async getPublicDataByIdentity(
-		identity: string
-	): Promise<IAccountPublicDataGetResponse["body"]> {
+	public async getPublicDataByIdentity(identity: string): Promise<IJsonLdNodeObject[]> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
 			nameof(identity),
@@ -279,9 +279,7 @@ export class EntityStorageAuthenticationAccountRestClient
 	 * @param accountId The account id, or the unique identifier or DID of an organization.
 	 * @returns The public JSON-LD objects, empty when nothing is public.
 	 */
-	public async getPublicDataByAccount(
-		accountId: string
-	): Promise<IAccountPublicDataGetResponse["body"]> {
+	public async getPublicDataByAccount(accountId: string): Promise<IJsonLdNodeObject[]> {
 		Guards.stringValue(
 			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
 			nameof(accountId),
@@ -313,23 +311,36 @@ export class EntityStorageAuthenticationAccountRestClient
 
 	/**
 	 * Cancel the pending request of the signed in account to join an organization.
+	 * @param organization The DID of the organization whose request is cancelled.
 	 * @returns A promise that resolves when the request has been cancelled.
 	 */
-	public async cancelOrganizationRequest(): Promise<void> {
-		await this.fetch<never, INoContentResponse>("/organization/request", HttpMethod.DELETE);
+	public async cancelOrganizationRequest(organization: string): Promise<void> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountRestClient.CLASS_NAME,
+			nameof(organization),
+			organization
+		);
+
+		await this.fetch<IAccountOrganizationRequestCancelRequest, INoContentResponse>(
+			"/organization/request/:organization",
+			HttpMethod.DELETE,
+			{
+				pathParams: { organization }
+			}
+		);
 	}
 
 	/**
-	 * Get the request of the signed in account to join an organization, so its status can be shown.
-	 * @returns The pending request, otherwise the latest request, or undefined when none was made.
+	 * Get the requests of the signed in account to join organizations, so their status can be shown.
+	 * @returns The latest request to each organization, pending or answered, the latest changed first.
 	 */
-	public async getOrganizationRequest(): Promise<IOrganizationRequest | undefined> {
+	public async getOrganizationRequests(): Promise<IOrganizationRequest[]> {
 		const response = await this.fetch<never, IAccountOrganizationRequestGetResponse>(
 			"/organization/request",
 			HttpMethod.GET
 		);
 
-		return response.body.request;
+		return response.body.requests;
 	}
 
 	/**

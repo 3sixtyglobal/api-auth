@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { OidcHelper } from "@3sixty/api-auth-oauth-models";
 import { ComponentFactory, Converter } from "@3sixty/core";
+import { MimeTypes } from "@3sixty/web";
 import { GoogleOAuthProviderConnector } from "../src/googleOAuthProviderConnector.js";
 
 const CONFIG = { clientId: "google-client", clientSecret: "google-secret" };
@@ -78,7 +79,7 @@ describe("GoogleOAuthProviderConnector avatar", () => {
 			"https://evilgoogleusercontent.com/a/abc=s96-c",
 			"https://lh3.googleusercontent.com.evil.example.com/a/abc",
 			"https://lh3.googleusercontent.com@evil.example.com/a/abc",
-			"data:image/jpeg;base64,AAAA",
+			`data:${MimeTypes.Jpeg};base64,AAAA`,
 			"not a url"
 		]) {
 			expect(GoogleOAuthProviderConnector.avatarUrl(picture)).toBeUndefined();
@@ -89,7 +90,7 @@ describe("GoogleOAuthProviderConnector avatar", () => {
 		const bytes = new Uint8Array([255, 216, 255]);
 		const fetchStub = vi
 			.fn()
-			.mockResolvedValue(new Response(bytes, { headers: { "content-type": "image/jpeg" } }));
+			.mockResolvedValue(new Response(bytes, { headers: { "content-type": MimeTypes.Jpeg } }));
 		vi.stubGlobal("fetch", fetchStub);
 
 		const identity = await signIn(new GoogleOAuthProviderConnector({ config: CONFIG }), {
@@ -103,10 +104,10 @@ describe("GoogleOAuthProviderConnector avatar", () => {
 		expect(identity.avatar).toEqual({
 			"@context": "https://schema.org",
 			"@type": "ImageObject",
-			encodingFormat: "image/jpeg",
-			contentUrl: `data:image/jpeg;base64,${Converter.bytesToBase64(bytes)}`,
-			width: 512,
-			height: 512
+			encodingFormat: MimeTypes.Jpeg,
+			contentUrl: `data:${MimeTypes.Jpeg};base64,${Converter.bytesToBase64(bytes)}`,
+			width: "512",
+			height: "512"
 		});
 		// The profile keeps the address the token gives.
 		expect(identity.profile).toMatchObject({ image: PICTURE });

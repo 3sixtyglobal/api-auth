@@ -5,6 +5,7 @@ import { UnprocessableError } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { Organization } from "../../src/entities/organization.js";
 import { initSchema } from "../../src/schema.js";
@@ -126,7 +127,7 @@ describe("OrganizationMembershipHelper", () => {
 				{
 					"@context": "https://www.w3.org/ns/credentials/v2",
 					type: "EnvelopedVerifiableCredential",
-					id: "data:application/vc+jwt,a.b.c"
+					id: `data:${MimeTypes.VerifiableCredentialJwt},a.b.c`
 				}
 			]
 		] as const) {

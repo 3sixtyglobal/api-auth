@@ -1,12 +1,13 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { AuthenticationAccountHelper } from "@3sixty/api-auth-models";
+import { AccountDataValidationFactory, AuthenticationAccountHelper } from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
 	ComponentFactory,
 	ConflictError,
 	GeneralError,
+	Is,
 	NotFoundError,
 	UnauthorizedError,
 	UnprocessableError
@@ -16,6 +17,7 @@ import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import type { IProof } from "@3sixty/standards-w3c-did";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { Organization } from "../../src/entities/organization.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
@@ -36,7 +38,8 @@ import {
 	createOrganizationStorage,
 	createRateComponent,
 	createUserStorage,
-	mockRequiredComponents
+	mockRequiredComponents,
+	registerAccountDataVerifiers
 } from "../helpers/testDependencies.js";
 
 initSchema();
@@ -115,6 +118,10 @@ function createIdentityComponent(): IIdentityComponent {
 }
 
 describe("EntityStorageAuthenticationAccountService", () => {
+	beforeAll(() => {
+		registerAccountDataVerifiers();
+	});
+
 	let storage: MemoryEntityStorageConnector<AccountData>;
 	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
 	let organizations: MemoryEntityStorageConnector<Organization>;
@@ -237,7 +244,7 @@ describe("EntityStorageAuthenticationAccountService", () => {
 				{
 					"@context": "https://www.w3.org/ns/credentials/v2",
 					type: "EnvelopedVerifiableCredential",
-					id: "data:application/vc+jwt,a.b.c"
+					id: `data:${MimeTypes.VerifiableCredentialJwt},a.b.c`
 				},
 				{ id: "vc-1" },
 				withoutProof,
@@ -339,6 +346,80 @@ describe("EntityStorageAuthenticationAccountService", () => {
 			// The variant is not the identity of the account.
 			await expect(service.query("identity")).resolves.toMatchObject({ entities: [] });
 		});
+	});
+
+	it("should check an item of a type with the verifier registered for it, and any other as a JSON object", async () => {
+		AccountDataValidationFactory.register("supply-chain", () => ({
+			verify: async (data: unknown) => {
+				if (!Is.object<{ consignment?: unknown }>(data) || !Is.stringValue(data.consignment)) {
+					throw new UnprocessableError("SupplyChainVerifier", "consignmentMissing");
+				}
+			},
+			maxInstances: () => undefined
+		}));
+		try {
+			await asAccount("account-1", async () => {
+				// The type is normalised before its verifier is looked up.
+				await expect(
+					service.create("supplyChain", { name: "no consignment" })
+				).rejects.toMatchObject({
+					name: "UnprocessableError",
+					message: "supplyChainVerifier.consignmentMissing"
+				});
+				await expect(
+					service.create("supply-chain", { consignment: "CONS-1" })
+				).resolves.toBeDefined();
+				await expect(service.create("notes", "not an object")).rejects.toMatchObject({
+					name: "UnprocessableError",
+					message: "accountDataHelper.accountDataNotObject"
+				});
+			});
+		} finally {
+			AccountDataValidationFactory.unregister("supply-chain");
+		}
+	});
+
+	it("should hold the most items of a type its verifier allows, replacing a type it allows one of", async () => {
+		AccountDataValidationFactory.register("signature", () => ({
+			verify: async () => {},
+			maxInstances: () => 1
+		}));
+		AccountDataValidationFactory.register("address", () => ({
+			verify: async () => {},
+			maxInstances: () => 2
+		}));
+		try {
+			await asAccount("account-1", async () => {
+				const first = await service.create("signature", { text: "A" });
+				// A second item replaces the first, which stays the default.
+				await expect(service.create("signature", { text: "B" })).resolves.toBe(first);
+				const signatures = await service.query("signature");
+				expect(signatures.entities).toHaveLength(1);
+				expect(signatures.entities[0]).toMatchObject({ data: { text: "B" }, isDefault: true });
+
+				await service.create("address", { line: "1" });
+				await service.create("address", { line: "2" });
+				await expect(service.create("address", { line: "3" })).rejects.toMatchObject({
+					name: "UnprocessableError",
+					message: "entityStorageAuthenticationAccountService.accountDataTypeLimitReached",
+					properties: { type: "address", maxItems: 2 }
+				});
+			});
+
+			// The admin service applies the same limits.
+			const replaced = await admin.create("account-2", "signature", { text: "A" });
+			await expect(admin.create("account-2", "signature", { text: "B" })).resolves.toBe(replaced);
+			await admin.create("account-2", "address", { line: "1" });
+			await admin.create("account-2", "address", { line: "2" });
+			await expect(admin.create("account-2", "address", { line: "3" })).rejects.toMatchObject({
+				name: "UnprocessableError",
+				message: "entityStorageAuthenticationAccountAdminService.accountDataTypeLimitReached",
+				properties: { type: "address", maxItems: 2 }
+			});
+		} finally {
+			AccountDataValidationFactory.unregister("signature");
+			AccountDataValidationFactory.unregister("address");
+		}
 	});
 
 	it("should update and remove its own items", async () => {
@@ -944,7 +1025,8 @@ describe("EntityStorageAuthenticationAccountService", () => {
 
 		await asAccount("account-1", async () => {
 			await expect(service.getOrganization()).resolves.toBeUndefined();
-			await expect(service.getOrganizationRequest()).resolves.toMatchObject({ id: "request-2" });
+			// The latest request to the organization is the pending one.
+			await expect(service.getOrganizationRequests()).resolves.toMatchObject([{ id: "request-2" }]);
 		});
 		expect(requestQuerySpy).toHaveBeenCalledTimes(2);
 	});
@@ -1271,23 +1353,6 @@ describe("EntityStorageAuthenticationAccountAdminService", () => {
 				"organization",
 				organizationData(ORGANIZATION)
 			);
-		});
-
-		it("should look up the role of the caller at most once for a call", async () => {
-			const page = await admin.query(ESCALATED_ACCOUNT, "organization");
-
-			await asAccount(ESCALATED_ACCOUNT, async () =>
-				guarded.update(page.entities[0].id, organizationData(ORGANIZATION), true)
-			);
-
-			// One lookup for the target and one for the caller, which is also checked for its own account.
-			expect(authorization.hasRoleForSubject).toHaveBeenCalledTimes(2);
-
-			// A later call looks the role up again, so a change of role is seen.
-			await asAccount(ESCALATED_ACCOUNT, async () =>
-				guarded.update(page.entities[0].id, organizationData(ORGANIZATION), true)
-			);
-			expect(authorization.hasRoleForSubject).toHaveBeenCalledTimes(4);
 		});
 
 		it("should forbid changing the identity or organization of an escalated account", async () => {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { OidcHelper } from "@3sixty/api-auth-oauth-models";
 import { ComponentFactory, Converter } from "@3sixty/core";
+import { MimeTypes } from "@3sixty/web";
 import { MicrosoftOAuthProviderConnector } from "../src/microsoftOAuthProviderConnector.js";
 
 const CONFIG = { clientId: "ms-client", clientSecret: "ms-secret", tenant: "common" };
@@ -77,7 +78,7 @@ describe("MicrosoftOAuthProviderConnector avatar", () => {
 	it("should read the photo from Microsoft Graph with the access token", async () => {
 		const bytes = new Uint8Array([255, 216, 255, 224]);
 		const fetchStub = vi.fn(
-			async () => new Response(bytes, { headers: { "content-type": "image/jpeg" } })
+			async () => new Response(bytes, { headers: { "content-type": MimeTypes.Jpeg } })
 		);
 		vi.stubGlobal("fetch", fetchStub);
 
@@ -94,10 +95,10 @@ describe("MicrosoftOAuthProviderConnector avatar", () => {
 			expect(identity.avatar).toEqual({
 				"@context": "https://schema.org",
 				"@type": "ImageObject",
-				encodingFormat: "image/jpeg",
-				contentUrl: `data:image/jpeg;base64,${Converter.bytesToBase64(bytes)}`,
-				width: 504,
-				height: 504
+				encodingFormat: MimeTypes.Jpeg,
+				contentUrl: `data:${MimeTypes.Jpeg};base64,${Converter.bytesToBase64(bytes)}`,
+				width: "504",
+				height: "504"
 			});
 		}
 		expect(fetchStub).toHaveBeenCalledWith(
@@ -126,7 +127,7 @@ describe("MicrosoftOAuthProviderConnector avatar", () => {
 			vi
 				.fn()
 				.mockResolvedValue(
-					new Response(new Uint8Array([1]), { headers: { "content-type": "image/bmp" } })
+					new Response(new Uint8Array([1]), { headers: { "content-type": MimeTypes.Bmp } })
 				)
 		);
 		await expect(signIn(connector, "access-token-1")).resolves.toMatchObject({ avatar: null });
@@ -145,7 +146,7 @@ describe("MicrosoftOAuthProviderConnector avatar", () => {
 		for (const response of [
 			new Response("", { status: 401 }),
 			new Response(new Uint8Array(10), {
-				headers: { "content-type": "image/jpeg", "content-length": "1048577" }
+				headers: { "content-type": MimeTypes.Jpeg, "content-length": "1048577" }
 			})
 		]) {
 			vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));

@@ -137,16 +137,17 @@ export interface IAuthenticationAccountComponent extends IComponent {
 	/**
 	 * Cancel the pending request of the signed in account to join an organization. The requests
 	 * answered before are kept, so the latest of them is the status again.
+	 * @param organization The DID of the organization whose request is cancelled.
 	 * @returns A promise that resolves when the request has been cancelled.
-	 * @throws NotFoundError when no request is pending.
+	 * @throws NotFoundError when no request to the organization is pending.
 	 */
-	cancelOrganizationRequest(): Promise<void>;
+	cancelOrganizationRequest(organization: string): Promise<void>;
 
 	/**
-	 * Get the request of the signed in account to join an organization, so its status can be shown.
-	 * @returns The pending request, otherwise the latest request, or undefined when none was made.
+	 * Get the requests of the signed in account to join organizations, so their status can be shown.
+	 * @returns The latest request to each organization, pending or answered, the latest changed first.
 	 */
-	getOrganizationRequest(): Promise<IOrganizationRequest | undefined>;
+	getOrganizationRequests(): Promise<IOrganizationRequest[]>;
 
 	/**
 	 * Store an item for the signed in account.

@@ -269,7 +269,8 @@ export class MicrosoftOAuthProviderConnector implements IOAuthProviderConnector 
 						height: MicrosoftOAuthProviderConnector.AVATAR_SIZE
 					},
 					{ authorization: `Bearer ${accessToken}` },
-					this._logging
+					this._logging,
+					this._config.avatar
 				)
 			: undefined;
 		return {

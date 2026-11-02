@@ -96,7 +96,8 @@
 			"organizationAdminRoleManaged": "The role \"{role}\" is an org admin role, which is managed through the organization",
 			"ownRolesNotPermitted": "The roles of the caller's own account can only be changed by a caller holding the role \"{roleName}\"",
 			"roleNotAssignable": "The caller may not grant or revoke the role \"{role}\"",
-			"lastEscalatedRoleHolder": "The account \"{conflictId}\" is the last holder of the escalated privilege role, which cannot be revoked"
+			"lastEscalatedRoleHolder": "The account \"{conflictId}\" is the last holder of the escalated privilege role, which cannot be revoked",
+			"accountDataTypeLimitReached": "The account holds the most items of type \"{type}\" it may store, {maxItems}"
 		},
 		"accountProfileHelper": {
 			"profileImportFailed": "Importing the account data failed, the existing account data was kept",

@@ -1,6 +1,7 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type { IJsonLdNodeObject } from "@3sixty/data-json-ld";
+import type { ImageObjectLeaf, WithContext } from "schema-dts";
 
 /**
  * The identity an authentication provider has verified.
@@ -42,7 +43,7 @@ export interface IAuthenticationProviderIdentity {
 	 * holds none, so a stored one is removed, and left out when it is not known, such as when it could
 	 * not be fetched, so a stored one is kept.
 	 */
-	avatar?: IJsonLdNodeObject | null;
+	avatar?: WithContext<ImageObjectLeaf> | null;
 
 	/**
 	 * The address where the profile can be edited, when the provider owns it.

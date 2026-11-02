@@ -1,11 +1,12 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { BaseError, Converter, GeneralError, Guards, Is } from "@3sixty/core";
-import type { IJsonLdNodeObject } from "@3sixty/data-json-ld";
 import type { ILoggingComponent } from "@3sixty/logging-models";
 import { nameof } from "@3sixty/nameof";
 import { SchemaOrgContexts } from "@3sixty/standards-schema-org";
-import { HeaderTypes, HttpStatusCode } from "@3sixty/web";
+import { HeaderTypes, HttpStatusCode, MimeTypes } from "@3sixty/web";
+import type { ImageObjectLeaf, WithContext } from "schema-dts";
+import type { IAvatarFetchOptions } from "../models/IAvatarFetchOptions.js";
 
 /**
  * Helper class for fetching the photo an authentication provider holds for an account.
@@ -19,17 +20,17 @@ export class AvatarHelper {
 	/**
 	 * The content types a photo is accepted in.
 	 */
-	public static readonly CONTENT_TYPES: string[] = ["image/jpeg", "image/png", "image/webp"];
+	public static readonly CONTENT_TYPES: string[] = [MimeTypes.Jpeg, MimeTypes.Png, MimeTypes.WebP];
 
 	/**
-	 * The largest photo accepted, in bytes.
+	 * The largest photo accepted, in bytes, when the options give no limit.
 	 */
-	public static readonly MAX_BYTES: number = 1048576;
+	public static readonly DEFAULT_MAX_BYTES: number = 1048576;
 
 	/**
-	 * How long to wait for a photo, in milliseconds.
+	 * How long to wait for a photo, in milliseconds, when the options give no timeout.
 	 */
-	public static readonly TIMEOUT_MS: number = 10000;
+	public static readonly DEFAULT_TIMEOUT_MS: number = 10000;
 
 	/**
 	 * Fetch a photo as a schema.org ImageObject holding a data URL. A failure is logged and never
@@ -40,16 +41,18 @@ export class AvatarHelper {
 	 * @param size.height The height in pixels.
 	 * @param headers The headers to send.
 	 * @param logging The logging component to log a failure with.
+	 * @param options The limits to fetch the photo with, the defaults when left out.
 	 * @returns The photo, null when the provider holds none, or undefined when it could not be fetched.
 	 */
 	public static async fetch(
 		url: string,
 		size: { width: number; height: number },
 		headers?: { [name: string]: string },
-		logging?: ILoggingComponent
-	): Promise<IJsonLdNodeObject | null | undefined> {
+		logging?: ILoggingComponent,
+		options?: IAvatarFetchOptions
+	): Promise<WithContext<ImageObjectLeaf> | null | undefined> {
 		try {
-			return await AvatarHelper.fetchImage(url, size, headers);
+			return await AvatarHelper.fetchImage(url, size, headers, options);
 		} catch (error) {
 			await logging?.log({
 				level: "warn",
@@ -69,6 +72,7 @@ export class AvatarHelper {
 	 * @param size.width The width in pixels.
 	 * @param size.height The height in pixels.
 	 * @param headers The headers to send.
+	 * @param options The limits to fetch the photo with.
 	 * @returns The photo, or null when the provider holds none.
 	 * @throws GeneralError when the photo could not be fetched or is too large.
 	 * @internal
@@ -76,15 +80,16 @@ export class AvatarHelper {
 	private static async fetchImage(
 		url: string,
 		size: { width: number; height: number },
-		headers?: { [name: string]: string }
-	): Promise<IJsonLdNodeObject | null> {
+		headers?: { [name: string]: string },
+		options?: IAvatarFetchOptions
+	): Promise<WithContext<ImageObjectLeaf> | null> {
 		Guards.stringValue(AvatarHelper.CLASS_NAME, nameof(url), url);
 
 		// The timeout also covers reading the body.
 		const response = await fetch(url, {
 			method: "GET",
 			headers,
-			signal: AbortSignal.timeout(AvatarHelper.TIMEOUT_MS)
+			signal: AbortSignal.timeout(options?.timeoutMs ?? AvatarHelper.DEFAULT_TIMEOUT_MS)
 		});
 		if (response.status === HttpStatusCode.notFound) {
 			await response.body?.cancel();
@@ -106,7 +111,10 @@ export class AvatarHelper {
 			return null;
 		}
 
-		const bytes = await AvatarHelper.readBody(response);
+		const bytes = await AvatarHelper.readBody(
+			response,
+			options?.maxBytes ?? AvatarHelper.DEFAULT_MAX_BYTES
+		);
 		if (bytes.length === 0) {
 			return null;
 		}
@@ -116,27 +124,28 @@ export class AvatarHelper {
 			"@type": "ImageObject",
 			encodingFormat: contentType,
 			contentUrl: `data:${contentType};base64,${Converter.bytesToBase64(bytes)}`,
-			width: size.width,
-			height: size.height
+			width: size.width.toString(),
+			height: size.height.toString()
 		};
 	}
 
 	/**
 	 * Read the body of a response, refusing one larger than the limit.
 	 * @param response The response.
+	 * @param maxBytes The largest body accepted, in bytes.
 	 * @returns The body.
 	 * @throws GeneralError when the body is too large.
 	 * @internal
 	 */
-	private static async readBody(response: Response): Promise<Uint8Array> {
+	private static async readBody(response: Response, maxBytes: number): Promise<Uint8Array> {
 		const tooLarge = new GeneralError(AvatarHelper.CLASS_NAME, "avatarTooLarge", {
-			maxBytes: AvatarHelper.MAX_BYTES
+			maxBytes
 		});
 		const contentLength = Number.parseInt(
 			response.headers.get(HeaderTypes.ContentLength) ?? "",
 			10
 		);
-		if (Is.integer(contentLength) && contentLength > AvatarHelper.MAX_BYTES) {
+		if (Is.integer(contentLength) && contentLength > maxBytes) {
 			await response.body?.cancel();
 			throw tooLarge;
 		}
@@ -150,7 +159,7 @@ export class AvatarHelper {
 		let chunk = await reader.read();
 		while (!chunk.done) {
 			total += chunk.value.length;
-			if (total > AvatarHelper.MAX_BYTES) {
+			if (total > maxBytes) {
 				await reader.cancel();
 				throw tooLarge;
 			}

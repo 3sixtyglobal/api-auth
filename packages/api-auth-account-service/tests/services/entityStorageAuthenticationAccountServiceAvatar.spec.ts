@@ -6,6 +6,7 @@ import { ComponentFactory, Converter } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
 import { initSchema } from "../../src/schema.js";
@@ -14,11 +15,12 @@ import { EntityStorageAuthenticationAccountService } from "../../src/services/en
 import { AccountDataHelper } from "../../src/utils/accountDataHelper.js";
 import { createFakeIdentityComponent } from "../helpers/fakeIdentityComponent.js";
 import {
-	createRoleAuthorizationComponent,
 	createOrganizationStorage,
 	createRateComponent,
+	createRoleAuthorizationComponent,
 	createUserStorage,
-	mockRequiredComponents
+	mockRequiredComponents,
+	registerAccountDataVerifiers
 } from "../helpers/testDependencies.js";
 
 initSchema();
@@ -48,10 +50,10 @@ function avatar(
 	return {
 		"@context": "https://schema.org",
 		"@type": "ImageObject",
-		encodingFormat: "image/jpeg",
-		contentUrl: `data:image/jpeg;base64,${Converter.bytesToBase64(new Uint8Array(size).fill(1))}`,
-		width: 512,
-		height: 512,
+		encodingFormat: MimeTypes.Jpeg,
+		contentUrl: `data:${MimeTypes.Jpeg};base64,${Converter.bytesToBase64(new Uint8Array(size).fill(1))}`,
+		width: "512",
+		height: "512",
 		...overrides
 	};
 }
@@ -63,6 +65,10 @@ const READ_ONLY = {
 };
 
 describe("EntityStorageAuthenticationAccountService avatar", () => {
+	beforeAll(() => {
+		registerAccountDataVerifiers();
+	});
+
 	let storage: MemoryEntityStorageConnector<AccountData>;
 	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
 	let service: EntityStorageAuthenticationAccountService;
@@ -126,25 +132,29 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 	});
 
 	it("should refuse an avatar that is not a JPEG ImageObject with a base64 data URL", async () => {
-		const pngUrl = `data:image/png;base64,${Converter.bytesToBase64(new Uint8Array(4))}`;
+		const pngUrl = `data:${MimeTypes.Png};base64,${Converter.bytesToBase64(new Uint8Array(4))}`;
 		const invalid: unknown[] = [
-			"data:image/jpeg;base64,AAAA",
+			`data:${MimeTypes.Jpeg};base64,AAAA`,
 			[avatar()],
 			avatar(16, { "@type": "Photograph" }),
 			avatar(16, { "@type": undefined }),
-			avatar(16, { encodingFormat: "image/png", contentUrl: pngUrl }),
-			avatar(16, { encodingFormat: "image/png" }),
+			avatar(16, { encodingFormat: MimeTypes.Png, contentUrl: pngUrl }),
+			avatar(16, { encodingFormat: MimeTypes.Png }),
 			avatar(16, { contentUrl: pngUrl }),
 			avatar(16, { contentUrl: "https://example.com/avatar.jpg" }),
-			avatar(16, { contentUrl: "data:image/jpeg;base64,not base64!" }),
-			avatar(16, { contentUrl: "data:image/jpeg;base64,AAA" }),
-			avatar(16, { contentUrl: "data:image/jpeg;base64," }),
+			avatar(16, { contentUrl: `data:${MimeTypes.Jpeg};base64,not base64!` }),
+			avatar(16, { contentUrl: `data:${MimeTypes.Jpeg};base64,AAA` }),
+			avatar(16, { contentUrl: `data:${MimeTypes.Jpeg};base64,` }),
 			avatar(16, { contentUrl: undefined }),
+			avatar(16, { width: 512 }),
 			avatar(16, { width: 0 }),
-			avatar(16, { width: -1 }),
 			avatar(16, { height: 1025 }),
-			avatar(16, { width: 1.5 }),
-			avatar(16, { height: "512" })
+			avatar(16, { width: "0" }),
+			avatar(16, { width: "0512" }),
+			avatar(16, { width: "1.5" }),
+			avatar(16, { width: "512px" }),
+			avatar(16, { height: "1025" }),
+			avatar(16, { height: "" })
 		];
 
 		await asAccount("account-1", async () => {
@@ -160,9 +170,15 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 				service.create("avatar", AuthenticationAccountHelper.markReadOnly(avatar()))
 			).rejects.toMatchObject(INVALID);
 
-			const id = await service.create("avatar", avatar(16, { width: 1024, height: 1 }));
-			await expect(service.update(id, avatar(16, { width: 2048 }))).rejects.toMatchObject(INVALID);
-			await expect(service.get(id)).resolves.toMatchObject({ data: { width: 1024 } });
+			const id = await service.create("avatar", avatar(16, { width: "1024", height: "1" }));
+			await expect(service.update(id, avatar(16, { width: "2048" }))).rejects.toMatchObject(
+				INVALID
+			);
+			await expect(service.get(id)).resolves.toMatchObject({ data: { width: "1024" } });
+			// A number is refused, schema.org gives the size as text.
+			await expect(
+				service.update(id, avatar(16, { width: 512, height: 512 }))
+			).rejects.toMatchObject(INVALID);
 		});
 	});
 
@@ -198,14 +214,20 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 			new Uint8Array(AccountDataHelper.AVATAR_MAX_BYTES + 1)
 		);
 		const providerAvatar = AuthenticationAccountHelper.markReadOnly(
-			avatar(16, { encodingFormat: "image/png", contentUrl: `data:image/png;base64,${pngBytes}` })
+			avatar(16, {
+				encodingFormat: MimeTypes.Png,
+				contentUrl: `data:${MimeTypes.Png};base64,${pngBytes}`
+			})
 		);
 		await expect(admin.update(id, providerAvatar, true)).resolves.toBeUndefined();
 		await expect(
 			admin.update(
 				id,
 				AuthenticationAccountHelper.markReadOnly(
-					avatar(16, { encodingFormat: "image/gif", contentUrl: "data:image/gif;base64,AAAA" })
+					avatar(16, {
+						encodingFormat: MimeTypes.Gif,
+						contentUrl: `data:${MimeTypes.Gif};base64,AAAA`
+					})
 				)
 			)
 		).rejects.toMatchObject(INVALID);
@@ -317,7 +339,7 @@ describe("EntityStorageAuthenticationAccountService avatar", () => {
 				service.importProfile({
 					type: "account-profile",
 					version: 1,
-					items: [{ type: "avatar", data: avatar(16, { encodingFormat: "image/png" }) }]
+					items: [{ type: "avatar", data: avatar(16, { encodingFormat: MimeTypes.Png }) }]
 				})
 			).rejects.toMatchObject(INVALID);
 			await expect(

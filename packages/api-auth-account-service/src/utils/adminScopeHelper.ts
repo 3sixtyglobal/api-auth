@@ -57,30 +57,6 @@ export class AdminScopeHelper {
 	}
 
 	/**
-	 * Get a check of whether the caller holds escalated privilege that looks the role up at most once,
-	 * for use within a single call so a role change is seen by the next call.
-	 * @param authorizationComponent The authorization component.
-	 * @param authorizationModelId The authorization model ID used to look up roles.
-	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
-	 * @returns The check.
-	 */
-	public static callerIsEscalatedOnce(
-		authorizationComponent: IAuthorizationComponent,
-		authorizationModelId: string,
-		escalatedPrivilegeRole: string
-	): () => Promise<boolean> {
-		let result: Promise<boolean> | undefined;
-		return async () => {
-			result ??= AdminScopeHelper.callerIsEscalated(
-				authorizationComponent,
-				authorizationModelId,
-				escalatedPrivilegeRole
-			);
-			return result;
-		};
-	}
-
-	/**
 	 * Check whether the caller holds escalated privilege or the admin role.
 	 * @param authorizationComponent The authorization component.
 	 * @param authorizationModelId The authorization model ID used to look up roles.
@@ -118,16 +94,13 @@ export class AdminScopeHelper {
 	 * @param authorizationModelId The authorization model ID used to look up roles.
 	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @param accountId The account being changed.
-	 * @param callerIsEscalated The check of the caller, from callerIsEscalatedOnce, so a call that
-	 * also needs it looks the role up once, a new lookup when omitted.
 	 * @returns True when the caller may change the account.
 	 */
 	public static async callerMayChange(
 		authorizationComponent: IAuthorizationComponent,
 		authorizationModelId: string,
 		escalatedPrivilegeRole: string,
-		accountId: string,
-		callerIsEscalated?: () => Promise<boolean>
+		accountId: string
 	): Promise<boolean> {
 		const targetIsEscalated = await AdminScopeHelper.hasRole(
 			authorizationComponent,
@@ -138,27 +111,35 @@ export class AdminScopeHelper {
 		if (!targetIsEscalated) {
 			return true;
 		}
-		return Is.function(callerIsEscalated)
-			? callerIsEscalated()
-			: AdminScopeHelper.callerIsEscalated(
-					authorizationComponent,
-					authorizationModelId,
-					escalatedPrivilegeRole
-				);
+		return AdminScopeHelper.callerIsEscalated(
+			authorizationComponent,
+			authorizationModelId,
+			escalatedPrivilegeRole
+		);
 	}
 
 	/**
 	 * Get the organizations the caller manages.
+	 * @param authorizationComponent The authorization component.
+	 * @param authorizationModelId The authorization model ID used to look up roles.
+	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @param adminRoles The org admin roles.
-	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
 	 * @returns The DIDs of the organizations the caller is an org admin of, or undefined when the
 	 * caller holds escalated privilege and manages every organization.
 	 */
 	public static async managedOrganizations(
-		adminRoles: OrganizationAdminRoles,
-		callerIsEscalated: () => Promise<boolean>
+		authorizationComponent: IAuthorizationComponent,
+		authorizationModelId: string,
+		escalatedPrivilegeRole: string,
+		adminRoles: OrganizationAdminRoles
 	): Promise<string[] | undefined> {
-		if (await callerIsEscalated()) {
+		if (
+			await AdminScopeHelper.callerIsEscalated(
+				authorizationComponent,
+				authorizationModelId,
+				escalatedPrivilegeRole
+			)
+		) {
 			return undefined;
 		}
 		const callerAccountId = await AdminScopeHelper.callerAccount();
@@ -168,19 +149,25 @@ export class AdminScopeHelper {
 	/**
 	 * Get the accounts the caller manages, the members of the organizations it is an org admin of.
 	 * @param storage The entity storage for account data.
+	 * @param authorizationComponent The authorization component.
+	 * @param authorizationModelId The authorization model ID used to look up roles.
+	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @param adminRoles The org admin roles.
-	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
 	 * @returns The account ids, or undefined when the caller holds escalated privilege and manages
 	 * every account.
 	 */
 	public static async managedAccounts(
 		storage: IEntityStorageConnector<AccountData>,
-		adminRoles: OrganizationAdminRoles,
-		callerIsEscalated: () => Promise<boolean>
+		authorizationComponent: IAuthorizationComponent,
+		authorizationModelId: string,
+		escalatedPrivilegeRole: string,
+		adminRoles: OrganizationAdminRoles
 	): Promise<string[] | undefined> {
 		const organizations = await AdminScopeHelper.managedOrganizations(
-			adminRoles,
-			callerIsEscalated
+			authorizationComponent,
+			authorizationModelId,
+			escalatedPrivilegeRole,
+			adminRoles
 		);
 		if (!Is.array(organizations)) {
 			return undefined;
@@ -214,20 +201,26 @@ export class AdminScopeHelper {
 	 * Check whether the caller manages an account, a caller holding escalated privilege manages every
 	 * account, others the members of the organizations they are an org admin of.
 	 * @param storage The entity storage for account data.
+	 * @param authorizationComponent The authorization component.
+	 * @param authorizationModelId The authorization model ID used to look up roles.
+	 * @param escalatedPrivilegeRole The role that grants escalated privilege.
 	 * @param adminRoles The org admin roles.
-	 * @param callerIsEscalated The check of whether the caller holds escalated privilege.
 	 * @param accountId The account.
 	 * @returns True when the caller manages the account.
 	 */
 	public static async callerManages(
 		storage: IEntityStorageConnector<AccountData>,
+		authorizationComponent: IAuthorizationComponent,
+		authorizationModelId: string,
+		escalatedPrivilegeRole: string,
 		adminRoles: OrganizationAdminRoles,
-		callerIsEscalated: () => Promise<boolean>,
 		accountId: string
 	): Promise<boolean> {
 		const organizations = await AdminScopeHelper.managedOrganizations(
-			adminRoles,
-			callerIsEscalated
+			authorizationComponent,
+			authorizationModelId,
+			escalatedPrivilegeRole,
+			adminRoles
 		);
 		if (!Is.array(organizations)) {
 			return true;

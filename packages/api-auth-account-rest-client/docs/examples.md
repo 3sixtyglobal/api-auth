@@ -31,8 +31,9 @@ const did = await accountClient.adoptIdentity();
 
 // Ask to join an organization, then check the outcome.
 await accountClient.joinOrganization('did:example:org');
-const request = await accountClient.getOrganizationRequest();
-console.log(request?.status); // pending
+const requests = await accountClient.getOrganizationRequests();
+console.log(requests[0]?.status); // pending
+await accountClient.cancelOrganizationRequest('did:example:org');
 const organization = await accountClient.getOrganization();
 
 // Export the identity with its keys and credentials, import it, and remove it, each needs a recent

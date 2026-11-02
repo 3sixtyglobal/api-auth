@@ -127,27 +127,28 @@ describe("EntityStorageAuthenticationAccountRestClient organization", () => {
 		expect(fetchMock.mock.calls[0][0]).toBe(`${ENDPOINT}/authentication/account/organization`);
 	});
 
-	test("gets the status of the request of the signed in account", async () => {
-		fetchMock
-			.mockResolvedValueOnce(jsonResponse({ request: REQUEST }))
-			.mockResolvedValueOnce(jsonResponse({}));
+	test("gets the requests of the signed in account to each organization", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse({ requests: [REQUEST] }));
 		const client = new EntityStorageAuthenticationAccountRestClient({ endpoint: ENDPOINT });
 
-		await expect(client.getOrganizationRequest()).resolves.toEqual(REQUEST);
-		await expect(client.getOrganizationRequest()).resolves.toBeUndefined();
+		await expect(client.getOrganizationRequests()).resolves.toEqual([REQUEST]);
 		expect(fetchMock.mock.calls[0][0]).toBe(
 			`${ENDPOINT}/authentication/account/organization/request`
 		);
 	});
 
-	test("cancels the pending request of the signed in account", async () => {
-		fetchMock.mockResolvedValueOnce(noContentResponse());
+	test("cancels the pending request of the signed in account to an organization", async () => {
+		fetchMock.mockResolvedValue(noContentResponse());
 		const client = new EntityStorageAuthenticationAccountRestClient({ endpoint: ENDPOINT });
 
-		await client.cancelOrganizationRequest();
+		await expect(client.cancelOrganizationRequest("")).rejects.toMatchObject({
+			name: "GuardError"
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
 
+		await client.cancelOrganizationRequest("did:example:org");
 		expect(fetchMock.mock.calls[0][0]).toBe(
-			`${ENDPOINT}/authentication/account/organization/request`
+			`${ENDPOINT}/authentication/account/organization/request/did:example:org`
 		);
 		expect(fetchMock.mock.calls[0][1].method).toBe(HttpMethod.DELETE);
 	});

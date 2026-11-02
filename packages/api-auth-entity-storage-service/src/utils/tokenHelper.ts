@@ -119,10 +119,10 @@ export class TokenHelper {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadIssuerMismatch");
 		} else if (!Is.stringValue(decoded.payload.sub)) {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadMissingSubject");
-		} else if (
-			!Is.empty(decoded.payload?.exp) &&
-			decoded.payload.exp < Math.trunc(Date.now() / 1000)
-		) {
+		} else if (!Is.integer(decoded.payload.exp)) {
+			// Every token this node creates expires, so one without an expiry is not its own.
+			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadMissingExpiry");
+		} else if (decoded.payload.exp < Math.trunc(Date.now() / 1000)) {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "expired");
 		}
 

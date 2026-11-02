@@ -13,6 +13,7 @@ import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import type { IProof } from "@3sixty/standards-w3c-did";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { Organization } from "../../src/entities/organization.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
@@ -32,7 +33,8 @@ import {
 import {
 	createRateComponent,
 	createRoleAuthorizationComponent,
-	createUserStorage
+	createUserStorage,
+	registerAccountDataVerifiers
 } from "../helpers/testDependencies.js";
 
 initSchema();
@@ -91,6 +93,10 @@ function withFirstMember(
 }
 
 describe("EntityStorageOrganizationService", () => {
+	beforeAll(() => {
+		registerAccountDataVerifiers();
+	});
+
 	let organizations: MemoryEntityStorageConnector<Organization>;
 	let accountData: MemoryEntityStorageConnector<AccountData>;
 	let requests: MemoryEntityStorageConnector<OrganizationRequest>;
@@ -577,8 +583,8 @@ describe("EntityStorageOrganizationService", () => {
 		const logo = {
 			"@context": "https://schema.org",
 			"@type": "ImageObject",
-			encodingFormat: "image/svg+xml",
-			contentUrl: "data:image/svg+xml;base64,PHN2Zy8+"
+			encodingFormat: MimeTypes.Svg,
+			contentUrl: `data:${MimeTypes.Svg};base64,PHN2Zy8+`
 		};
 
 		await asAccount("org-admin-1", async () =>
@@ -627,13 +633,13 @@ describe("EntityStorageOrganizationService", () => {
 		const logo = {
 			"@context": "https://schema.org",
 			"@type": "ImageObject",
-			encodingFormat: "image/gif",
-			contentUrl: "data:image/gif;base64,R0lGOD=="
+			encodingFormat: MimeTypes.Gif,
+			contentUrl: `data:${MimeTypes.Gif};base64,R0lGOD==`
 		};
 		const tooLarge = {
 			...logo,
-			encodingFormat: "image/png",
-			contentUrl: `data:image/png;base64,${"A".repeat(350000)}`
+			encodingFormat: MimeTypes.Png,
+			contentUrl: `data:${MimeTypes.Png};base64,${"A".repeat(350000)}`
 		};
 
 		await expect(

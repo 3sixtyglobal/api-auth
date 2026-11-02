@@ -1263,7 +1263,7 @@
 		"/authentication/account/organization/request": {
 			"get": {
 				"operationId": "authenticationAccountGetOrganizationRequest",
-				"summary": "Get the status of the request of the signed in account to join an organization",
+				"summary": "Get the status of the requests of the signed in account to join organizations",
 				"tags": [
 					"Authentication Account"
 				],
@@ -1274,7 +1274,7 @@
 				],
 				"responses": {
 					"200": {
-						"description": "The request of the signed in account to join an organization.",
+						"description": "The requests of the signed in account to join organizations.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -1282,17 +1282,27 @@
 								},
 								"examples": {
 									"authenticationAccountGetOrganizationRequestResponseExample": {
-										"summary": "The rejected request of the account.",
+										"summary": "A pending request of the account and a rejected one.",
 										"value": {
-											"request": {
-												"id": "01a17afc-611a-7d5b-a898-e0e20088b36e",
-												"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-												"organization": "did:example:organization",
-												"status": "rejected",
-												"reason": "organizationRequest.reason.notAMember",
-												"dateCreated": "2026-01-12T09:05:23.123Z",
-												"dateModified": "2026-01-13T10:15:00.000Z"
-											}
+											"requests": [
+												{
+													"id": "01a17afc-7a20-7b11-9c4e-2f6d1b7c0a91",
+													"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+													"organization": "did:example:other-organization",
+													"status": "pending",
+													"dateCreated": "2026-01-14T08:00:00.000Z",
+													"dateModified": "2026-01-14T08:00:00.000Z"
+												},
+												{
+													"id": "01a17afc-611a-7d5b-a898-e0e20088b36e",
+													"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+													"organization": "did:example:organization",
+													"status": "rejected",
+													"reason": "organizationRequest.reason.notAMember",
+													"dateCreated": "2026-01-12T09:05:23.123Z",
+													"dateModified": "2026-01-13T10:15:00.000Z"
+												}
+											]
 										}
 									}
 								}
@@ -1357,12 +1367,27 @@
 						}
 					}
 				}
-			},
+			}
+		},
+		"/authentication/account/organization/request/{organization}": {
 			"delete": {
 				"operationId": "authenticationAccountCancelOrganizationRequest",
 				"summary": "Cancel the pending request of the signed in account to join an organization",
 				"tags": [
 					"Authentication Account"
+				],
+				"parameters": [
+					{
+						"name": "organization",
+						"description": "The DID of the organization whose request is cancelled.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "did:example:organization"
+					}
 				],
 				"security": [
 					{
@@ -2057,8 +2082,8 @@
 											"@type": "ImageObject",
 											"encodingFormat": "image/jpeg",
 											"contentUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==",
-											"width": 512,
-											"height": 512
+											"width": "512",
+											"height": "512"
 										},
 										"isDefault": true
 									}
@@ -7422,10 +7447,17 @@
 			"AccountOrganizationRequestGetResponse": {
 				"type": "object",
 				"properties": {
-					"request": {
-						"$ref": "#/components/schemas/OrganizationRequestDetails"
+					"requests": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/OrganizationRequestDetails"
+						},
+						"description": "The latest request to each organization, pending or answered, the latest changed first."
 					}
 				},
+				"required": [
+					"requests"
+				],
 				"description": "The response body."
 			},
 			"AccountProfileExport": {

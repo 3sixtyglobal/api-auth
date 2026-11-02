@@ -36,7 +36,9 @@
 		"@3sixty/identity-models": "next",
 		"@3sixty/nameof": "next",
 		"@3sixty/standards-schema-org": "next",
-		"@3sixty/standards-w3c-did": "next"
+		"@3sixty/standards-w3c-did": "next",
+		"@3sixty/web": "next",
+		"schema-dts": "2.1.0"
 	},
 	"devDependencies": {
 		"@3sixty/nameof-transformer": "next",

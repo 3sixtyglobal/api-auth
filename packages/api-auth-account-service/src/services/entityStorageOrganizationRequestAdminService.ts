@@ -174,12 +174,10 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	public async get(id: string): Promise<IOrganizationRequest> {
 		const request = await OrganizationRequestHelper.get(this._organizationRequestEntityStorage, id);
 		const managed = await AdminScopeHelper.managedOrganizations(
-			this._adminRoles,
-			AdminScopeHelper.callerIsEscalatedOnce(
-				this._authorizationComponent,
-				this._authorizationModelId,
-				this._escalatedPrivilegeRole
-			)
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole,
+			this._adminRoles
 		);
 		if (Is.array(managed) && !managed.includes(request.organization)) {
 			throw new NotFoundError(
@@ -266,16 +264,15 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	public async accept(id: string): Promise<void> {
 		const request = await this.getPending(id);
 		// The role of the caller is looked up at most once for the call.
-		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
-			this._authorizationComponent,
-			this._authorizationModelId,
-			this._escalatedPrivilegeRole
-		);
-		await this.guardEscalatedTarget(request.accountId, callerIsEscalated);
+		await this.guardEscalatedTarget(request.accountId);
 		// As with the account admin, an admin may not choose the organization of their own account.
 		if (
 			(await AdminScopeHelper.callerAccount()) === request.accountId &&
-			!(await callerIsEscalated())
+			!(await AdminScopeHelper.callerIsEscalated(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			))
 		) {
 			throw new ForbiddenError(
 				EntityStorageOrganizationRequestAdminService.CLASS_NAME,
@@ -405,12 +402,10 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 		organization: string | undefined
 	): Promise<string | string[] | undefined> {
 		const managed = await AdminScopeHelper.managedOrganizations(
-			this._adminRoles,
-			AdminScopeHelper.callerIsEscalatedOnce(
-				this._authorizationComponent,
-				this._authorizationModelId,
-				this._escalatedPrivilegeRole
-			)
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole,
+			this._adminRoles
 		);
 		if (!Is.array(managed)) {
 			return organization;
@@ -424,23 +419,17 @@ export class EntityStorageOrganizationRequestAdminService implements IOrganizati
 	 * Ensure the caller may change an account, an account holding escalated privilege may only be
 	 * changed by a caller holding it.
 	 * @param accountId The account id.
-	 * @param callerIsEscalated The check of whether the caller holds escalated privilege, a new
-	 * lookup when omitted.
 	 * @returns A promise that resolves when the caller may change the account.
 	 * @throws ForbiddenError when it may not.
 	 * @internal
 	 */
-	private async guardEscalatedTarget(
-		accountId: string,
-		callerIsEscalated?: () => Promise<boolean>
-	): Promise<void> {
+	private async guardEscalatedTarget(accountId: string): Promise<void> {
 		if (
 			!(await AdminScopeHelper.callerMayChange(
 				this._authorizationComponent,
 				this._authorizationModelId,
 				this._escalatedPrivilegeRole,
-				accountId,
-				callerIsEscalated
+				accountId
 			))
 		) {
 			throw new ForbiddenError(

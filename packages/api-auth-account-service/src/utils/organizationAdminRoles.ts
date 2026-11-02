@@ -1,5 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { OrganizationRolePrefix } from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { Guards, Is } from "@3sixty/core";
@@ -21,7 +22,7 @@ export class OrganizationAdminRoles {
 	/**
 	 * The default prefix of the org admin roles.
 	 */
-	public static readonly DEFAULT_ROLE_PREFIX: string = "org-admin:";
+	public static readonly DEFAULT_ROLE_PREFIX: string = OrganizationRolePrefix.Admin;
 
 	/**
 	 * The default role given with an org admin role.

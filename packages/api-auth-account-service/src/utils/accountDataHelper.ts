@@ -1,8 +1,11 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import {
+	AccountDataValidationFactory,
+	AccountImageLimits,
 	AuthenticationAccountDataType,
 	AuthenticationAccountHelper,
+	type IAccountDataVerifier,
 	type IAuthenticationAccountData,
 	type IOrganization
 } from "@3sixty/api-auth-models";
@@ -20,6 +23,7 @@ import {
 import { ComparisonOperator, LogicalOperator, SortDirection } from "@3sixty/entity";
 import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
+import { MimeTypes } from "@3sixty/web";
 import { AccountContextCache } from "./accountContextCache.js";
 import { OrganizationHelper } from "./organizationHelper.js";
 import { PublicDataHelper } from "./publicDataHelper.js";
@@ -43,20 +47,20 @@ export class AccountDataHelper {
 	/**
 	 * The content type of an avatar the account uploads.
 	 */
-	public static readonly AVATAR_CONTENT_TYPE: string = "image/jpeg";
+	public static readonly AVATAR_CONTENT_TYPE: string = AccountImageLimits.AvatarContentType;
 
 	/**
 	 * The largest avatar the account uploads, in decoded bytes.
 	 */
-	public static readonly AVATAR_MAX_BYTES: number = 262144;
+	public static readonly AVATAR_MAX_BYTES: number = AccountImageLimits.AvatarMaxBytes;
 
 	/**
 	 * The content types of an avatar owned by an authentication provider.
 	 */
 	public static readonly PROVIDER_AVATAR_CONTENT_TYPES: string[] = [
-		"image/jpeg",
-		"image/png",
-		"image/webp"
+		MimeTypes.Jpeg,
+		MimeTypes.Png,
+		MimeTypes.WebP
 	];
 
 	/**
@@ -67,21 +71,17 @@ export class AccountDataHelper {
 	/**
 	 * The largest width and height of an avatar, in pixels.
 	 */
-	public static readonly AVATAR_MAX_DIMENSION: number = 1024;
+	public static readonly AVATAR_MAX_DIMENSION: number = AccountImageLimits.MaxDimension;
 
 	/**
 	 * The content types of a logo.
 	 */
-	public static readonly LOGO_CONTENT_TYPES: string[] = [
-		"image/png",
-		"image/jpeg",
-		"image/svg+xml"
-	];
+	public static readonly LOGO_CONTENT_TYPES: string[] = [...AccountImageLimits.LogoContentTypes];
 
 	/**
 	 * The largest logo, in decoded bytes.
 	 */
-	public static readonly LOGO_MAX_BYTES: number = 262144;
+	public static readonly LOGO_MAX_BYTES: number = AccountImageLimits.LogoMaxBytes;
 
 	/**
 	 * The types the request context is resolved from, a change clears the cached account.
@@ -114,84 +114,41 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Check the value of an item, a JSON object, in the fixed shape of its type for the common types.
-	 * An identity is a JSON-LD node with the DID context and the DID as its id, an organization a
-	 * schema.org Organization with the DID as its identifier, a verifiable credential a JSON
-	 * credential object with a proof, an avatar or logo a schema.org ImageObject holding a base64 data
-	 * URL, and the public data a schema.org ItemList of paths. An avatar marked read only is owned by
-	 * an authentication provider, so it may be in any of the provider content types and up to the
-	 * larger size.
+	 * Get the most items of a type an account may hold, from the verifier registered for the type.
+	 * @param type The type of the item.
+	 * @returns The most items, or undefined when the type has no verifier or no limit.
+	 */
+	public static maxInstances(type: string): number | undefined {
+		const verifier = AccountDataValidationFactory.getIfExists<IAccountDataVerifier>(
+			AccountDataHelper.normaliseType(type)
+		);
+		return Is.object<IAccountDataVerifier>(verifier) ? verifier.maxInstances() : undefined;
+	}
+
+	/**
+	 * Check the value of an item with the verifier registered for its type, such as the identity,
+	 * organization, verifiable credential, logo, avatar and public data verifiers the node registers,
+	 * and as a JSON object for a type with no verifier.
 	 * @param type The type of the item.
 	 * @param data The value of the item.
 	 * @param accountOwned True when the account sets the value itself, so it may not mark it read only.
+	 * @returns A promise that resolves when the value is valid.
 	 * @throws UnprocessableError when the value is not valid for the type.
 	 */
-	public static validateData(type: string, data: unknown, accountOwned?: boolean): void {
-		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.Identity)) {
-			if (!AccountDataHelper.isDid(AuthenticationAccountHelper.getIdentity(data))) {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "identityDataInvalid");
-			}
-			return;
-		}
-		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.Organization)) {
-			if (!AccountDataHelper.isDid(AuthenticationAccountHelper.getOrganization(data))) {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "organizationDataInvalid");
-			}
-			return;
-		}
-		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.VerifiableCredential)) {
-			if (!AccountDataHelper.isCredential(data)) {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "credentialDataInvalid");
-			}
-			return;
-		}
-		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.PublicData)) {
-			PublicDataHelper.getPaths(data, true);
-			return;
-		}
-		if (AccountDataHelper.isType(type, AuthenticationAccountDataType.Logo)) {
-			const invalid = AccountDataHelper.checkImage(
-				data,
-				AccountDataHelper.LOGO_CONTENT_TYPES,
-				AccountDataHelper.LOGO_MAX_BYTES
-			);
-			if (invalid === "invalid") {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "logoInvalid");
-			}
-			if (invalid === "tooLarge") {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "logoTooLarge", {
-					maxBytes: AccountDataHelper.LOGO_MAX_BYTES
-				});
-			}
-			return;
-		}
-		if (!AccountDataHelper.isType(type, AuthenticationAccountDataType.Avatar)) {
-			if (!Is.object(data)) {
-				throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "accountDataNotObject", {
-					type
-				});
-			}
-			return;
-		}
-		const providerOwned = accountOwned !== true && AuthenticationAccountHelper.isReadOnly(data);
-		const maxBytes = providerOwned
-			? AccountDataHelper.PROVIDER_AVATAR_MAX_BYTES
-			: AccountDataHelper.AVATAR_MAX_BYTES;
-		const invalid = AccountDataHelper.checkImage(
-			data,
-			providerOwned
-				? AccountDataHelper.PROVIDER_AVATAR_CONTENT_TYPES
-				: [AccountDataHelper.AVATAR_CONTENT_TYPE],
-			maxBytes
+	public static async validateData(
+		type: string,
+		data: unknown,
+		accountOwned?: boolean
+	): Promise<void> {
+		const verifier = AccountDataValidationFactory.getIfExists<IAccountDataVerifier>(
+			AccountDataHelper.normaliseType(type)
 		);
-		if (
-			invalid === "invalid" ||
-			(accountOwned === true && AuthenticationAccountHelper.isReadOnly(data))
-		) {
-			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "avatarInvalid");
-		}
-		if (invalid === "tooLarge") {
-			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "avatarTooLarge", { maxBytes });
+		if (Is.object<IAccountDataVerifier>(verifier)) {
+			await verifier.verify(data, accountOwned === true);
+		} else if (!Is.object(data)) {
+			throw new UnprocessableError(AccountDataHelper.CLASS_NAME, "accountDataNotObject", {
+				type
+			});
 		}
 	}
 
@@ -332,7 +289,7 @@ export class AccountDataHelper {
 		Guards.stringValue(AccountDataHelper.CLASS_NAME, nameof(accountId), accountId);
 		type = AccountDataHelper.normaliseType(type);
 		Guards.defined(AccountDataHelper.CLASS_NAME, nameof(data), data);
-		AccountDataHelper.validateData(type, data);
+		await AccountDataHelper.validateData(type, data);
 
 		if (isDefault === true && options?.hasNoItems !== true) {
 			await AccountDataHelper.clearDefault(storage, accountId, type);
@@ -580,7 +537,7 @@ export class AccountDataHelper {
 		adminOnly?: boolean
 	): Promise<void> {
 		Guards.defined(AccountDataHelper.CLASS_NAME, nameof(data), data);
-		AccountDataHelper.validateData(item.type, data);
+		await AccountDataHelper.validateData(item.type, data);
 		if (isDefault === true && !item.isDefault) {
 			await AccountDataHelper.clearDefault(storage, item.accountId, item.type);
 		}
@@ -775,34 +732,28 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Store the avatar of an account, replacing the value of the avatar it has, so an account holds
-	 * one avatar, the default. Any other avatar is removed.
+	 * Store the item of a type an account holds one of, replacing the value of the one it has, so it
+	 * stays the default. Any other item of the type is removed.
 	 * @param storage The entity storage for account data.
 	 * @param accountId The account id.
-	 * @param data The value of the avatar.
-	 * @param existing The avatar items of the account the caller has already read, read here when omitted.
-	 * @returns The unique identifier of the avatar item.
+	 * @param type The type of the item.
+	 * @param data The value of the item.
+	 * @param existing The items of the type the caller has already read, read here when omitted.
+	 * @returns The unique identifier of the item.
 	 */
-	public static async replaceAvatar(
+	public static async replaceSingle(
 		storage: IEntityStorageConnector<AccountData>,
 		accountId: string,
+		type: string,
 		data: unknown,
 		existing?: IAuthenticationAccountData[]
 	): Promise<string> {
-		const avatars =
-			existing ??
-			(await AccountDataHelper.queryAll(storage, accountId, AuthenticationAccountDataType.Avatar));
-		const kept = avatars.find(item => item.isDefault) ?? avatars[0];
+		const items = existing ?? (await AccountDataHelper.queryAll(storage, accountId, type));
+		const kept = items.find(item => item.isDefault) ?? items[0];
 		if (!Is.object(kept)) {
-			return AccountDataHelper.create(
-				storage,
-				accountId,
-				AuthenticationAccountDataType.Avatar,
-				data,
-				true
-			);
+			return AccountDataHelper.create(storage, accountId, type, data, true);
 		}
-		for (const item of avatars) {
+		for (const item of items) {
 			if (item.id !== kept.id) {
 				await AccountDataHelper.removeItem(storage, item);
 			}
@@ -857,6 +808,55 @@ export class AccountDataHelper {
 	 */
 	public static isCredential(data: unknown): boolean {
 		return !Is.undefined(AuthenticationAccountHelper.getCredential(data));
+	}
+
+	/**
+	 * Check a value is a well formed DID.
+	 * @param value The value.
+	 * @returns True when it is.
+	 */
+	public static isDid(value: unknown): boolean {
+		const parts = Urn.tryParseExact(value)?.parts();
+		return Is.arrayValue(parts) && parts.length >= 3 && parts[0] === "did";
+	}
+
+	/**
+	 * Check an image, a schema.org ImageObject holding a base64 data URL of one of the content types,
+	 * up to the size given.
+	 * @param data The value.
+	 * @param contentTypes The content types allowed.
+	 * @param maxBytes The largest image, in decoded bytes.
+	 * @returns Why the image is refused, or undefined when it is valid.
+	 */
+	public static checkImage(
+		data: unknown,
+		contentTypes: string[],
+		maxBytes: number
+	): "invalid" | "tooLarge" | undefined {
+		const image = Is.object<{ [key: string]: unknown }>(data) ? data : undefined;
+		const encodingFormat = image?.encodingFormat;
+		const contentUrl = image?.contentUrl;
+		const prefix = `data:${Is.string(encodingFormat) ? encodingFormat : ""};base64,`;
+		const payload =
+			Is.string(contentUrl) && contentUrl.startsWith(prefix)
+				? contentUrl.slice(prefix.length)
+				: undefined;
+		if (
+			Is.undefined(image) ||
+			image["@type"] !== "ImageObject" ||
+			!Is.string(encodingFormat) ||
+			!contentTypes.includes(encodingFormat) ||
+			!Is.stringBase64(payload) ||
+			!AccountDataHelper.isDimension(image.width) ||
+			!AccountDataHelper.isDimension(image.height)
+		) {
+			return "invalid";
+		}
+
+		// Base64 holds 3 bytes in every 4 characters, less the padding.
+		const encodedBytes = (payload.length / 4) * 3;
+		const padding = payload.length - payload.replace(/=+$/, "").length;
+		return encodedBytes - padding > maxBytes ? "tooLarge" : undefined;
 	}
 
 	/**
@@ -919,17 +919,6 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Check a value is a well formed DID.
-	 * @param value The value.
-	 * @returns True when it is.
-	 * @internal
-	 */
-	private static isDid(value: unknown): boolean {
-		const parts = Urn.tryParseExact(value)?.parts();
-		return Is.arrayValue(parts) && parts.length >= 3 && parts[0] === "did";
-	}
-
-	/**
 	 * Get the item to return from the one stored, without the columns kept for queries.
 	 * @param item The item as stored.
 	 * @returns The item.
@@ -949,47 +938,8 @@ export class AccountDataHelper {
 	}
 
 	/**
-	 * Check an image, a schema.org ImageObject holding a base64 data URL of one of the content types,
-	 * up to the size given.
-	 * @param data The value.
-	 * @param contentTypes The content types allowed.
-	 * @param maxBytes The largest image, in decoded bytes.
-	 * @returns Why the image is refused, or undefined when it is valid.
-	 * @internal
-	 */
-	private static checkImage(
-		data: unknown,
-		contentTypes: string[],
-		maxBytes: number
-	): "invalid" | "tooLarge" | undefined {
-		const image = Is.object<{ [key: string]: unknown }>(data) ? data : undefined;
-		const encodingFormat = image?.encodingFormat;
-		const contentUrl = image?.contentUrl;
-		const prefix = `data:${Is.string(encodingFormat) ? encodingFormat : ""};base64,`;
-		const payload =
-			Is.string(contentUrl) && contentUrl.startsWith(prefix)
-				? contentUrl.slice(prefix.length)
-				: undefined;
-		if (
-			Is.undefined(image) ||
-			image["@type"] !== "ImageObject" ||
-			!Is.string(encodingFormat) ||
-			!contentTypes.includes(encodingFormat) ||
-			!Is.stringBase64(payload) ||
-			!AccountDataHelper.isDimension(image.width) ||
-			!AccountDataHelper.isDimension(image.height)
-		) {
-			return "invalid";
-		}
-
-		// Base64 holds 3 bytes in every 4 characters, less the padding.
-		const encodedBytes = (payload.length / 4) * 3;
-		const padding = payload.length - payload.replace(/=+$/, "").length;
-		return encodedBytes - padding > maxBytes ? "tooLarge" : undefined;
-	}
-
-	/**
-	 * Check a width or height of an avatar, optional, otherwise a positive integer up to the limit.
+	 * Check a width or height of an image, optional, otherwise a positive whole number of pixels up
+	 * to the limit, written as a string such as "512" as schema.org types it.
 	 * @param value The value.
 	 * @returns True when the value is valid.
 	 * @internal
@@ -997,7 +947,9 @@ export class AccountDataHelper {
 	private static isDimension(value: unknown): boolean {
 		return (
 			Is.undefined(value) ||
-			(Is.integer(value) && value > 0 && value <= AccountDataHelper.AVATAR_MAX_DIMENSION)
+			(Is.string(value) &&
+				/^[1-9]\d*$/.test(value) &&
+				Number(value) <= AccountDataHelper.AVATAR_MAX_DIMENSION)
 		);
 	}
 

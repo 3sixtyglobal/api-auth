@@ -100,7 +100,7 @@ export class AccountProfileHelper {
 		limits: { maxItems: number; maxBytes: number }
 	): Promise<IAccountProfileImportResult> {
 		Guards.stringValue(AccountProfileHelper.CLASS_NAME, nameof(accountId), accountId);
-		const items = AccountProfileHelper.validate(profile, limits);
+		const items = await AccountProfileHelper.validate(profile, limits);
 
 		const existing = await AccountProfileHelper.loadItems(storage, accountId, true);
 		const readOnlyTypes = new Set(
@@ -183,10 +183,10 @@ export class AccountProfileHelper {
 	 * @returns The items.
 	 * @throws UnprocessableError when the export is not valid or too large.
 	 */
-	public static validate(
+	public static async validate(
 		profile: IAccountProfileExport,
 		limits: { maxItems: number; maxBytes: number }
-	): IAccountProfileExportItem[] {
+	): Promise<IAccountProfileExportItem[]> {
 		ExportFileHelper.guard(profile, ExportFileType.AccountProfile);
 		if (!Is.array(profile.items)) {
 			throw new UnprocessableError(AccountProfileHelper.CLASS_NAME, "profileInvalid");
@@ -202,7 +202,8 @@ export class AccountProfileHelper {
 			});
 		}
 
-		return profile.items.map((item, index) => {
+		const items: IAccountProfileExportItem[] = [];
+		for (const [index, item] of profile.items.entries()) {
 			const type = Is.object<IAccountProfileExportItem>(item)
 				? StringHelper.kebabCase(Is.string(item.type) ? item.type : "", false)
 				: "";
@@ -224,10 +225,11 @@ export class AccountProfileHelper {
 			// Checked before anything is stored, so a failure leaves the existing items. Read only items
 			// are left out of the import, so are not checked.
 			if (!AuthenticationAccountHelper.isReadOnly(item.data)) {
-				AccountDataHelper.validateData(type, item.data);
+				await AccountDataHelper.validateData(type, item.data);
 			}
-			return { type, data: item.data, isDefault: item.isDefault };
-		});
+			items.push({ type, data: item.data, isDefault: item.isDefault });
+		}
+		return items;
 	}
 
 	/**

@@ -88,7 +88,7 @@ describe("account routes", () => {
 			["POST", "authentication/account/import", false, undefined],
 			["GET", "authentication/account/organization", false, undefined],
 			["GET", "authentication/account/organization/request", false, undefined],
-			["DELETE", "authentication/account/organization/request", false, undefined],
+			["DELETE", "authentication/account/organization/request/:organization", false, undefined],
 			["POST", "authentication/account/organization", false, undefined],
 			["POST", "authentication/account/organization/create", false, undefined],
 			["DELETE", "authentication/account/organization/:organization", false, undefined],
@@ -334,7 +334,10 @@ describe("account routes", () => {
 			adoptIdentity: vi.fn().mockResolvedValue("did:example:1"),
 			joinOrganization: vi.fn().mockResolvedValue(undefined),
 			getOrganization: vi.fn().mockResolvedValue("did:example:org"),
-			getOrganizationRequest: vi.fn().mockResolvedValue({ id: "request-1", status: "pending" }),
+			getOrganizationRequests: vi.fn().mockResolvedValue([
+				{ id: "request-2", status: "rejected" },
+				{ id: "request-1", status: "pending" }
+			]),
 			cancelOrganizationRequest: vi.fn().mockResolvedValue(undefined),
 			create: vi.fn().mockResolvedValue("item-1"),
 			get: vi.fn().mockResolvedValue({ id: "item-1" }),
@@ -380,12 +383,24 @@ describe("account routes", () => {
 			body: { organization: "did:example:org" }
 		});
 		await expect(authenticationAccountGetOrganizationRequest(CONTEXT, "account")).resolves.toEqual({
-			body: { request: { id: "request-1", status: "pending" } }
+			body: {
+				requests: [
+					{ id: "request-2", status: "rejected" },
+					{ id: "request-1", status: "pending" }
+				]
+			}
 		});
+		// The organization is required, so a request without one is refused before the component.
 		await expect(
-			authenticationAccountCancelOrganizationRequest(CONTEXT, "account")
+			authenticationAccountCancelOrganizationRequest(CONTEXT, "account", {} as never)
+		).rejects.toMatchObject({ name: "GuardError" });
+		expect(component.cancelOrganizationRequest).not.toHaveBeenCalled();
+		await expect(
+			authenticationAccountCancelOrganizationRequest(CONTEXT, "account", {
+				pathParams: { organization: "did:example:org" }
+			})
 		).resolves.toEqual({ statusCode: HttpStatusCode.noContent });
-		expect(component.cancelOrganizationRequest).toHaveBeenCalled();
+		expect(component.cancelOrganizationRequest).toHaveBeenLastCalledWith("did:example:org");
 
 		const created = await authenticationAccountCreate(
 			CONTEXT,

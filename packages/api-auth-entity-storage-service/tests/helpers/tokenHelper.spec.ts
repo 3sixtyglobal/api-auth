@@ -321,6 +321,26 @@ describe("TokenHelper", () => {
 			).rejects.toThrow(UnauthorizedError);
 		});
 
+		it("should throw UnauthorizedError when the token has no expiry", async () => {
+			const payload = {
+				iss: nodeId,
+				sub: "user123"
+			};
+
+			const token = "no-exp.jwt.token";
+			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
+				header: { alg: "EdDSA", kid: signingKeyName },
+				payload
+			});
+
+			await expect(
+				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token)
+			).rejects.toMatchObject({
+				name: "UnauthorizedError",
+				message: "tokenHelper.payloadMissingExpiry"
+			});
+		});
+
 		it("should throw UnauthorizedError when token is expired", async () => {
 			const payload = {
 				iss: nodeId,
@@ -390,23 +410,6 @@ describe("TokenHelper", () => {
 			await expect(
 				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token)
 			).resolves.toEqual({ header: { alg: "EdDSA", kid: signingKeyName }, payload });
-		});
-
-		it("should verify token without expiry field", async () => {
-			const payload = {
-				iss: nodeId,
-				sub: "user123"
-			};
-
-			const token = "no-expiry.jwt.token";
-			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
-				header: { alg: "EdDSA", kid: signingKeyName },
-				payload
-			});
-
-			const result = await TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token);
-
-			expect(result.payload).toEqual(payload);
 		});
 
 		it("should verify token with tenant ID", async () => {

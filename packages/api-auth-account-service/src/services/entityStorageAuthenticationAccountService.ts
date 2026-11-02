@@ -848,15 +848,22 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * Cancel the pending request of the signed in account to join an organization. The request is
 	 * removed, as when the identity is removed, so the requests answered before are kept and the
 	 * latest of them is the status again.
+	 * @param organization The DID of the organization whose request is cancelled.
 	 * @returns A promise that resolves when the request has been cancelled.
-	 * @throws NotFoundError when no request is pending.
+	 * @throws NotFoundError when no request to the organization is pending.
 	 */
-	public async cancelOrganizationRequest(): Promise<void> {
+	public async cancelOrganizationRequest(organization: string): Promise<void> {
+		Guards.stringValue(
+			EntityStorageAuthenticationAccountService.CLASS_NAME,
+			nameof(organization),
+			organization
+		);
 		const accountId = await this.signedInAccount();
 
 		const pending = await OrganizationRequestHelper.findAllPending(
 			this._organizationRequestEntityStorage,
-			accountId
+			accountId,
+			organization
 		);
 		if (pending.length === 0) {
 			throw new NotFoundError(OrganizationRequestHelper.CLASS_NAME, "organizationRequestNotFound");
@@ -870,17 +877,14 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	}
 
 	/**
-	 * Get the request of the signed in account to join an organization, so its status can be shown.
-	 * @returns The pending request, otherwise the latest request, or undefined when none was made.
+	 * Get the requests of the signed in account to join organizations, so their status can be shown.
+	 * @returns The latest request to each organization, pending or answered, the latest changed first.
 	 */
-	public async getOrganizationRequest(): Promise<IOrganizationRequest | undefined> {
-		const accountId = await this.signedInAccount();
-
-		const { pending, latest } = await OrganizationRequestHelper.findForAccount(
+	public async getOrganizationRequests(): Promise<IOrganizationRequest[]> {
+		return OrganizationRequestHelper.findLatestByOrganization(
 			this._organizationRequestEntityStorage,
-			accountId
+			await this.signedInAccount()
 		);
-		return pending ?? latest;
 	}
 
 	/**
@@ -925,7 +929,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			logo: details.logo,
 			publicData: details.publicData
 		};
-		OrganizationProfileHelper.validate(changes);
+		await OrganizationProfileHelper.validate(changes);
 		const contextIds = await ContextIdStore.getContextIds();
 		ContextIdHelper.guard(contextIds, ContextIdKeys.Account);
 		ContextIdHelper.guard(contextIds, ContextIdKeys.Node);
@@ -1195,7 +1199,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	public async create(type: string, data: unknown, isDefault?: boolean): Promise<string> {
 		type = AccountDataHelper.normaliseType(type);
 		this.guardType(type);
-		AccountDataHelper.validateData(type, data, true);
+		await AccountDataHelper.validateData(type, data, true);
 		const accountId = await this.signedInAccount();
 
 		if (await AccountDataHelper.hasAdminOnly(this._accountDataEntityStorage, accountId, type)) {
@@ -1206,24 +1210,25 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 			);
 		}
 
-		// An account holds one avatar, so a new one replaces it, unless the provider owns it.
-		if (type === AuthenticationAccountDataType.Avatar) {
-			const avatars = await AccountDataHelper.queryAll(
+		// A type the verifier allows one of is replaced, unless the provider owns the one held.
+		if (AccountDataHelper.maxInstances(type) === 1) {
+			const items = await AccountDataHelper.queryAll(
 				this._accountDataEntityStorage,
 				accountId,
 				type
 			);
-			for (const item of avatars) {
+			for (const item of items) {
 				this.guardWritable(item);
 			}
-			if (avatars.length === 0) {
+			if (items.length === 0) {
 				await this.guardItemLimits(accountId, type);
 			}
-			return AccountDataHelper.replaceAvatar(
+			return AccountDataHelper.replaceSingle(
 				this._accountDataEntityStorage,
 				accountId,
+				type,
 				data,
-				avatars
+				items
 			);
 		}
 
@@ -1275,7 +1280,7 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 		const item = await this.getOwnItem(id, accountId);
 		this.guardType(item.type);
 		this.guardWritable(item);
-		AccountDataHelper.validateData(item.type, data, true);
+		await AccountDataHelper.validateData(item.type, data, true);
 		// A provider owned profile can not be replaced by making another profile the default.
 		if (
 			isDefault === true &&
@@ -1661,7 +1666,12 @@ export class EntityStorageAuthenticationAccountService implements IAuthenticatio
 	 * @internal
 	 */
 	private async guardItemLimits(accountId: string, type: string): Promise<void> {
-		const maxOfType = this._maxItemsByType[type];
+		const configured = this._maxItemsByType[type];
+		const verified = AccountDataHelper.maxInstances(type);
+		const maxOfType =
+			Is.integer(configured) && Is.integer(verified)
+				? Math.min(configured, verified)
+				: (configured ?? verified);
 		const [count, countOfType] = await Promise.all([
 			AccountDataHelper.count(this._accountDataEntityStorage, accountId),
 			Is.integer(maxOfType)

@@ -49,14 +49,15 @@ export class OrganizationProfileHelper {
 	/**
 	 * Check the changes before anything is stored.
 	 * @param changes The changes.
+	 * @returns A promise that resolves when the changes are valid.
 	 * @throws UnprocessableError when the profile, logo or public data is not valid.
 	 */
-	public static validate(changes: IOrganizationProfileUpdate): void {
+	public static async validate(changes: IOrganizationProfileUpdate): Promise<void> {
 		if (!Is.undefined(changes.profile)) {
-			AccountDataHelper.validateData(AuthenticationAccountDataType.Profile, changes.profile);
+			await AccountDataHelper.validateData(AuthenticationAccountDataType.Profile, changes.profile);
 		}
 		if (!Is.undefined(changes.logo) && !Is.null(changes.logo)) {
-			AccountDataHelper.validateData(AuthenticationAccountDataType.Logo, changes.logo);
+			await AccountDataHelper.validateData(AuthenticationAccountDataType.Logo, changes.logo);
 		}
 		if (!Is.undefined(changes.publicData)) {
 			PublicDataHelper.validatePaths(changes.publicData);
@@ -79,7 +80,7 @@ export class OrganizationProfileHelper {
 		changes: IOrganizationProfileUpdate,
 		isNew: boolean
 	): Promise<void> {
-		OrganizationProfileHelper.validate(changes);
+		await OrganizationProfileHelper.validate(changes);
 		const items: [string, unknown][] = [];
 		if (Is.object(changes.profile)) {
 			items.push([AuthenticationAccountDataType.Profile, changes.profile]);

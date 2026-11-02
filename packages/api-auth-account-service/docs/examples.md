@@ -86,8 +86,8 @@ const avatarId = await accountService.create(
     '@type': 'ImageObject',
     encodingFormat: 'image/jpeg',
     contentUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...',
-    width: 512,
-    height: 512
+    width: '512',
+    height: '512'
   },
   true
 );
@@ -95,14 +95,19 @@ const avatarId = await accountService.create(
 
 The avatar of an account signed in with Google or Microsoft is the photo the provider holds, stored at each sign in marked read only, so like a provider profile the account cannot replace or remove it, and an admin cannot replace, change or remove it either, `readOnly` with a 403. Only a system call, such as the authentication service at sign in, changes it. A provider avatar keeps the content type of the photo, JPEG, PNG or WebP, and may be up to 1 MiB.
 
-An account with an identity asks to join an organization, and an admin accepts or rejects the request. `getOrganization` returns the organization once joined, nothing while the request is pending, and throws with the reason when it was rejected.
+An account with an identity asks to join an organization, or several, one request pending to each at a time, and an admin of each accepts or rejects it. `getOrganization` returns the organization once joined, nothing while the request is pending, and throws with the reason when it was rejected.
 
 ```typescript
 await accountService.joinOrganization('did:example:org');
 
-// The pending request, otherwise the latest one, with its status and any rejection reason.
-const request = await accountService.getOrganizationRequest();
-console.log(request?.status); // pending
+await accountService.joinOrganization('did:example:other-org');
+
+// The latest request to each organization, with its status and any rejection reason.
+const requests = await accountService.getOrganizationRequests();
+console.log(requests.map(request => request.status)); // ['pending', 'pending']
+
+// Cancel the pending request to an organization.
+await accountService.cancelOrganizationRequest('did:example:other-org');
 
 try {
   const organization = await accountService.getOrganization();

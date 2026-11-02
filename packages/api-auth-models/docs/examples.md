@@ -155,8 +155,8 @@ const avatar: IAuthenticationAccountData<IJsonLdNodeObject> = {
     '@type': 'ImageObject',
     encodingFormat: 'image/jpeg',
     contentUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...',
-    width: 512,
-    height: 512
+    width: '512',
+    height: '512'
   },
   isDefault: true,
   dateCreated: '2026-01-12T09:05:23.123Z',
@@ -164,7 +164,25 @@ const avatar: IAuthenticationAccountData<IJsonLdNodeObject> = {
 };
 ```
 
-An authentication provider that holds a photo returns it as the `avatar` of the identity, in the same shape, `null` when it holds none, and leaves it out when the photo could not be fetched, so a stored avatar is kept.
+An authentication provider that holds a photo returns it as the `avatar` of the identity, in the same model, `null` when it holds none, and leaves it out when the photo could not be fetched, so a stored avatar is kept.
+
+## Account Data Verifiers
+
+Before an account data item is stored, the account services verify its value with the verifier registered in `AccountDataValidationFactory` for its normalised type, and an item of a type with no verifier only has to be a JSON object. `verify` throws, such as an `UnprocessableError`, when the value is not valid. The node registers the verifiers for the identity, organization, credential, public data, logo and avatar types, and a node or extension can register one for another type, or replace one, without changing the services. `maxInstances` gives the most items of the type an account may hold: with one, as for the avatar, a new item replaces the one held, otherwise a new item is refused with `accountDataTypeLimitReached` once the account holds that many, and `undefined` leaves only the configured limits.
+
+```typescript
+import { AccountDataValidationFactory } from '@3sixty/api-auth-models';
+import { Is, UnprocessableError } from '@3sixty/core';
+
+AccountDataValidationFactory.register('supply-chain', () => ({
+  verify: async (data: unknown, accountOwned: boolean) => {
+    if (!Is.object<{ consignment?: unknown }>(data) || !Is.stringValue(data.consignment)) {
+      throw new UnprocessableError('SupplyChainVerifier', 'consignmentMissing');
+    }
+  },
+  maxInstances: () => 5
+}));
+```
 
 ## E-mail Addresses
 

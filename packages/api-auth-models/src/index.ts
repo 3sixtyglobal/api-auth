@@ -1,6 +1,7 @@
 // Copyright 2026 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+export * from "./factories/accountDataValidationFactory.js";
 export * from "./factories/authenticationProviderFactory.js";
 export * from "./helpers/authenticationAccountHelper.js";
 export * from "./helpers/emailHelper.js";
@@ -35,6 +36,7 @@ export * from "./models/api/IAccountOrganizationCreateResponse.js";
 export * from "./models/api/IAccountOrganizationGetResponse.js";
 export * from "./models/api/IAccountOrganizationJoinRequest.js";
 export * from "./models/api/IAccountOrganizationLeaveRequest.js";
+export * from "./models/api/IAccountOrganizationRequestCancelRequest.js";
 export * from "./models/api/IAccountOrganizationRequestGetResponse.js";
 export * from "./models/api/IAccountProfileExportResponse.js";
 export * from "./models/api/IAccountProfileImportRequest.js";
@@ -73,9 +75,11 @@ export * from "./models/api/IOrganizationRequestQueryResponse.js";
 export * from "./models/api/IOrganizationRequestRejectRequest.js";
 export * from "./models/api/IOrganizationRequestRemoveForAccountRequest.js";
 export * from "./models/api/IOrganizationUpdateRequest.js";
+export * from "./models/accountImageLimits.js";
 export * from "./models/authAuditEvent.js";
 export * from "./models/authenticationAccountDataType.js";
 export * from "./models/exportFileType.js";
+export * from "./models/IAccountDataVerifier.js";
 export * from "./models/IAccountIdentityData.js";
 export * from "./models/IAccountIdentityExport.js";
 export * from "./models/IAccountIdentityImportResult.js";
@@ -105,4 +109,6 @@ export * from "./models/IOrganizationRequest.js";
 export * from "./models/IOrganizationRequestAdminComponent.js";
 export * from "./models/IOrganizationRequestCount.js";
 export * from "./models/IOrganizationRequestDetails.js";
+export * from "./models/organizationCredentialType.js";
 export * from "./models/organizationRequestStatus.js";
+export * from "./models/organizationRolePrefix.js";

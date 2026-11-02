@@ -13,6 +13,7 @@ import {
 	type IEntityStorageConnector
 } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { Organization } from "../../src/entities/organization.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
@@ -327,7 +328,7 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 				{
 					"@context": "https://www.w3.org/ns/credentials/v2",
 					type: "EnvelopedVerifiableCredential",
-					id: "data:application/vc+jwt,a.b.c"
+					id: `data:${MimeTypes.VerifiableCredentialJwt},a.b.c`
 				},
 				{ ...asObject, proof: undefined }
 			];

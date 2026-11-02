@@ -48,7 +48,7 @@ const { accessToken } = await OidcHelper.exchangeCodeForTokens(
 
 ## AvatarHelper
 
-Fetch the photo a provider holds as a schema.org `ImageObject` with a data URL, for the `avatar` of the identity. The response must be `image/jpeg`, `image/png` or `image/webp`, the content type is kept, and the size given is set as the `width` and `height`. A 404 or another content type gives `null`, the provider holds no photo. A failure, a timeout after 10 seconds or a body over 1 MiB is logged with the logging component given and gives `undefined`, so a stored avatar is kept and the sign in goes on.
+Fetch the photo a provider holds as a schema.org `ImageObject` with a data URL, for the `avatar` of the identity. The response must be `image/jpeg`, `image/png` or `image/webp`, the content type is kept, and the size given is set as the `width` and `height`. A 404 or another content type gives `null`, the provider holds no photo. A failure, a timeout, after 10 seconds by default, or a body over the limit, 1 MiB by default, is logged with the logging component given and gives `undefined`, so a stored avatar is kept and the sign in goes on. The limits can be changed with `maxBytes` and `timeoutMs` in the options, the last parameter, and a connector passes the `avatar` options of its configuration.
 
 ```typescript
 import { AvatarHelper } from '@3sixty/api-auth-oauth-models';

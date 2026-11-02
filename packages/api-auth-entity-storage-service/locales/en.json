@@ -47,6 +47,7 @@
 			"headerKeyIdMismatch": "The JSON Web token key identifier does not match the expected signing key",
 			"payloadIssuerMismatch": "The JSON Web token issuer does not match the expected signing key",
 			"payloadMissingSubject": "The JSON Web token payload does not contain a subject",
+			"payloadMissingExpiry": "The JSON Web token payload does not contain an expiry",
 			"expired": "The JSON Web token has expired",
 			"userNotVerified": "The user associated with the JSON Web token could not be verified",
 			"tenantNotVerified": "The tenant associated with the JSON Web token could not be verified"

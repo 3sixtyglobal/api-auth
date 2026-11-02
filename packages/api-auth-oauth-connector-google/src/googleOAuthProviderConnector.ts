@@ -274,7 +274,8 @@ export class GoogleOAuthProviderConnector implements IOAuthProviderConnector {
 						height: GoogleOAuthProviderConnector.AVATAR_SIZE
 					},
 					undefined,
-					this._logging
+					this._logging,
+					this._config.avatar
 				)
 			: null;
 

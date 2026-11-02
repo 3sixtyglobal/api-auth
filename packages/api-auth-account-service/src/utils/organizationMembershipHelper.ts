@@ -3,7 +3,8 @@
 import {
 	AuthenticationAccountDataType,
 	AuthenticationAccountHelper,
-	type IAuthenticationAccountData
+	type IAuthenticationAccountData,
+	OrganizationCredentialType
 } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { Guards, Is, UnprocessableError } from "@3sixty/core";
@@ -32,7 +33,7 @@ export class OrganizationMembershipHelper {
 	 * it is for. Credentials issued before it existed carry only VerifiableCredential, so a membership
 	 * is still recognised by its issuer and memberOf, never by this type.
 	 */
-	public static readonly CREDENTIAL_TYPE: string = "OrganizationMembershipCredential";
+	public static readonly CREDENTIAL_TYPE: string = OrganizationCredentialType.Membership;
 
 	/**
 	 * Add an account to an organization, issuing a membership credential signed by the organization

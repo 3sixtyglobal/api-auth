@@ -1,5 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { MimeTypes } from "@3sixty/web";
 import { PublicDataHelper } from "../../src/utils/publicDataHelper.js";
 
 const PROFILE = {
@@ -51,7 +52,7 @@ describe("PublicDataHelper", () => {
 	});
 
 	test("builds an object per type with the context, type and selected properties", () => {
-		const logo = { "@type": "ImageObject", contentUrl: "data:image/png;base64,AA==" };
+		const logo = { "@type": "ImageObject", contentUrl: `data:${MimeTypes.Png};base64,AA==` };
 		const objects = PublicDataHelper.build(
 			{ profile: PROFILE, logo, other: "not an object" },
 			[

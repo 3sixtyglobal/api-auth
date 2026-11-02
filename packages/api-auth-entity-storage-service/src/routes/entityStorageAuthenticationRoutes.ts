@@ -834,7 +834,7 @@ export async function authenticationUpdatePassword(
 	const result = await component.updatePassword(
 		request.body.currentPassword,
 		request.body.newPassword,
-		httpRequestContext.processorState.authToken as string | undefined,
+		Coerce.string(httpRequestContext.processorState.authToken),
 		Coerce.integer(httpRequestContext.processorState.authSessionStart)
 	);
 

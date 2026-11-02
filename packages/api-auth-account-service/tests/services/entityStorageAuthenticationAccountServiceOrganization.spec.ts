@@ -5,6 +5,7 @@ import { ComponentFactory } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
+import { MimeTypes } from "@3sixty/web";
 import type { AccountData } from "../../src/entities/accountData.js";
 import type { Organization } from "../../src/entities/organization.js";
 import type { OrganizationRequest } from "../../src/entities/organizationRequest.js";
@@ -46,8 +47,8 @@ const PROFILE = {
 const LOGO = {
 	"@context": "https://schema.org",
 	"@type": "ImageObject",
-	encodingFormat: "image/png",
-	contentUrl: "data:image/png;base64,iVBORw0KGgo="
+	encodingFormat: MimeTypes.Png,
+	contentUrl: `data:${MimeTypes.Png};base64,iVBORw0KGgo=`
 };
 
 /**

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { Converter } from "@3sixty/core";
 import type { ILoggingComponent } from "@3sixty/logging-models";
+import { MimeTypes } from "@3sixty/web";
 import { AvatarHelper } from "../../src/helpers/avatarHelper.js";
 
 const URL_1 = "https://photos.example.com/avatar";
@@ -40,10 +41,10 @@ describe("AvatarHelper", () => {
 		).resolves.toEqual({
 			"@context": "https://schema.org",
 			"@type": "ImageObject",
-			encodingFormat: "image/png",
-			contentUrl: `data:image/png;base64,${Converter.bytesToBase64(bytes)}`,
-			width: 512,
-			height: 512
+			encodingFormat: MimeTypes.Png,
+			contentUrl: `data:${MimeTypes.Png};base64,${Converter.bytesToBase64(bytes)}`,
+			width: "512",
+			height: "512"
 		});
 		expect(fetchStub).toHaveBeenCalledWith(
 			URL_1,
@@ -58,10 +59,10 @@ describe("AvatarHelper", () => {
 	it("should return null when the provider holds no photo", async () => {
 		for (const response of [
 			new Response("missing", { status: 404 }),
-			new Response("text", { headers: { "content-type": "text/html" } }),
-			new Response(new Uint8Array([1]), { headers: { "content-type": "image/gif" } }),
+			new Response("text", { headers: { "content-type": MimeTypes.Html } }),
+			new Response(new Uint8Array([1]), { headers: { "content-type": MimeTypes.Gif } }),
 			new Response(new Uint8Array([1])),
-			new Response(new Uint8Array(), { headers: { "content-type": "image/jpeg" } })
+			new Response(new Uint8Array(), { headers: { "content-type": MimeTypes.Jpeg } })
 		]) {
 			vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
 			await expect(AvatarHelper.fetch(URL_1, SIZE)).resolves.toBeNull();
@@ -104,7 +105,7 @@ describe("AvatarHelper", () => {
 			"fetch",
 			vi.fn().mockResolvedValue(
 				new Response(new Uint8Array(10), {
-					headers: { "content-type": "image/jpeg", "content-length": "1048577" }
+					headers: { "content-type": MimeTypes.Jpeg, "content-length": "1048577" }
 				})
 			)
 		);
@@ -120,7 +121,7 @@ describe("AvatarHelper", () => {
 		});
 		vi.stubGlobal(
 			"fetch",
-			vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": "image/jpeg" } }))
+			vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": MimeTypes.Jpeg } }))
 		);
 		await expect(AvatarHelper.fetch(URL_1, SIZE, undefined, logging)).resolves.toBeUndefined();
 		expect(logging.log).toHaveBeenLastCalledWith(tooLarge);
@@ -129,13 +130,47 @@ describe("AvatarHelper", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn().mockResolvedValue(
-				new Response(new Uint8Array(AvatarHelper.MAX_BYTES), {
-					headers: { "content-type": "image/webp" }
+				new Response(new Uint8Array(AvatarHelper.DEFAULT_MAX_BYTES), {
+					headers: { "content-type": MimeTypes.WebP }
 				})
 			)
 		);
 		await expect(AvatarHelper.fetch(URL_1, SIZE)).resolves.toMatchObject({
-			encodingFormat: "image/webp"
+			encodingFormat: MimeTypes.WebP
 		});
+	});
+
+	it("should fetch with the limits given in the options", async () => {
+		const logging = createLogging();
+		const timeout = vi.spyOn(AbortSignal, "timeout");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation(
+				async () =>
+					new Response(new Uint8Array(11), {
+						headers: { "content-type": MimeTypes.Jpeg }
+					})
+			)
+		);
+
+		await expect(
+			AvatarHelper.fetch(URL_1, SIZE, undefined, logging, { maxBytes: 10, timeoutMs: 500 })
+		).resolves.toBeUndefined();
+		expect(timeout).toHaveBeenLastCalledWith(500);
+		expect(logging.log).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				error: expect.objectContaining({
+					message: "avatarHelper.avatarTooLarge",
+					properties: { maxBytes: 10 }
+				})
+			})
+		);
+
+		// Without options the defaults apply.
+		await expect(AvatarHelper.fetch(URL_1, SIZE)).resolves.toMatchObject({
+			encodingFormat: MimeTypes.Jpeg
+		});
+		expect(timeout).toHaveBeenLastCalledWith(AvatarHelper.DEFAULT_TIMEOUT_MS);
+		timeout.mockRestore();
 	});
 });

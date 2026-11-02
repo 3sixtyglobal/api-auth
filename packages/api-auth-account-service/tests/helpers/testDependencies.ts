@@ -1,5 +1,9 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import {
+	AccountDataValidationFactory,
+	AuthenticationAccountDataType
+} from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ComponentFactory } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
@@ -7,6 +11,12 @@ import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import type { Organization } from "../../src/entities/organization.js";
 import { OrganizationHelper } from "../../src/utils/organizationHelper.js";
+import { AvatarAccountDataVerifier } from "../../src/verifiers/avatarAccountDataVerifier.js";
+import { IdentityAccountDataVerifier } from "../../src/verifiers/identityAccountDataVerifier.js";
+import { LogoAccountDataVerifier } from "../../src/verifiers/logoAccountDataVerifier.js";
+import { OrganizationAccountDataVerifier } from "../../src/verifiers/organizationAccountDataVerifier.js";
+import { PublicDataAccountDataVerifier } from "../../src/verifiers/publicDataAccountDataVerifier.js";
+import { VerifiableCredentialAccountDataVerifier } from "../../src/verifiers/verifiableCredentialAccountDataVerifier.js";
 
 /**
  * Create the storage for the registered organizations, with the organizations given registered.
@@ -121,4 +131,34 @@ export function mockRequiredComponents(defaults: { [name: string]: unknown }): v
 		}
 		return component as never;
 	});
+}
+
+/**
+ * Register the verifiers of the account data types as the node registers them.
+ */
+export function registerAccountDataVerifiers(): void {
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.Identity,
+		() => new IdentityAccountDataVerifier()
+	);
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.Organization,
+		() => new OrganizationAccountDataVerifier()
+	);
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.VerifiableCredential,
+		() => new VerifiableCredentialAccountDataVerifier()
+	);
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.PublicData,
+		() => new PublicDataAccountDataVerifier()
+	);
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.Logo,
+		() => new LogoAccountDataVerifier()
+	);
+	AccountDataValidationFactory.register(
+		AuthenticationAccountDataType.Avatar,
+		() => new AvatarAccountDataVerifier()
+	);
 }

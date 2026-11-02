@@ -20,6 +20,7 @@ import {
 	type IAccountOrganizationGetResponse,
 	type IAccountOrganizationJoinRequest,
 	type IAccountOrganizationLeaveRequest,
+	type IAccountOrganizationRequestCancelRequest,
 	type IAccountOrganizationRequestGetResponse,
 	type IAccountProfileExportResponse,
 	type IAccountProfileImportRequest,
@@ -49,7 +50,7 @@ import {
 import { ContextIdStore } from "@3sixty/context";
 import { Coerce, ComponentFactory, Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
-import { HeaderTypes, HttpStatusCode, type IHttpHeaders } from "@3sixty/web";
+import { HeaderTypes, HttpStatusCode, type IHttpHeaders, MimeTypes } from "@3sixty/web";
 
 /**
  * The source used when communicating about these routes.
@@ -562,7 +563,7 @@ export function generateRestRoutesAuthenticationAccount(
 		IAccountOrganizationRequestGetResponse
 	> = {
 		operationId: "authenticationAccountGetOrganizationRequest",
-		summary: "Get the status of the request of the signed in account to join an organization",
+		summary: "Get the status of the requests of the signed in account to join organizations",
 		tag: tagsAuthenticationAccount[0].name,
 		method: "GET",
 		path: `${baseRouteName}/organization/request`,
@@ -574,18 +575,28 @@ export function generateRestRoutesAuthenticationAccount(
 				examples: [
 					{
 						id: "authenticationAccountGetOrganizationRequestResponseExample",
-						description: "The rejected request of the account.",
+						description: "A pending request of the account and a rejected one.",
 						response: {
 							body: {
-								request: {
-									id: "01a17afc-611a-7d5b-a898-e0e20088b36e",
-									accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-									organization: "did:example:organization",
-									status: "rejected",
-									reason: "organizationRequest.reason.notAMember",
-									dateCreated: "2026-01-12T09:05:23.123Z",
-									dateModified: "2026-01-13T10:15:00.000Z"
-								}
+								requests: [
+									{
+										id: "01a17afc-7a20-7b11-9c4e-2f6d1b7c0a91",
+										accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+										organization: "did:example:other-organization",
+										status: "pending",
+										dateCreated: "2026-01-14T08:00:00.000Z",
+										dateModified: "2026-01-14T08:00:00.000Z"
+									},
+									{
+										id: "01a17afc-611a-7d5b-a898-e0e20088b36e",
+										accountId: "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
+										organization: "did:example:organization",
+										status: "rejected",
+										reason: "organizationRequest.reason.notAMember",
+										dateCreated: "2026-01-12T09:05:23.123Z",
+										dateModified: "2026-01-13T10:15:00.000Z"
+									}
+								]
 							}
 						}
 					}
@@ -598,14 +609,31 @@ export function generateRestRoutesAuthenticationAccount(
 		requiresAuthorization: false
 	};
 
-	const cancelOrganizationRequestRoute: IRestRoute<INoContentRequest, INoContentResponse> = {
+	const cancelOrganizationRequestRoute: IRestRoute<
+		IAccountOrganizationRequestCancelRequest,
+		INoContentResponse
+	> = {
 		operationId: "authenticationAccountCancelOrganizationRequest",
 		summary: "Cancel the pending request of the signed in account to join an organization",
 		tag: tagsAuthenticationAccount[0].name,
 		method: "DELETE",
-		path: `${baseRouteName}/organization/request`,
-		handler: async httpRequestContext =>
-			authenticationAccountCancelOrganizationRequest(httpRequestContext, componentName),
+		path: `${baseRouteName}/organization/request/:organization`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAccountCancelOrganizationRequest(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAccountOrganizationRequestCancelRequest>(),
+			examples: [
+				{
+					id: "authenticationAccountCancelOrganizationRequestExample",
+					description: "Cancel the request to join one organization.",
+					request: {
+						pathParams: {
+							organization: "did:example:organization"
+						}
+					}
+				}
+			]
+		},
 		responseType: [
 			{
 				type: nameof<INoContentResponse>()
@@ -693,8 +721,8 @@ export function generateRestRoutesAuthenticationAccount(
 							logo: {
 								"@context": "https://schema.org",
 								"@type": "ImageObject",
-								encodingFormat: "image/png",
-								contentUrl: "data:image/png;base64,iVBORw0KGgo="
+								encodingFormat: MimeTypes.Png,
+								contentUrl: `data:${MimeTypes.Png};base64,iVBORw0KGgo=`
 							},
 							publicData: ["profile.name", "logo"]
 						}
@@ -913,10 +941,10 @@ export function generateRestRoutesAuthenticationAccount(
 							data: {
 								"@context": "https://schema.org",
 								"@type": "ImageObject",
-								encodingFormat: "image/jpeg",
-								contentUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==",
-								width: 512,
-								height: 512
+								encodingFormat: MimeTypes.Jpeg,
+								contentUrl: `data:${MimeTypes.Jpeg};base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==`,
+								width: "512",
+								height: "512"
 							},
 							isDefault: true
 						}
@@ -1338,7 +1366,7 @@ export async function authenticationAccountGetOrganization(
 }
 
 /**
- * Get the status of the request of the signed in account to join an organization.
+ * Get the status of the requests of the signed in account to join organizations.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
  * @returns The response object with additional http response properties.
@@ -1350,7 +1378,7 @@ export async function authenticationAccountGetOrganizationRequest(
 	const component = ComponentFactory.get<IAuthenticationAccountComponent>(componentName);
 	return {
 		body: {
-			request: await component.getOrganizationRequest()
+			requests: await component.getOrganizationRequests()
 		}
 	};
 }
@@ -1359,14 +1387,22 @@ export async function authenticationAccountGetOrganizationRequest(
  * Cancel the pending request of the signed in account to join an organization.
  * @param httpRequestContext The request context for the API.
  * @param componentName The name of the component to use in the routes.
+ * @param request The request.
  * @returns The response object with additional http response properties.
  */
 export async function authenticationAccountCancelOrganizationRequest(
 	httpRequestContext: IHttpRequestContext,
-	componentName: string
+	componentName: string,
+	request: IAccountOrganizationRequestCancelRequest
 ): Promise<INoContentResponse> {
+	Guards.object<IAccountOrganizationRequestCancelRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAccountOrganizationRequestCancelRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
 	const component = ComponentFactory.get<IAuthenticationAccountComponent>(componentName);
-	await component.cancelOrganizationRequest();
+	await component.cancelOrganizationRequest(request.pathParams.organization);
 
 	return {
 		statusCode: HttpStatusCode.noContent

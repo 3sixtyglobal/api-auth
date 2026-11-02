@@ -127,13 +127,53 @@ export class OrganizationRequestHelper {
 	 * Find every pending request of an account.
 	 * @param storage The entity storage for the requests.
 	 * @param accountId The account id.
+	 * @param organization The DID of the organization, any organization when omitted.
 	 * @returns The requests.
 	 */
 	public static async findAllPending(
 		storage: IEntityStorageConnector<OrganizationRequest>,
+		accountId: string,
+		organization?: string
+	): Promise<IOrganizationRequest[]> {
+		return OrganizationRequestHelper.readPending(storage, accountId, organization, false);
+	}
+
+	/**
+	 * Find the latest request of an account to each organization, pending or answered.
+	 * @param storage The entity storage for the requests.
+	 * @param accountId The account id.
+	 * @returns The requests, the latest changed first.
+	 */
+	public static async findLatestByOrganization(
+		storage: IEntityStorageConnector<OrganizationRequest>,
 		accountId: string
 	): Promise<IOrganizationRequest[]> {
-		return OrganizationRequestHelper.readPending(storage, accountId, undefined, false);
+		Guards.stringValue(OrganizationRequestHelper.CLASS_NAME, nameof(accountId), accountId);
+
+		// A pending request is the latest to its organization, as another is refused while one is
+		// pending, so it is kept even when an answered one was changed in the same millisecond.
+		const latest = new Map<string, IOrganizationRequest>();
+		let cursor: string | undefined;
+		do {
+			const page = await storage.query(
+				{ property: "accountId", value: accountId, comparison: ComparisonOperator.Equals },
+				[{ property: "dateModified", sortDirection: SortDirection.Descending }],
+				undefined,
+				cursor
+			);
+			for (const request of page.entities as IOrganizationRequest[]) {
+				const kept = latest.get(request.organization);
+				if (
+					Is.undefined(kept) ||
+					(kept.status !== OrganizationRequestStatus.Pending &&
+						request.status === OrganizationRequestStatus.Pending)
+				) {
+					latest.set(request.organization, request);
+				}
+			}
+			cursor = page.cursor;
+		} while (Is.stringValue(cursor));
+		return [...latest.values()];
 	}
 
 	/**

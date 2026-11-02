@@ -3,7 +3,7 @@
 import type { IOrganizationRequestDetails } from "../IOrganizationRequestDetails.js";
 
 /**
- * The request of the signed in account to join an organization.
+ * The requests of the signed in account to join organizations.
  */
 export interface IAccountOrganizationRequestGetResponse {
 	/**
@@ -11,8 +11,8 @@ export interface IAccountOrganizationRequestGetResponse {
 	 */
 	body: {
 		/**
-		 * The pending request, otherwise the latest request, absent when none was made.
+		 * The latest request to each organization, pending or answered, the latest changed first.
 		 */
-		request?: IOrganizationRequestDetails;
+		requests: IOrganizationRequestDetails[];
 	};
 }

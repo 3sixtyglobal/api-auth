@@ -1,5 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { MimeTypes } from "@3sixty/web";
 import { AuthenticationAccountHelper } from "../../src/helpers/authenticationAccountHelper.js";
 
 describe("AuthenticationAccountHelper", () => {
@@ -139,7 +140,7 @@ describe("AuthenticationAccountHelper", () => {
 			{
 				"@context": "https://www.w3.org/ns/credentials/v2",
 				type: "EnvelopedVerifiableCredential",
-				id: "data:application/vc+jwt,a.b.c"
+				id: `data:${MimeTypes.VerifiableCredentialJwt},a.b.c`
 			},
 			withoutProof,
 			{ ...credential, proof: "z-signature" },

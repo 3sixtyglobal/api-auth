@@ -11,6 +11,7 @@ import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-m
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
+import { MimeTypes } from "@3sixty/web";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import { initSchema } from "../../src/schema.js";
 import { EntityStorageAuthenticationService } from "../../src/services/entityStorageAuthenticationService.js";
@@ -21,10 +22,10 @@ initSchema();
 const AVATAR = {
 	"@context": "https://schema.org",
 	"@type": "ImageObject",
-	encodingFormat: "image/png",
-	contentUrl: "data:image/png;base64,AAAA",
-	width: 512,
-	height: 512
+	encodingFormat: MimeTypes.Png,
+	contentUrl: `data:${MimeTypes.Png};base64,AAAA`,
+	width: "512",
+	height: "512"
 };
 const STORED = { ...AVATAR, readonlyValue: true };
 
@@ -180,7 +181,7 @@ describe("EntityStorageAuthenticationService provider avatar", () => {
 		expect(accountAdmin.create).not.toHaveBeenCalled();
 		expect(accountAdmin.update).not.toHaveBeenCalled();
 
-		const changed = { ...AVATAR, contentUrl: "data:image/png;base64,BBBB" };
+		const changed = { ...AVATAR, contentUrl: `data:${MimeTypes.Png};base64,BBBB` };
 		await signIn(changed);
 		expect(accountAdmin.update).toHaveBeenCalledWith(
 			"avatar-1",
@@ -189,7 +190,9 @@ describe("EntityStorageAuthenticationService provider avatar", () => {
 		);
 
 		// An avatar the account uploaded is replaced, as the provider owns the avatar.
-		holds([{ id: "uploaded", isDefault: true, data: { ...AVATAR, encodingFormat: "image/jpeg" } }]);
+		holds([
+			{ id: "uploaded", isDefault: true, data: { ...AVATAR, encodingFormat: MimeTypes.Jpeg } }
+		]);
 		await signIn(AVATAR);
 		expect(accountAdmin.update).toHaveBeenLastCalledWith("uploaded", STORED, true);
 	});

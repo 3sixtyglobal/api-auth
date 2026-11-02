@@ -351,7 +351,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			logo: organization.logo,
 			publicData: organization.publicData
 		};
-		OrganizationProfileHelper.validate(changes);
+		await OrganizationProfileHelper.validate(changes);
 		await this.guardAdmin();
 		// The first member is always the caller, never an account named in the request, so an admin
 		// can not add another account, or one holding escalated privilege, as an admin.
@@ -481,12 +481,10 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	}> {
 		await this.guardAdmin();
 		const managed = await AdminScopeHelper.managedOrganizations(
-			this._adminRoles,
-			AdminScopeHelper.callerIsEscalatedOnce(
-				this._authorizationComponent,
-				this._authorizationModelId,
-				this._escalatedPrivilegeRole
-			)
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole,
+			this._adminRoles
 		);
 		if (Is.array(managed) && managed.length === 0) {
 			return { entities: [] };
@@ -575,7 +573,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			nameof(changes),
 			changes
 		);
-		OrganizationProfileHelper.validate(changes);
+		await OrganizationProfileHelper.validate(changes);
 		const organization = await this.getOrganization(id);
 		await this.guardManager(organization.identity);
 
@@ -701,12 +699,7 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	public async removeAdmin(id: string, accountId: string): Promise<void> {
 		Guards.stringValue(EntityStorageOrganizationService.CLASS_NAME, nameof(accountId), accountId);
 		const organization = await this.getOrganization(id);
-		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
-			this._authorizationComponent,
-			this._authorizationModelId,
-			this._escalatedPrivilegeRole
-		);
-		await this.guardManager(organization.identity, callerIsEscalated);
+		await this.guardManager(organization.identity);
 
 		const admins = await this._adminRoles.admins(organization.identity);
 		if (!admins.includes(accountId)) {
@@ -725,7 +718,14 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 			}
 			return;
 		}
-		if (admins.length === 1 && !(await callerIsEscalated())) {
+		if (
+			admins.length === 1 &&
+			!(await AdminScopeHelper.callerIsEscalated(
+				this._authorizationComponent,
+				this._authorizationModelId,
+				this._escalatedPrivilegeRole
+			))
+		) {
 			throw new ConflictError(
 				EntityStorageOrganizationService.CLASS_NAME,
 				"organizationLastAdmin",
@@ -820,14 +820,9 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	public async remove(id: string): Promise<void> {
 		const organization = await this.getOrganization(id);
 		const callerAccountId = await AdminScopeHelper.callerAccount();
-		const callerIsEscalated = AdminScopeHelper.callerIsEscalatedOnce(
-			this._authorizationComponent,
-			this._authorizationModelId,
-			this._escalatedPrivilegeRole
-		);
 		const isAdmin = await this._adminRoles.isAdmin(callerAccountId, organization.identity);
 		if (!isAdmin) {
-			await this.guardManager(organization.identity, callerIsEscalated);
+			await this.guardManager(organization.identity);
 		}
 
 		// Two members are read, enough to tell whether the caller is the only one.
@@ -866,7 +861,12 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 		}
 		throw new ConflictError(
 			EntityStorageOrganizationService.CLASS_NAME,
-			isAdmin && !(await callerIsEscalated())
+			isAdmin &&
+				!(await AdminScopeHelper.callerIsEscalated(
+					this._authorizationComponent,
+					this._authorizationModelId,
+					this._escalatedPrivilegeRole
+				))
 				? "organizationHasOtherMembers"
 				: "organizationHasMembers",
 			organization.identity
@@ -1352,26 +1352,19 @@ export class EntityStorageOrganizationService implements IOrganizationComponent 
 	/**
 	 * Ensure the caller manages an organization, as its org admin or holding escalated privilege.
 	 * @param identity The DID of the organization.
-	 * @param callerIsEscalated The check of whether the caller holds escalated privilege, a new
-	 * lookup when omitted.
 	 * @returns A promise that resolves when the caller manages the organization.
 	 * @throws ForbiddenError when it does not.
 	 * @internal
 	 */
-	private async guardManager(
-		identity: string,
-		callerIsEscalated?: () => Promise<boolean>
-	): Promise<void> {
+	private async guardManager(identity: string): Promise<void> {
 		if (await this._adminRoles.isAdmin(await AdminScopeHelper.callerAccount(), identity)) {
 			return;
 		}
-		const isEscalated = Is.function(callerIsEscalated)
-			? await callerIsEscalated()
-			: await AdminScopeHelper.callerIsEscalated(
-					this._authorizationComponent,
-					this._authorizationModelId,
-					this._escalatedPrivilegeRole
-				);
+		const isEscalated = await AdminScopeHelper.callerIsEscalated(
+			this._authorizationComponent,
+			this._authorizationModelId,
+			this._escalatedPrivilegeRole
+		);
 		if (!isEscalated) {
 			throw new ForbiddenError(
 				EntityStorageOrganizationService.CLASS_NAME,

@@ -5,6 +5,7 @@ export * from "./helpers/oidcHelper.js";
 export * from "./models/api/IOAuthCallbackRequest.js";
 export * from "./models/api/IOAuthRedirectResponse.js";
 export * from "./models/api/IOAuthStartRequest.js";
+export * from "./models/IAvatarFetchOptions.js";
 export * from "./models/IOAuthAuthorizationRequest.js";
 export * from "./models/IOAuthCallback.js";
 export * from "./models/IOAuthCodeExchange.js";

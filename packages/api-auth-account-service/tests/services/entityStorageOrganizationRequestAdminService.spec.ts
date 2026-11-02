@@ -62,7 +62,8 @@ describe("organization requests", () => {
 		});
 		const organizations = await createOrganizationStorage("organization-requests", [
 			ORGANIZATION,
-			"did:example:other"
+			"did:example:other",
+			"did:example:third"
 		]);
 		const users = createUserStorage();
 		vi.spyOn(EntityStorageConnectorFactory, "get").mockImplementation(name => {
@@ -247,54 +248,51 @@ describe("organization requests", () => {
 
 	it("should let the account see the status of its request", async () => {
 		await expect(
-			asAccount("account-1", async () => service.getOrganizationRequest())
-		).resolves.toBeUndefined();
+			asAccount("account-1", async () => service.getOrganizationRequests())
+		).resolves.toEqual([]);
 
 		const id = await requestToJoin();
 		await expect(
-			asAccount("account-1", async () => service.getOrganizationRequest())
-		).resolves.toMatchObject({ id, organization: ORGANIZATION, status: "pending" });
+			asAccount("account-1", async () => service.getOrganizationRequests())
+		).resolves.toMatchObject([{ id, organization: ORGANIZATION, status: "pending" }]);
 
 		await admin.reject(id, "organizationRequest.reason.notAMember");
 		await expect(
-			asAccount("account-1", async () => service.getOrganizationRequest())
-		).resolves.toMatchObject({
-			id,
-			status: "rejected",
-			reason: "organizationRequest.reason.notAMember"
-		});
+			asAccount("account-1", async () => service.getOrganizationRequests())
+		).resolves.toMatchObject([
+			{ id, status: "rejected", reason: "organizationRequest.reason.notAMember" }
+		]);
 
-		// A new request is the one shown while it is pending.
+		// A new request to the organization is the one shown while it is pending.
 		await asAccount("account-1", async () => service.joinOrganization(ORGANIZATION));
-		await expect(
-			asAccount("account-1", async () => service.getOrganizationRequest())
-		).resolves.toMatchObject({ status: "pending" });
+		const latest = await asAccount("account-1", async () => service.getOrganizationRequests());
+		expect(latest).toHaveLength(1);
+		expect(latest[0]).toMatchObject({ status: "pending" });
 
 		// Another account does not see the request.
 		await expect(
-			asAccount("account-2", async () => service.getOrganizationRequest())
-		).resolves.toBeUndefined();
-		await expect(service.getOrganizationRequest()).rejects.toThrow();
+			asAccount("account-2", async () => service.getOrganizationRequests())
+		).resolves.toEqual([]);
+		await expect(service.getOrganizationRequests()).rejects.toThrow();
 	});
 
-	it("should let the account cancel every pending request, keeping those answered before", async () => {
+	it("should let the account cancel its pending request, keeping those answered before", async () => {
 		await AccountDataHelper.createIdentity(accountData, "account-2", "did:example:user-2");
 		const first = await requestToJoin();
 		await admin.reject(first, "organizationRequest.reason.notAMember");
 		await asAccount("account-1", async () => service.joinOrganization(ORGANIZATION));
-		await asAccount("account-1", async () => service.joinOrganization("did:example:other"));
 		await asAccount("account-2", async () => service.joinOrganization(ORGANIZATION));
 
-		await asAccount("account-1", async () => service.cancelOrganizationRequest());
+		await asAccount("account-1", async () => service.cancelOrganizationRequest(ORGANIZATION));
 
-		// Both pending requests are gone, the rejection is the status again.
+		// The pending request is gone, the rejection is the status again, and other accounts keep theirs.
 		expect((await admin.query(undefined, undefined)).entities).toMatchObject([
 			{ id: first, status: "rejected" },
 			{ accountId: "account-2", status: "pending" }
 		]);
 		await expect(
-			asAccount("account-1", async () => service.getOrganizationRequest())
-		).resolves.toMatchObject({ id: first, status: "rejected" });
+			asAccount("account-1", async () => service.getOrganizationRequests())
+		).resolves.toMatchObject([{ id: first, status: "rejected" }]);
 		await expect(
 			asAccount("account-1", async () => service.getOrganization())
 		).rejects.toMatchObject({
@@ -302,12 +300,58 @@ describe("organization requests", () => {
 		});
 
 		await expect(
-			asAccount("account-1", async () => service.cancelOrganizationRequest())
+			asAccount("account-1", async () => service.cancelOrganizationRequest(ORGANIZATION))
 		).rejects.toMatchObject({
 			name: NotFoundError.CLASS_NAME,
 			message: "organizationRequestHelper.organizationRequestNotFound"
 		});
-		await expect(service.cancelOrganizationRequest()).rejects.toThrow();
+		await expect(
+			asAccount("account-1", async () => service.cancelOrganizationRequest(""))
+		).rejects.toMatchObject({ name: "GuardError" });
+		await expect(service.cancelOrganizationRequest(ORGANIZATION)).rejects.toThrow();
+	});
+
+	it("should let the account see and cancel its request to each organization", async () => {
+		await expect(
+			asAccount("account-1", async () => service.getOrganizationRequests())
+		).resolves.toEqual([]);
+
+		const rejected = await requestToJoin();
+		await admin.reject(rejected, "organizationRequest.reason.notAMember");
+		await asAccount("account-1", async () => service.joinOrganization("did:example:other"));
+		await asAccount("account-1", async () => service.joinOrganization("did:example:third"));
+
+		// The latest request to each organization, made within the same millisecond here so in any order.
+		const latest = await asAccount("account-1", async () => service.getOrganizationRequests());
+		expect(latest).toHaveLength(3);
+		expect(latest).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ organization: "did:example:third", status: "pending" }),
+				expect.objectContaining({ organization: "did:example:other", status: "pending" }),
+				expect.objectContaining({ id: rejected, status: "rejected" })
+			])
+		);
+
+		// Cancelling one organization's request keeps the others.
+		await asAccount("account-1", async () =>
+			service.cancelOrganizationRequest("did:example:other")
+		);
+		const remaining = await asAccount("account-1", async () => service.getOrganizationRequests());
+		expect(remaining.map(request => request.organization).sort()).toEqual([
+			"did:example:organization",
+			"did:example:third"
+		]);
+		await expect(
+			asAccount("account-1", async () => service.cancelOrganizationRequest("did:example:other"))
+		).rejects.toMatchObject({
+			name: NotFoundError.CLASS_NAME,
+			message: "organizationRequestHelper.organizationRequestNotFound"
+		});
+		// A request that was answered is not cancelled.
+		await expect(
+			asAccount("account-1", async () => service.cancelOrganizationRequest(ORGANIZATION))
+		).rejects.toMatchObject({ name: NotFoundError.CLASS_NAME });
+		await expect(service.getOrganizationRequests()).rejects.toThrow();
 	});
 
 	it("should count the requests of a status, by organization, up to a cap", async () => {

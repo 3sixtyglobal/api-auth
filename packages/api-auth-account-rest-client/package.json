@@ -34,6 +34,7 @@
 		"@3sixty/api-core": "next",
 		"@3sixty/api-models": "next",
 		"@3sixty/core": "next",
+		"@3sixty/data-json-ld": "next",
 		"@3sixty/nameof": "next",
 		"@3sixty/standards-w3c-did": "next",
 		"@3sixty/web": "next"
