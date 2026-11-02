@@ -1,10 +1,15 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAdminUserCreateRequest,
+	IAdminUserDisableRequest,
+	IAdminUserEnableRequest,
 	IAdminUserGetByIdentityRequest,
 	IAdminUserGetRequest,
 	IAdminUserGetResponse,
+	IAdminUserQueryRequest,
+	IAdminUserQueryResponse,
 	IAdminUserRemoveRequest,
 	IAdminUserUpdatePasswordRequest,
 	IAdminUserUpdateRequest,
@@ -14,7 +19,9 @@ import {
 	HttpContextIdKeys,
 	HttpHeaderHelper,
 	HttpUrlHelper,
+	type IConflictResponse,
 	type ICreatedResponse,
+	type IForbiddenResponse,
 	type IHttpRequestContext,
 	type INoContentResponse,
 	type IRestRoute,
@@ -23,7 +30,7 @@ import {
 	type IUnauthorizedResponse
 } from "@3sixty/api-models";
 import { ContextIdStore } from "@3sixty/context";
-import { ComponentFactory, Guards } from "@3sixty/core";
+import { Coerce, ComponentFactory, Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { HttpStatusCode, type IHttpHeaders } from "@3sixty/web";
 
@@ -81,9 +88,7 @@ export function generateRestRoutesAuthenticationAdmin(
 					request: {
 						body: {
 							email: "user@example.com",
-							password: "MyPassword123!",
-							userIdentity: "did:example:123456789abcdefghi",
-							organizationIdentity: "did:example:123456789abcdefghi"
+							password: "MyPassword123!"
 						}
 					}
 				}
@@ -91,10 +96,13 @@ export function generateRestRoutesAuthenticationAdmin(
 		},
 		responseType: [
 			{
-				type: nameof<INoContentResponse>()
+				type: nameof<ICreatedResponse>()
 			},
 			{
 				type: nameof<IUnauthorizedResponse>()
+			},
+			{
+				type: nameof<IConflictResponse>()
 			}
 		],
 		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
@@ -168,6 +176,9 @@ export function generateRestRoutesAuthenticationAdmin(
 			},
 			{
 				type: nameof<IUnauthorizedResponse>()
+			},
+			{
+				type: nameof<IForbiddenResponse>()
 			}
 		],
 		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
@@ -205,8 +216,7 @@ export function generateRestRoutesAuthenticationAdmin(
 						response: {
 							body: {
 								email: "user@example.com",
-								userIdentity: "did:example:123456789abcdefghi",
-								organizationIdentity: "did:example:123456789abcdefghi"
+								accountId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c"
 							}
 						}
 					}
@@ -247,13 +257,14 @@ export function generateRestRoutesAuthenticationAdmin(
 					type: nameof<IAdminUserGetResponse>(),
 					examples: [
 						{
-							id: "getUserResponseExample",
-							description: "The response to get an existing user.",
+							id: "getUserByIdentityResponseExample",
+							description: "The response to get an existing user by identity.",
 							response: {
 								body: {
 									email: "user@example.com",
+									accountId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
 									userIdentity: "did:example:123456789abcdefghi",
-									organizationIdentity: "did:example:123456789abcdefghi"
+									organizationIdentity: "did:example:987654321abcdefghi"
 								}
 							}
 						}
@@ -299,14 +310,216 @@ export function generateRestRoutesAuthenticationAdmin(
 		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
 	};
 
+	const queryUsersRoute: IRestRoute<IAdminUserQueryRequest, IAdminUserQueryResponse> = {
+		operationId: "authenticationAdminQueryUsers",
+		summary: "Query the users",
+		tag: tagsAuthenticationAdmin[0].name,
+		method: "GET",
+		path: `${baseRouteName}/users`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAdminQueryUsers(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAdminUserQueryRequest>(),
+			examples: [
+				{
+					id: "queryUsersRequestExample",
+					description:
+						"The request to query the users with an e-mail address starting with a prefix.",
+					request: {
+						query: {
+							email: "user@",
+							authProviderId: "entity-storage"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAdminUserQueryResponse>(),
+				examples: [
+					{
+						id: "queryUsersResponseExample",
+						description: "The users found.",
+						response: {
+							body: {
+								entities: [
+									{
+										email: "user@example.com",
+										accountId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
+										authProviderId: "entity-storage",
+										dateCreated: "2026-01-12T09:05:23.123Z"
+									}
+								]
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_READER
+	};
+
+	const disableUserRoute: IRestRoute<IAdminUserDisableRequest, INoContentResponse> = {
+		operationId: "authenticationAdminDisableUser",
+		summary: "Disable a user so it cannot sign in",
+		tag: tagsAuthenticationAdmin[0].name,
+		method: "POST",
+		path: `${baseRouteName}/users/:email/disable`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAdminDisableUser(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAdminUserDisableRequest>(),
+			examples: [
+				{
+					id: "disableUserRequestExample",
+					description: "The request to disable a user.",
+					request: {
+						pathParams: {
+							email: "user@example.com"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+	};
+
+	const enableUserRoute: IRestRoute<IAdminUserEnableRequest, INoContentResponse> = {
+		operationId: "authenticationAdminEnableUser",
+		summary: "Enable a disabled user",
+		tag: tagsAuthenticationAdmin[0].name,
+		method: "POST",
+		path: `${baseRouteName}/users/:email/enable`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAdminEnableUser(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAdminUserEnableRequest>(),
+			examples: [
+				{
+					id: "enableUserRequestExample",
+					description: "The request to enable a user.",
+					request: {
+						pathParams: {
+							email: "user@example.com"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<INoContentResponse>()
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			}
+		],
+		defaultAuthorization: DEFAULT_AUTHORIZATION_WRITER
+	};
+
 	return [
 		createUserRoute,
+		queryUsersRoute,
 		updateUserRoute,
 		updateUserPasswordRoute,
+		disableUserRoute,
+		enableUserRoute,
 		getUserRoute,
 		getByIdentityUserRoute,
 		removeUserRoute
 	];
+}
+
+/**
+ * Query the users.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAdminQueryUsers(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAdminUserQueryRequest
+): Promise<IAdminUserQueryResponse> {
+	Guards.object<IAdminUserQueryRequest>(ROUTES_SOURCE, nameof(request), request);
+
+	const component = ComponentFactory.get<IAuthenticationAdminComponent>(componentName);
+	return {
+		body: await component.query(
+			request.query?.email,
+			Coerce.boolean(request.query?.exactEmail),
+			request.query?.authProviderId,
+			request.query?.cursor,
+			Coerce.integer(request.query?.limit)
+		)
+	};
+}
+
+/**
+ * Disable a user.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAdminDisableUser(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAdminUserDisableRequest
+): Promise<INoContentResponse> {
+	Guards.object<IAdminUserDisableRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAdminUserDisableRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAdminComponent>(componentName);
+	await component.disable(request.pathParams.email);
+
+	return {
+		statusCode: HttpStatusCode.noContent
+	};
+}
+
+/**
+ * Enable a disabled user.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAdminEnableUser(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAdminUserEnableRequest
+): Promise<INoContentResponse> {
+	Guards.object<IAdminUserEnableRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAdminUserEnableRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+
+	const component = ComponentFactory.get<IAuthenticationAdminComponent>(componentName);
+	await component.enable(request.pathParams.email);
+
+	return {
+		statusCode: HttpStatusCode.noContent
+	};
 }
 
 /**
@@ -342,37 +555,6 @@ export async function authenticationAdminCreateUser(
 	return {
 		statusCode: HttpStatusCode.created,
 		headers
-	};
-}
-
-/**
- * Update an existing user.
- * @param httpRequestContext The request context for the API.
- * @param componentName The name of the component to use in the routes.
- * @param request The request.
- * @returns The response object with additional http response properties.
- */
-export async function authenticationAdminUpdateUser(
-	httpRequestContext: IHttpRequestContext,
-	componentName: string,
-	request: IAdminUserUpdateRequest
-): Promise<INoContentResponse> {
-	Guards.object<IAdminUserUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
-	Guards.object<IAdminUserUpdateRequest["pathParams"]>(
-		ROUTES_SOURCE,
-		nameof(request.pathParams),
-		request.pathParams
-	);
-	Guards.object<IAdminUserUpdateRequest["body"]>(ROUTES_SOURCE, nameof(request.body), request.body);
-
-	const component = ComponentFactory.get<IAuthenticationAdminComponent>(componentName);
-	await component.update({
-		...request.body,
-		email: request.pathParams.email
-	});
-
-	return {
-		statusCode: HttpStatusCode.noContent
 	};
 }
 
@@ -432,6 +614,38 @@ export async function authenticationAdminGetUser(
 
 	return {
 		body: result
+	};
+}
+
+/**
+ * Update the identity or organization of an existing user.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAdminUpdateUser(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAdminUserUpdateRequest
+): Promise<INoContentResponse> {
+	Guards.object<IAdminUserUpdateRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAdminUserUpdateRequest["pathParams"]>(
+		ROUTES_SOURCE,
+		nameof(request.pathParams),
+		request.pathParams
+	);
+	Guards.object<IAdminUserUpdateRequest["body"]>(ROUTES_SOURCE, nameof(request.body), request.body);
+
+	const component = ComponentFactory.get<IAuthenticationAdminComponent>(componentName);
+	await component.update({
+		userIdentity: request.body.userIdentity,
+		organizationIdentity: request.body.organizationIdentity,
+		email: request.pathParams.email
+	});
+
+	return {
+		statusCode: HttpStatusCode.noContent
 	};
 }
 

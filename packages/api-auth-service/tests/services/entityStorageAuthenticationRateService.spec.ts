@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { TooManyRequestsError, type IPlatformComponent } from "@3sixty/api-models";
 import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
@@ -23,6 +24,7 @@ describe("EntityStorageAuthenticationRateService", () => {
 	let removeTaskMock: ReturnType<typeof vi.fn>;
 	let setMock: ReturnType<typeof vi.fn>;
 	let removeMock: ReturnType<typeof vi.fn>;
+	let removeBatchMock: ReturnType<typeof vi.fn>;
 	let queryMock: ReturnType<typeof vi.fn>;
 	let mockRateEntryStorage: IEntityStorageConnector;
 	let scheduledCleanup: (() => Promise<void>) | undefined;
@@ -39,12 +41,14 @@ describe("EntityStorageAuthenticationRateService", () => {
 		removeTaskMock = vi.fn();
 		setMock = vi.fn();
 		removeMock = vi.fn();
+		removeBatchMock = vi.fn();
 		queryMock = vi.fn().mockResolvedValue({ entities: [], cursor: undefined });
 
 		mockRateEntryStorage = {
 			get: getMock,
 			set: setMock,
 			remove: removeMock,
+			removeBatch: removeBatchMock,
 			query: queryMock
 		} as unknown as IEntityStorageConnector;
 
@@ -197,6 +201,31 @@ describe("EntityStorageAuthenticationRateService", () => {
 		expect(removeMock).toHaveBeenCalledWith(expectedId);
 	});
 
+	it("should clear an entry only once a check of it in progress has finished", async () => {
+		let releaseGet: (() => void) | undefined;
+		getMock.mockImplementationOnce(
+			async () =>
+				new Promise(resolve => {
+					releaseGet = () => resolve(undefined);
+				})
+		);
+		const order: string[] = [];
+		setMock.mockImplementation(async () => {
+			order.push("set");
+		});
+		removeMock.mockImplementation(async () => {
+			order.push("remove");
+		});
+
+		const check = service.check("login", "user@example.com");
+		const clear = service.clear("login", "user@example.com");
+		await vi.waitFor(() => expect(releaseGet).toBeDefined());
+		releaseGet?.();
+		await Promise.all([check, clear]);
+
+		expect(order).toEqual(["set", "remove"]);
+	});
+
 	it("should overwrite existing action config when registering again", async () => {
 		await service.registerAction("login", {
 			maxAttempts: 1,
@@ -274,9 +303,14 @@ describe("EntityStorageAuthenticationRateService", () => {
 			await scheduledCleanup();
 		}
 
-		expect(removeMock).toHaveBeenCalledWith("|login|hash1|");
-		expect(removeMock).toHaveBeenCalledWith("|login|hash3|");
-		expect(removeMock).toHaveBeenCalledWith("|login|hash2|");
+		// The ids of every page are gathered with the cursor, then removed at once.
+		expect(removeBatchMock).toHaveBeenCalledTimes(1);
+		expect(removeBatchMock).toHaveBeenCalledWith([
+			"|login|hash1|",
+			"|login|hash3|",
+			"|login|hash2|"
+		]);
+		expect(removeMock).not.toHaveBeenCalled();
 		expect(setMock).not.toHaveBeenCalled();
 		expect(queryMock).toHaveBeenCalledTimes(2);
 
@@ -295,6 +329,7 @@ describe("EntityStorageAuthenticationRateService", () => {
 				}
 			]
 		});
+		expect(firstQueryCall[2]).toEqual(["id"]);
 		expect(firstQueryCall[3]).toBeUndefined();
 		expect(firstQueryCall[4]).toBe(250);
 
@@ -379,5 +414,34 @@ describe("EntityStorageAuthenticationRateService - multi-tenant cleanup (tenant 
 		// Before the fix this rejects with ContextIdHelper.contextIdMissing (key: tenant); after the fix the
 		// cleanup runs per tenant via the platform component and resolves.
 		await expect((scheduledCleanup as () => Promise<void>)()).resolves.toBeUndefined();
+	});
+
+	describe("concurrent checks", () => {
+		let storage: MemoryEntityStorageConnector<AuthenticationRateEntry>;
+
+		beforeEach(async () => {
+			initSchema();
+			storage = new MemoryEntityStorageConnector<AuthenticationRateEntry>({
+				entitySchema: nameof<AuthenticationRateEntry>(),
+				config: { storageKey: "authentication-rate-concurrent" }
+			});
+			vi.spyOn(EntityStorageConnectorFactory, "get").mockReturnValue(storage);
+			service = new EntityStorageAuthenticationRateService();
+			await service.registerAction("login", { maxAttempts: 3, windowMinutes: 15 });
+		});
+
+		afterEach(async () => {
+			await storage.teardown();
+		});
+
+		it("should not let concurrent checks exceed the limit", async () => {
+			const results = await Promise.allSettled(
+				Array.from({ length: 10 }, async () => service.check("login", "user@example.com"))
+			);
+
+			expect(results.filter(r => r.status === "fulfilled")).toHaveLength(3);
+			const entries = await storage.query();
+			expect(entries.entities[0].timestamps).toHaveLength(3);
+		});
 	});
 });

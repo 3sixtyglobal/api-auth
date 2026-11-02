@@ -1,0 +1,27 @@
+{
+	"error": {
+		"oidcHelper": {
+			"codeExchangeFailed": "The provider rejected the authorization code with status \"{status}\"",
+			"idTokenMissing": "The provider did not return an ID token",
+			"idTokenHeaderInvalid": "The ID token header does not name an accepted signing key",
+			"idTokenSignatureInvalid": "The ID token signature could not be verified",
+			"idTokenIssuerInvalid": "The ID token was not issued by the provider",
+			"idTokenAudienceInvalid": "The ID token was not issued to this client",
+			"idTokenExpired": "The ID token has expired",
+			"idTokenNonceInvalid": "The ID token does not match the sign in request",
+			"idTokenSubjectMissing": "The ID token does not contain a subject",
+			"idTokenEmailMissing": "The ID token does not contain an e-mail address",
+			"signingKeysFailed": "The provider signing keys could not be retrieved from \"{jwksUri}\"",
+			"signingKeyNotFound": "The provider has no signing key \"{kid}\""
+		},
+		"avatarHelper": {
+			"avatarResponseFailed": "The provider returned status \"{status}\" for the photo",
+			"avatarTooLarge": "The photo the provider holds is larger than {maxBytes} bytes"
+		}
+	},
+	"warn": {
+		"avatarHelper": {
+			"avatarFetchFailed": "The photo the provider holds could not be fetched, the stored photo is kept"
+		}
+	}
+}

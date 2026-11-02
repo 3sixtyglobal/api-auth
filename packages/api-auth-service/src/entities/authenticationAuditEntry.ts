@@ -1,11 +1,12 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { SortDirection, entity, property } from "@3sixty/entity";
 
 /**
  * Class defining the storage for authentication audit entries.
  */
-@entity()
+@entity({ version: 1 })
 export class AuthenticationAuditEntry {
 	/**
 	 * The unique identifier for the audit entry.
@@ -70,10 +71,10 @@ export class AuthenticationAuditEntry {
 	public tenantId?: string;
 
 	/**
-	 * The hashed IP addresses of the client.
+	 * The hashed IP address of the client.
 	 */
-	@property({ type: "array", optional: true })
-	public ipAddressHashes?: string[];
+	@property({ type: "string", maxLength: 64, optional: true })
+	public ipAddressHash?: string;
 
 	/**
 	 * The user agent string of the client.

@@ -1,7 +1,7 @@
 {
 	"name": "@3sixty/api-auth-models",
 	"version": "0.20.0-next.2",
-	"description": "Contracts for authentication audit and rate limiting.",
+	"description": "Contracts for authentication providers, audit and rate limiting.",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/3sixtyglobal/api-auth.git",
@@ -30,7 +30,15 @@
 		"dist:no-test": "pnpm run clean && concurrently -g -n build,locales,types \"pnpm run build\" \"pnpm run validate-locales\" \"pnpm run test:build\""
 	},
 	"dependencies": {
-		"@3sixty/core": "next"
+		"@3sixty/core": "next",
+		"@3sixty/crypto": "next",
+		"@3sixty/data-json-ld": "next",
+		"@3sixty/identity-models": "next",
+		"@3sixty/nameof": "next",
+		"@3sixty/standards-schema-org": "next",
+		"@3sixty/standards-w3c-did": "next",
+		"@3sixty/web": "next",
+		"schema-dts": "2.1.0"
 	},
 	"devDependencies": {
 		"@3sixty/nameof-transformer": "next",

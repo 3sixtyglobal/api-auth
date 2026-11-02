@@ -12,6 +12,13 @@ Alongside these flows, the repository includes authentication audit logging, rat
 - [api-auth-entity-storage-models](packages/api-auth-entity-storage-models/README.md) - Contracts for authentication flows and admin user management with entity storage.
 - [api-auth-entity-storage-service](packages/api-auth-entity-storage-service/README.md) - Authentication service implementation and REST routes backed by entity storage.
 - [api-auth-entity-storage-rest-client](packages/api-auth-entity-storage-rest-client/README.md) - REST clients for authentication and admin operations against entity storage endpoints.
+- [api-auth-connector-entity-storage](packages/api-auth-connector-entity-storage/README.md) - Authentication provider that verifies passwords for accounts held in entity storage.
+- [api-auth-oauth-models](packages/api-auth-oauth-models/README.md) - Contracts and helpers for OAuth authentication providers.
+- [api-auth-oauth-connector-google](packages/api-auth-oauth-connector-google/README.md) - Authentication provider that signs accounts in with Google.
+- [api-auth-oauth-connector-microsoft](packages/api-auth-oauth-connector-microsoft/README.md) - Authentication provider that signs accounts in with Microsoft.
+- [api-auth-oauth-service](packages/api-auth-oauth-service/README.md) - OAuth sign in flow and REST routes for authentication providers.
+- [api-auth-account-service](packages/api-auth-account-service/README.md) - Account data storage, request processing and REST routes backed by entity storage.
+- [api-auth-account-rest-client](packages/api-auth-account-rest-client/README.md) - REST clients for account data and account data administration.
 
 ## Contributing
 

@@ -47,3 +47,59 @@ This package provides rEST clients for authentication and admin operations again
 - [README](../packages/api-auth-entity-storage-rest-client/README.md)
 - [Examples](../packages/api-auth-entity-storage-rest-client/docs/examples.md)
 - [Changelog](../packages/api-auth-entity-storage-rest-client/docs/changelog.md)
+
+## api-auth-connector-entity-storage
+
+This package provides authentication provider that verifies passwords for accounts held in entity storage.
+
+- [README](../packages/api-auth-connector-entity-storage/README.md)
+- [Examples](../packages/api-auth-connector-entity-storage/docs/examples.md)
+- [Changelog](../packages/api-auth-connector-entity-storage/docs/changelog.md)
+
+## api-auth-oauth-models
+
+This package provides contracts and helpers for OAuth authentication providers.
+
+- [README](../packages/api-auth-oauth-models/README.md)
+- [Examples](../packages/api-auth-oauth-models/docs/examples.md)
+- [Changelog](../packages/api-auth-oauth-models/docs/changelog.md)
+
+## api-auth-oauth-connector-google
+
+This package provides authentication provider that signs accounts in with Google.
+
+- [README](../packages/api-auth-oauth-connector-google/README.md)
+- [Examples](../packages/api-auth-oauth-connector-google/docs/examples.md)
+- [Changelog](../packages/api-auth-oauth-connector-google/docs/changelog.md)
+
+## api-auth-oauth-connector-microsoft
+
+This package provides authentication provider that signs accounts in with Microsoft.
+
+- [README](../packages/api-auth-oauth-connector-microsoft/README.md)
+- [Examples](../packages/api-auth-oauth-connector-microsoft/docs/examples.md)
+- [Changelog](../packages/api-auth-oauth-connector-microsoft/docs/changelog.md)
+
+## api-auth-oauth-service
+
+This package provides oAuth sign in flow and REST routes for authentication providers.
+
+- [README](../packages/api-auth-oauth-service/README.md)
+- [Examples](../packages/api-auth-oauth-service/docs/examples.md)
+- [Changelog](../packages/api-auth-oauth-service/docs/changelog.md)
+
+## api-auth-account-service
+
+This package provides account data storage, request processing and REST routes backed by entity storage.
+
+- [README](../packages/api-auth-account-service/README.md)
+- [Examples](../packages/api-auth-account-service/docs/examples.md)
+- [Changelog](../packages/api-auth-account-service/docs/changelog.md)
+
+## api-auth-account-rest-client
+
+This package provides rEST clients for account data and account data administration.
+
+- [README](../packages/api-auth-account-rest-client/README.md)
+- [Examples](../packages/api-auth-account-rest-client/docs/examples.md)
+- [Changelog](../packages/api-auth-account-rest-client/docs/changelog.md)

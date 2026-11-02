@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 
 /**
@@ -22,17 +23,17 @@ export interface IAuthTokenContext {
 	tenantPublicOrigin?: string;
 
 	/**
-	 * The identity of the verified user.
+	 * The account id of the verified user. This is the token subject.
 	 */
-	userIdentity?: string;
-
-	/**
-	 * The organization of the verified user.
-	 */
-	userOrganization?: string;
+	accountId?: string;
 
 	/**
 	 * The expiry of the token in milliseconds since the epoch, if it carried one.
 	 */
 	expires?: number;
+
+	/**
+	 * When the session of the token started in seconds since the epoch, if it carried one.
+	 */
+	sessionStart?: number;
 }

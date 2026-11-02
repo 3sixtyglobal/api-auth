@@ -2,36 +2,62 @@
 	"error": {
 		"entityStorageAuthenticationService": {
 			"loginFailed": "Login failed",
+			"accountNotVerified": "The e-mail address of the account has not been verified, follow the link sent to it to verify it",
+			"refreshFailed": "The token could not be refreshed",
+			"sessionExpired": "The session has reached its maximum length, sign in again",
+			"tokenAccountMismatch": "The token is not for the signed in account",
+			"usePasswordLogin": "Password accounts must sign in through the login endpoint",
+			"selfRegistrationDisabled": "Signing up for an account is not enabled, as the password authentication provider is not registered",
+			"registrationVerificationInvalid": "The verification link is not valid or has expired",
+			"defaultRolesEscalated": "The default roles may not include the escalated privilege role \"{roleName}\"",
+			"userExists": "An account already exists for the e-mail address \"{conflictId}\"",
 			"userNotFound": "The user with the specified e-mail could not be found",
-			"passwordMismatch": "The password does not match the user's password",
-			"nodeIdNotSet": "The node ID has not been set"
+			"nodeIdNotSet": "The node ID has not been set",
+			"accountDisabled": "The account has been disabled",
+			"passwordResetInvalid": "The password reset link is not valid or has expired",
+			"deferredWorkFailed": "Work run after a response failed",
+			"accountRestoreFailed": "The account \"{accountId}\" could not be enabled again after its removal failed"
 		},
 		"entityStorageAuthenticationAdminService": {
-			"userExists": "The user with the specified e-mail already exists",
+			"userExists": "An account already exists for the e-mail address \"{conflictId}\"",
 			"createUserFailed": "Creating the user failed",
 			"getUserFailed": "Getting the user failed",
 			"updateUserFailed": "Updating the user failed",
 			"removeUserFailed": "Removing the user failed",
 			"updatePasswordFailed": "Updating the user's password failed",
-			"userNotFound": "The user with the specified e-mail could not be found \"{notFoundId}\"",
-			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege."
+			"userNotFound": "The user \"{notFoundId}\" could not be found",
+			"multipleAccounts": "More than one account uses the e-mail address \"{conflictId}\", use the account id instead",
+			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege.",
+			"queryUsersFailed": "Querying the users failed",
+			"disableUserFailed": "Disabling the user failed",
+			"enableUserFailed": "Enabling the user failed",
+			"disableSelfNotPermitted": "The caller cannot disable their own account",
+			"removeSelfNotPermitted": "The caller cannot remove their own account here, it is removed as the signed in account",
+			"resetSelfPasswordNotPermitted": "The caller cannot reset their own password, it is changed with the current password"
 		},
 		"authHeaderProcessor": {
 			"nodeIdNotSet": "The node ID has not been set"
 		},
 		"passwordHelper": {
-			"currentPasswordMismatch": "The current password is incorrect"
+			"currentPasswordMismatch": "The current password is incorrect",
+			"passwordNotSet": "The account does not sign in with a password"
 		},
 		"tokenHelper": {
 			"missing": "The JSON Web token could not be found in the authorization header",
 			"headerKeyIdMismatch": "The JSON Web token key identifier does not match the expected signing key",
 			"payloadIssuerMismatch": "The JSON Web token issuer does not match the expected signing key",
 			"payloadMissingSubject": "The JSON Web token payload does not contain a subject",
-			"payloadMissingOrganization": "The JSON Web token payload does not contain an organization",
+			"payloadMissingExpiry": "The JSON Web token payload does not contain an expiry",
 			"expired": "The JSON Web token has expired",
 			"userNotVerified": "The user associated with the JSON Web token could not be verified",
-			"organizationNotVerified": "The organization associated with the JSON Web token could not be verified",
 			"tenantNotVerified": "The tenant associated with the JSON Web token could not be verified"
+		}
+	},
+	"warn": {
+		"entityStorageAuthenticationService": {
+			"passwordResetEmailFailed": "Sending the password reset e-mail for account \"{accountId}\" failed",
+			"registrationEmailFailed": "Sending the sign up e-mail for account \"{accountId}\" failed",
+			"providerAvatarFailed": "The photo the authentication provider holds could not be stored as the avatar of the account \"{accountId}\""
 		}
 	}
 }

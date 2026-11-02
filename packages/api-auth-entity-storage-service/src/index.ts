@@ -1,7 +1,10 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+export * from "./entities/authenticationPasswordReset.js";
 export * from "./entities/authenticationUser.js";
 export * from "./entities/authenticationUserV0.js";
+export * from "./entities/authenticationUserV1.js";
 export * from "./models/IAuthHeaderProcessorConfig.js";
 export * from "./models/IAuthHeaderProcessorConstructorOptions.js";
 export * from "./models/IAuthTokenContext.js";
@@ -16,5 +19,8 @@ export * from "./routes/entityStorageAuthenticationRoutes.js";
 export * from "./schema.js";
 export * from "./services/entityStorageAuthenticationAdminService.js";
 export * from "./services/entityStorageAuthenticationService.js";
+export * from "./utils/accountHelper.js";
+export * from "./utils/authTokenCache.js";
 export * from "./utils/tokenHelper.js";
 export * from "./utils/passwordHelper.js";
+export * from "./utils/passwordResetHelper.js";

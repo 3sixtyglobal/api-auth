@@ -1,19 +1,25 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import type {
 	IAdminUserCreateRequest,
+	IAdminUserDisableRequest,
+	IAdminUserEnableRequest,
 	IAdminUserGetByIdentityRequest,
 	IAdminUserGetRequest,
 	IAdminUserGetResponse,
+	IAdminUserQueryRequest,
+	IAdminUserQueryResponse,
 	IAdminUserRemoveRequest,
 	IAdminUserUpdatePasswordRequest,
 	IAdminUserUpdateRequest,
 	IAuthenticationAdminComponent,
-	IAuthenticationUser
+	IAuthenticationUser,
+	IAuthenticationUserCreate
 } from "@3sixty/api-auth-entity-storage-models";
 import { BaseRestClient } from "@3sixty/api-core";
 import type { IBaseRestClientConfig, INoContentResponse } from "@3sixty/api-models";
-import { Guards } from "@3sixty/core";
+import { Guards, Is } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { HttpMethod } from "@3sixty/web";
 
@@ -50,7 +56,7 @@ export class EntityStorageAuthenticationAdminRestClient
 	 * @param user The user to create.
 	 * @returns Nothing.
 	 */
-	public async create(user: IAuthenticationUser & { password: string }): Promise<void> {
+	public async create(user: IAuthenticationUserCreate): Promise<void> {
 		Guards.object(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(user), user);
 		Guards.stringValue(
 			EntityStorageAuthenticationAdminRestClient.CLASS_NAME,
@@ -59,27 +65,6 @@ export class EntityStorageAuthenticationAdminRestClient
 		);
 
 		await this.fetch<IAdminUserCreateRequest, INoContentResponse>("/users", HttpMethod.POST, {
-			body: user
-		});
-	}
-
-	/**
-	 * Update a login for the user.
-	 * @param user The user to update.
-	 * @returns Nothing.
-	 */
-	public async update(user: Partial<IAuthenticationUser>): Promise<void> {
-		Guards.object(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(user), user);
-		Guards.stringValue(
-			EntityStorageAuthenticationAdminRestClient.CLASS_NAME,
-			nameof(user.email),
-			user.email
-		);
-
-		await this.fetch<IAdminUserUpdateRequest, INoContentResponse>("/users/:email", HttpMethod.PUT, {
-			pathParams: {
-				email: user.email
-			},
 			body: user
 		});
 	}
@@ -106,7 +91,7 @@ export class EntityStorageAuthenticationAdminRestClient
 	}
 
 	/**
-	 * Get a user by identity.
+	 * Get the user whose identity is the DID.
 	 * @param identity The identity of the user to get.
 	 * @returns The user details.
 	 */
@@ -119,7 +104,7 @@ export class EntityStorageAuthenticationAdminRestClient
 
 		const response = await this.fetch<IAdminUserGetByIdentityRequest, IAdminUserGetResponse>(
 			"/users/identity/:identity",
-			"GET",
+			HttpMethod.GET,
 			{
 				pathParams: {
 					identity
@@ -128,6 +113,30 @@ export class EntityStorageAuthenticationAdminRestClient
 		);
 
 		return response.body;
+	}
+
+	/**
+	 * Update the identity or organization of a user.
+	 * @param user The user to update, found by email address or account id.
+	 * @returns Nothing.
+	 */
+	public async update(user: Partial<IAuthenticationUser>): Promise<void> {
+		Guards.object(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(user), user);
+		Guards.stringValue(
+			EntityStorageAuthenticationAdminRestClient.CLASS_NAME,
+			nameof(user.email),
+			user.email
+		);
+
+		await this.fetch<IAdminUserUpdateRequest, INoContentResponse>("/users/:email", HttpMethod.PUT, {
+			pathParams: {
+				email: user.email
+			},
+			body: {
+				userIdentity: user.userIdentity,
+				organizationIdentity: user.organizationIdentity
+			}
+		});
 	}
 
 	/**
@@ -150,17 +159,12 @@ export class EntityStorageAuthenticationAdminRestClient
 	}
 
 	/**
-	 * Update the user's password.
+	 * Set the user's password as an override, without its current password.
 	 * @param email The email address of the user to update.
 	 * @param newPassword The new password for the user.
-	 * @param currentPassword The current password, optional, if supplied will check against existing.
 	 * @returns Nothing.
 	 */
-	public async updatePassword(
-		email: string,
-		newPassword: string,
-		currentPassword?: string
-	): Promise<void> {
+	public async updatePassword(email: string, newPassword: string): Promise<void> {
 		Guards.stringValue(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(email), email);
 		Guards.stringValue(
 			EntityStorageAuthenticationAdminRestClient.CLASS_NAME,
@@ -176,8 +180,81 @@ export class EntityStorageAuthenticationAdminRestClient
 					email
 				},
 				body: {
-					newPassword,
-					currentPassword
+					newPassword
+				}
+			}
+		);
+	}
+
+	/**
+	 * Query the users.
+	 * @param email The start of the e-mail address of the users to return, all when omitted.
+	 * @param exactEmail True to match the e-mail address exactly rather than as a prefix.
+	 * @param authProviderId The authentication provider of the users to return, all when omitted.
+	 * @param cursor The cursor to request the next page.
+	 * @param limit The maximum number of users to return.
+	 * @returns The users and a cursor when there are more.
+	 */
+	public async query(
+		email?: string,
+		exactEmail?: boolean,
+		authProviderId?: string,
+		cursor?: string,
+		limit?: number
+	): Promise<{
+		entities: IAuthenticationUser[];
+		cursor?: string;
+	}> {
+		const response = await this.fetch<IAdminUserQueryRequest, IAdminUserQueryResponse>(
+			"/users",
+			HttpMethod.GET,
+			{
+				query: {
+					email,
+					exactEmail: Is.boolean(exactEmail) ? String(exactEmail) : undefined,
+					authProviderId,
+					cursor,
+					limit: Is.number(limit) ? String(limit) : undefined
+				}
+			}
+		);
+
+		return response.body;
+	}
+
+	/**
+	 * Disable a user so it cannot sign in.
+	 * @param email The email address of the user to disable, or the account id.
+	 * @returns Nothing.
+	 */
+	public async disable(email: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(email), email);
+
+		await this.fetch<IAdminUserDisableRequest, INoContentResponse>(
+			"/users/:email/disable",
+			HttpMethod.POST,
+			{
+				pathParams: {
+					email
+				}
+			}
+		);
+	}
+
+	/**
+	 * Enable a disabled user.
+	 * @param email The email address of the user to enable, or the account id.
+	 * @returns Nothing.
+	 */
+	public async enable(email: string): Promise<void> {
+		Guards.stringValue(EntityStorageAuthenticationAdminRestClient.CLASS_NAME, nameof(email), email);
+
+		await this.fetch<IAdminUserEnableRequest, INoContentResponse>(
+			"/users/:email/enable",
+			HttpMethod.POST,
+			{
+				pathParams: {
+					email
 				}
 			}
 		);

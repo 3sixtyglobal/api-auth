@@ -1,4 +1,5 @@
 // Copyright 2024 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { UnauthorizedError } from "@3sixty/core";
 import type { IVaultConnector } from "@3sixty/vault-models";
@@ -29,13 +30,13 @@ describe("TokenHelper.createToken", () => {
 			nodeId,
 			signingKeyName,
 			"did:user:123",
-			"did:org:456",
 			undefined,
 			60
 		);
 
 		expect(capturedHeader?.kid).toBe(signingKeyName);
 		expect(capturedPayload?.iss).toBe(nodeId);
+		expect(capturedPayload).not.toHaveProperty("org");
 	});
 
 	it("should store the plain tenant ID directly in the jwt tid claim", async () => {
@@ -58,7 +59,6 @@ describe("TokenHelper.createToken", () => {
 			nodeId,
 			signingKeyName,
 			"did:user:123",
-			"did:org:456",
 			tenantId,
 			60
 		);
@@ -84,12 +84,85 @@ describe("TokenHelper.createToken", () => {
 			nodeId,
 			signingKeyName,
 			"did:user:123",
-			"did:org:456",
 			undefined,
 			60
 		);
 
 		expect(capturedPayload?.tid).toBeUndefined();
+	});
+});
+
+describe("TokenHelper.createToken session", () => {
+	it("should carry the session start and not expire beyond the maximum session length", async () => {
+		let capturedPayload: { [key: string]: unknown } | undefined;
+		vi.spyOn(Jwt, "encodeWithSigner").mockImplementation(async (header, payload) => {
+			capturedPayload = payload as { [key: string]: unknown };
+			return "mock.jwt.token";
+		});
+		const nowSeconds = Math.trunc(Date.now() / 1000);
+		const fiftyMinutes = 3000;
+		const oneHour = 3600;
+		const sessionStart = nowSeconds - fiftyMinutes;
+		const sessionEnd = sessionStart + oneHour;
+
+		const result = await TokenHelper.createToken(
+			{} as unknown as IVaultConnector,
+			"test-node",
+			"signing-key",
+			"account-1",
+			undefined,
+			60,
+			0,
+			sessionStart,
+			60
+		);
+
+		expect(capturedPayload?.sst).toBe(sessionStart);
+		expect(Math.abs(Number(capturedPayload?.exp) - sessionEnd)).toBeLessThanOrEqual(1);
+		const sessionEndMs = sessionEnd * 1000;
+		expect(Math.abs(result.expiry - sessionEndMs)).toBeLessThanOrEqual(1000);
+	});
+
+	it("should start the session now when no start is given", async () => {
+		let capturedPayload: { [key: string]: unknown } | undefined;
+		vi.spyOn(Jwt, "encodeWithSigner").mockImplementation(async (header, payload) => {
+			capturedPayload = payload as { [key: string]: unknown };
+			return "mock.jwt.token";
+		});
+
+		await TokenHelper.createToken(
+			{} as unknown as IVaultConnector,
+			"test-node",
+			"signing-key",
+			"account-1",
+			undefined,
+			60
+		);
+
+		const nowSeconds = Date.now() / 1000;
+		expect(Math.abs(Number(capturedPayload?.sst) - nowSeconds)).toBeLessThanOrEqual(2);
+	});
+
+	it("should leave the session start out when it is not known", async () => {
+		let capturedPayload: { [key: string]: unknown } | undefined;
+		vi.spyOn(Jwt, "encodeWithSigner").mockImplementation(async (header, payload) => {
+			capturedPayload = payload as { [key: string]: unknown };
+			return "mock.jwt.token";
+		});
+
+		const result = await TokenHelper.createToken(
+			{} as unknown as IVaultConnector,
+			"test-node",
+			"signing-key",
+			"account-1",
+			undefined,
+			60,
+			0,
+			null
+		);
+
+		expect(capturedPayload?.sst).toBeUndefined();
+		expect(Math.abs(result.expiry - (Date.now() + 3600000))).toBeLessThanOrEqual(2000);
 	});
 });
 
@@ -197,7 +270,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
@@ -217,7 +289,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
@@ -236,7 +307,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: "different-node",
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
@@ -251,11 +321,30 @@ describe("TokenHelper", () => {
 			).rejects.toThrow(UnauthorizedError);
 		});
 
+		it("should throw UnauthorizedError when the token has no expiry", async () => {
+			const payload = {
+				iss: nodeId,
+				sub: "user123"
+			};
+
+			const token = "no-exp.jwt.token";
+			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
+				header: { alg: "EdDSA", kid: signingKeyName },
+				payload
+			});
+
+			await expect(
+				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token)
+			).rejects.toMatchObject({
+				name: "UnauthorizedError",
+				message: "tokenHelper.payloadMissingExpiry"
+			});
+		});
+
 		it("should throw UnauthorizedError when token is expired", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) - 3600 // Expired 1 hour ago
 			};
 
@@ -273,7 +362,6 @@ describe("TokenHelper", () => {
 		it("should throw UnauthorizedError when subject is missing", async () => {
 			const payload = {
 				iss: nodeId,
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
@@ -292,7 +380,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
@@ -307,7 +394,7 @@ describe("TokenHelper", () => {
 			).rejects.toThrow(UnauthorizedError);
 		});
 
-		it("should throw UnauthorizedError when organization is missing", async () => {
+		it("should verify a token without an organization claim", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
@@ -322,51 +409,13 @@ describe("TokenHelper", () => {
 
 			await expect(
 				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token)
-			).rejects.toThrow(UnauthorizedError);
-		});
-
-		it("should throw UnauthorizedError when organization is empty string", async () => {
-			const payload = {
-				iss: nodeId,
-				sub: "user123",
-				org: "",
-				exp: Math.trunc(Date.now() / 1000) + 3600
-			};
-
-			const token = "empty-org.jwt.token";
-			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
-				header: { alg: "EdDSA", kid: signingKeyName },
-				payload
-			});
-
-			await expect(
-				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token)
-			).rejects.toThrow(UnauthorizedError);
-		});
-
-		it("should verify token without expiry field", async () => {
-			const payload = {
-				iss: nodeId,
-				sub: "user123",
-				org: "org456"
-			};
-
-			const token = "no-expiry.jwt.token";
-			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
-				header: { alg: "EdDSA", kid: signingKeyName },
-				payload
-			});
-
-			const result = await TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token);
-
-			expect(result.payload).toEqual(payload);
+			).resolves.toEqual({ header: { alg: "EdDSA", kid: signingKeyName }, payload });
 		});
 
 		it("should verify token with tenant ID", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				tid: "tenant789",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
@@ -386,7 +435,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600,
 				customClaim: "customValue"
 			};
@@ -407,7 +455,6 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: now - 1 // Expired just now
 			};
 
@@ -433,16 +480,15 @@ describe("TokenHelper", () => {
 		const nodeId = "test-node";
 		const signingKeyName = "test-key";
 
-		it("should verify token when verifyUser confirms user, organization and tenant", async () => {
+		it("should verify token when verifyUser confirms user and tenant", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "verified-user.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization", "tenant"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user", "tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -457,20 +503,19 @@ describe("TokenHelper", () => {
 			);
 
 			expect(result.payload).toEqual(payload);
-			expect(verifyUser).toHaveBeenCalledWith("user123", "org456", undefined, undefined);
+			expect(verifyUser).toHaveBeenCalledWith("user123", undefined, undefined);
 		});
 
 		it("should pass pver as a number to verifyUser when present in token payload", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				pver: 3,
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "token-with-pver.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization", "tenant"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user", "tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -485,19 +530,18 @@ describe("TokenHelper", () => {
 			);
 
 			expect(result.payload).toEqual(payload);
-			expect(verifyUser).toHaveBeenCalledWith("user123", "org456", undefined, 3);
+			expect(verifyUser).toHaveBeenCalledWith("user123", undefined, 3);
 		});
 
 		it("should pass undefined to verifyUser when pver is absent from token payload", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "token-without-pver.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization", "tenant"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user", "tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -505,39 +549,18 @@ describe("TokenHelper", () => {
 
 			await TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token, verifyUser);
 
-			expect(verifyUser).toHaveBeenCalledWith("user123", "org456", undefined, undefined);
+			expect(verifyUser).toHaveBeenCalledWith("user123", undefined, undefined);
 		});
 
 		it("should throw UnauthorizedError when verifyUser does not confirm the user", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "missing-user-verification.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["organization"]);
-			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
-				header: { alg: "EdDSA", kid: signingKeyName },
-				payload
-			});
-
-			await expect(
-				TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token, verifyUser)
-			).rejects.toThrow(UnauthorizedError);
-		});
-
-		it("should throw UnauthorizedError when verifyUser does not confirm the organization", async () => {
-			const payload = {
-				iss: nodeId,
-				sub: "user123",
-				org: "org456",
-				exp: Math.trunc(Date.now() / 1000) + 3600
-			};
-
-			const token = "missing-organization-verification.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user"]);
+			const verifyUser = vi.fn().mockResolvedValue(["tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -552,13 +575,12 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				tid: "tenant-xyz",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "missing-tenant-verification.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -574,13 +596,12 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				tid: tenantId,
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "with-tenant.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization", "tenant"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user", "tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -588,19 +609,18 @@ describe("TokenHelper", () => {
 
 			await TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token, verifyUser);
 
-			expect(verifyUser).toHaveBeenCalledWith("user123", "org456", tenantId, undefined);
+			expect(verifyUser).toHaveBeenCalledWith("user123", tenantId, undefined);
 		});
 
 		it("should pass undefined tid to verifyUser when tid is absent from token payload", async () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				org: "org456",
 				exp: Math.trunc(Date.now() / 1000) + 3600
 			};
 
 			const token = "without-tenant.jwt.token";
-			const verifyUser = vi.fn().mockResolvedValue(["user", "organization", "tenant"]);
+			const verifyUser = vi.fn().mockResolvedValue(["user", "tenant"]);
 			vi.spyOn(Jwt, "verifyWithVerifier").mockResolvedValue({
 				header: { alg: "EdDSA", kid: signingKeyName },
 				payload
@@ -608,7 +628,7 @@ describe("TokenHelper", () => {
 
 			await TokenHelper.verify(mockVaultConnector, nodeId, signingKeyName, token, verifyUser);
 
-			expect(verifyUser).toHaveBeenCalledWith("user123", "org456", undefined, undefined);
+			expect(verifyUser).toHaveBeenCalledWith("user123", undefined, undefined);
 		});
 	});
 });

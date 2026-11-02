@@ -31,6 +31,7 @@
 	},
 	"dependencies": {
 		"@3sixty/api-auth-entity-storage-models": "0.20.0-next.2",
+		"@3sixty/api-auth-models": "0.20.0-next.2",
 		"@3sixty/api-core": "next",
 		"@3sixty/api-models": "next",
 		"@3sixty/core": "next",

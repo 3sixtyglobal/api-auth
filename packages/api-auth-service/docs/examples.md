@@ -24,6 +24,7 @@ await rateService.registerAction('login', {
 
 await rateService.start('default');
 
+// Checks of the same entry are serialised in the process, so concurrent checks cannot exceed the limit.
 await rateService.check('login', 'alice@example.org');
 await rateService.check('login', 'alice@example.org');
 await rateService.check('login', 'alice@example.org');

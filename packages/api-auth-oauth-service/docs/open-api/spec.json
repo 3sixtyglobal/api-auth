@@ -1,0 +1,275 @@
+{
+	"openapi": "3.1.1",
+	"info": {
+		"title": "3Sixty - Test Endpoints",
+		"description": "REST API for 3Sixty - Test Endpoints.",
+		"version": "1.0.0",
+		"license": {
+			"name": "Apache 2.0 License",
+			"url": "https://opensource.org/licenses/Apache-2.0"
+		}
+	},
+	"servers": [
+		{
+			"url": "https://localhost"
+		}
+	],
+	"tags": [
+		{
+			"name": "OAuth",
+			"description": "Endpoints to sign in through an OAuth authentication provider."
+		}
+	],
+	"paths": {
+		"/authentication/oauth/{authProviderId}/start": {
+			"get": {
+				"operationId": "oauthStart",
+				"summary": "Start a sign in with an authentication provider",
+				"tags": ["OAuth"],
+				"parameters": [
+					{
+						"name": "authProviderId",
+						"description": "The authentication provider id.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "google"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Send the browser to another address.",
+						"content": {
+							"text/plain": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthRedirectResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "The resource you tried to access does not exist, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotFoundResponse"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "NotFoundError",
+											"message": "errorMessage",
+											"properties": {
+												"notFoundId": "1"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/authentication/oauth/{authProviderId}/callback": {
+			"get": {
+				"operationId": "oauthCallback",
+				"summary": "Complete a sign in when the authentication provider sends the browser back",
+				"tags": ["OAuth"],
+				"parameters": [
+					{
+						"name": "authProviderId",
+						"description": "The authentication provider id.",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						},
+						"style": "simple",
+						"example": "google"
+					},
+					{
+						"name": "code",
+						"description": "The authorization code, when the sign in succeeded.",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"example": "4/0AbCdEf"
+					},
+					{
+						"name": "state",
+						"description": "The state sent with the authorization request.",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"example": "3c9e1b7a5d2f"
+					},
+					{
+						"name": "error",
+						"description": "The error code, when the sign in did not succeed.",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Send the browser to another address.",
+						"content": {
+							"text/plain": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthRedirectResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "The server cannot process the request, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "GeneralError",
+											"message": "errorMessage",
+											"properties": {
+												"foo": "bar"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "The server has encountered a situation it does not know how to handle, see the content for more details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								},
+								"examples": {
+									"exampleResponse": {
+										"value": {
+											"name": "InternalServerError",
+											"message": "errorMessage"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"schemas": {
+			"Error": {
+				"description": "Model to describe serialized error.",
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name for the error."
+					},
+					"message": {
+						"type": "string",
+						"description": "The message for the error as an i18n key."
+					},
+					"source": {
+						"type": "string",
+						"description": "The source of the error."
+					},
+					"properties": {
+						"type": "object",
+						"additionalProperties": {},
+						"description": "Any additional information for the error."
+					},
+					"stack": {
+						"type": "string",
+						"description": "The stack trace for the error."
+					},
+					"cause": {
+						"$ref": "#/components/schemas/Error"
+					}
+				},
+				"required": ["name", "message"]
+			},
+			"NotFoundResponse": {
+				"type": "object",
+				"properties": {
+					"notFoundId": {
+						"type": "string",
+						"description": "The id if the item that was not found."
+					}
+				},
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/Error"
+					}
+				],
+				"description": "The body which contains the error."
+			},
+			"OAuthRedirectResponse": {}
+		},
+		"securitySchemes": {
+			"jwtBearerAuthScheme": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT"
+			}
+		}
+	}
+}

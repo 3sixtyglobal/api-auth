@@ -1,1 +1,11 @@
-{}
+{
+	"error": {
+		"exportFileHelper": {
+			"fileTypeMismatch": "The file is not an export of the right kind, an {expected} file is needed",
+			"fileVersionUnsupported": "The export file version \"{version}\" is not supported, the version must be {supported}"
+		},
+		"recentSignInHelper": {
+			"recentSignInRequired": "Sign in again to continue, this needs a sign in within the last {maxAgeSeconds} seconds"
+		}
+	}
+}

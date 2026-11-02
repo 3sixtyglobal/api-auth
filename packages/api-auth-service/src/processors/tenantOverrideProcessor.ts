@@ -1,4 +1,5 @@
 // Copyright 2026 IOTA Stiftung.
+// Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import {
 	ForbiddenError,
@@ -133,8 +134,9 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 		}
 
 		try {
-			const userId = contextIds[ContextIdKeys.User];
-			if (!Is.stringValue(userId)) {
+			// Roles are held by the signed in account.
+			const accountId = contextIds[ContextIdKeys.Account];
+			if (!Is.stringValue(accountId)) {
 				throw new ForbiddenError(
 					TenantOverrideProcessor.CLASS_NAME,
 					"missingUserIdForTenantOverride"
@@ -144,7 +146,7 @@ export class TenantOverrideProcessor implements IBaseRouteProcessor {
 			// Role must be directly assigned to the user, not inherited through a group or other means.
 			const hasRole = await this._authorizationComponent.hasRoleForSubject(
 				this._authorizationModelId,
-				userId,
+				accountId,
 				this._escalatedPrivilegeRole
 			);
 

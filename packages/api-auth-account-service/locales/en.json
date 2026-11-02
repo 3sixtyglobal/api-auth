@@ -1,0 +1,123 @@
+{
+	"error": {
+		"accountDataHelper": {
+			"accountDataNotFound": "The account data \"{notFoundId}\" could not be found",
+			"identityAlreadyAssigned": "The account already has an identity",
+			"identityInUse": "An account already holds that identity",
+			"identityHeldByNode": "The identity \"{conflictId}\" is held by the node or an organization and cannot be bound to an account",
+			"avatarInvalid": "The avatar must be a schema.org ImageObject with the encodingFormat image/jpeg, a contentUrl that is a base64 data URL of that type, and a width and height, when given, from 1 to 1024",
+			"avatarTooLarge": "The avatar must be at most {maxBytes} bytes",
+			"identityDataInvalid": "The identity must be a JSON-LD object with the @context https://www.w3.org/ns/did/v1 and a DID as its id",
+			"organizationDataInvalid": "The organization must be a schema.org Organization with a DID as its identifier",
+			"credentialDataInvalid": "The verifiable credential must be a JSON credential object with a @context, the type VerifiableCredential, an issuer, a credentialSubject and a proof",
+			"accountDataNotObject": "The account data of type \"{type}\" must be a JSON object",
+			"logoInvalid": "The logo must be a schema.org ImageObject with the encodingFormat image/png, image/jpeg or image/svg+xml, a contentUrl that is a base64 data URL of that type, and a width and height, when given, from 1 to 1024",
+			"logoTooLarge": "The logo must be at most {maxBytes} bytes"
+		},
+		"entityStorageAuthenticationAccountService": {
+			"reservedType": "The account data type \"{type}\" can only be set by an administrator",
+			"identityCreateFailed": "Creating the identity failed",
+			"readOnly": "The account data of type \"{type}\" is owned by the authentication provider and cannot be changed",
+			"identityRequired": "The account needs an identity before it can join an organization",
+			"organizationAlreadyJoined": "The account has already joined the organization \"{conflictId}\"",
+			"organizationRequestPending": "The account already has a request pending to join the organization",
+			"organizationRequestRejected": "The request to join the organization \"{organization}\" was rejected with the reason \"{reason}\"",
+			"identityKeysNotHeld": "The node does not hold the keys of the identity \"{identity}\", so it cannot be exported",
+			"identityNotFound": "The account \"{notFoundId}\" has no identity",
+			"identityExportInvalid": "The identity export is not valid",
+			"identityNotSelfControlled": "The identity \"{identity}\" is not self-controlled, so it cannot be imported into an account",
+			"identityImportTooManyCredentials": "An identity import may hold at most {maxCredentials} credentials",
+			"identityRemoveFailed": "Removing the identity \"{identity}\" from the node failed",
+			"organizationNotJoined": "The account is not in the organization \"{notFoundId}\"",
+			"organizationLastAdmin": "The account is the last admin of the organization \"{conflictId}\", so it cannot leave it",
+			"identityImportConflict": "The node already holds the identity \"{conflictId}\", so it cannot be imported",
+			"organizationExists": "The organization \"{conflictId}\" is already registered",
+			"organizationIdentityInUse": "The identity \"{conflictId}\" is held by an account and cannot be registered as an organization",
+			"nextRevocationIndexInvalid": "The next revocation index of an organization identity export must be a whole number of zero or more",
+			"accountDataLimitReached": "The account holds the most items it may store, {maxItems}",
+			"accountDataTypeLimitReached": "The account holds the most items of type \"{type}\" it may store, {maxItems}",
+			"accountDataAdminOnly": "The account data of type \"{conflictId}\" can only be changed by an administrator",
+			"organizationCreateFailed": "Creating the organization failed",
+			"publicDataNotFound": "Nothing is stored for \"{notFoundId}\""
+		},
+		"identityProofHelper": {
+			"identityProofInvalid": "The proof does not show the identity is owned by the caller",
+			"identityProofExpired": "The proof must have been created within the last {maxAgeSeconds} seconds"
+		},
+		"identityProfileDeprecatedRoutes": {
+			"identityProfileDeprecated": "The identity profile endpoints are no longer supported, manage the profiles of the account with the /authentication/account endpoints instead"
+		},
+		"organizationMembershipHelper": {
+			"identityRequired": "The account \"{accountId}\" has no identity to issue the membership credential to"
+		},
+		"entityStorageOrganizationRequestAdminService": {
+			"organizationRequestClosed": "The request to join an organization \"{conflictId}\" is no longer pending",
+			"reasonNotI18nKey": "The rejection reason \"{reason}\" must be an i18n key such as organizationRequest.reason.notAMember",
+			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege.",
+			"ownAccountNotPermitted": "A request of the caller's own account can only be accepted by a caller holding the role \"{roleName}\""
+		},
+		"organizationRequestHelper": {
+			"organizationRequestNotFound": "The request to join an organization \"{notFoundId}\" could not be found"
+		},
+		"entityStorageOrganizationService": {
+			"organizationExists": "The organization \"{conflictId}\" is already registered",
+			"organizationNotFound": "The organization \"{notFoundId}\" could not be found",
+			"organizationHasMembers": "The organization \"{conflictId}\" still has members, remove them first",
+			"organizationAdminRequired": "The caller must be an org admin of the organization, or hold the role \"{escalatedRole}\", and for some actions also \"{adminRole}\", to manage it",
+			"organizationHasOtherMembers": "The organization \"{conflictId}\" has other members, they must be removed before it can be removed",
+			"organizationMemberNotFound": "The account \"{notFoundId}\" is not a member of the organization",
+			"organizationLastAdmin": "The account \"{conflictId}\" is the last org admin of the organization and can only be removed by a global admin",
+			"organizationIdentityInUse": "The identity \"{conflictId}\" is held by an account and cannot be registered as an organization",
+			"identityImportExclusive": "An organization identity export cannot be given with an identity or proof",
+			"nextRevocationIndexInvalid": "The next revocation index of an organization identity export must be a whole number of zero or more",
+			"identityKeysNotHeld": "The node does not hold the keys of the organization \"{identity}\", so it cannot be exported",
+			"identityExportInvalid": "The organization identity export is not valid",
+			"nodeIdentityExportNotPermitted": "The identity \"{identity}\" is the node or the organization of the tenant and cannot be exported",
+			"identityImportConflict": "The node already holds the identity \"{conflictId}\", so it cannot be imported",
+			"organizationIdentityRemoveFailed": "Removing the keys of the organization \"{identity}\" from the node failed, the organization was kept"
+		},
+		"organizationHelper": {
+			"organizationNotRegistered": "The organization \"{notFoundId}\" is not registered on the node",
+			"identityCreateFailed": "Creating the identity of the organization failed"
+		},
+		"publicDataHelper": {
+			"publicDataInvalid": "The public data must be a list of at most 100 paths, each an account data type in kebab case followed by property names, separated by dots, such as profile.address.addressLocality"
+		},
+		"entityStorageAuthenticationAccountAdminService": {
+			"identityImmutable": "The identity of an account cannot be changed, remove it and store a new one",
+			"organizationImmutable": "The organization of an account cannot be changed, remove it and store a new one",
+			"organizationProfileManaged": "The profiles of an organization are changed through the organization endpoints",
+			"ownAccountNotPermitted": "The identity and organization of the caller's own account can only be changed by a caller holding the role \"{roleName}\"",
+			"migrationTypeNotPermitted": "The node migration records can only be changed by a caller holding the role \"{roleName}\"",
+			"insufficientRoleForEscalatedTarget": "Caller does not hold the required role \"{roleName}\" to modify an account with escalated privilege.",
+			"identityRemoveFailed": "Removing the identity \"{identity}\" from the node failed",
+			"userNotFound": "The user \"{notFoundId}\" could not be found",
+			"readOnly": "The account data of type \"{type}\" is owned by the authentication provider and cannot be changed by an admin",
+			"organizationAdminRoleManaged": "The role \"{role}\" is an org admin role, which is managed through the organization",
+			"ownRolesNotPermitted": "The roles of the caller's own account can only be changed by a caller holding the role \"{roleName}\"",
+			"roleNotAssignable": "The caller may not grant or revoke the role \"{role}\"",
+			"lastEscalatedRoleHolder": "The account \"{conflictId}\" is the last holder of the escalated privilege role, which cannot be revoked",
+			"accountDataTypeLimitReached": "The account holds the most items of type \"{type}\" it may store, {maxItems}"
+		},
+		"accountProfileHelper": {
+			"profileImportFailed": "Importing the account data failed, the existing account data was kept",
+			"profileInvalid": "The account data export is not valid",
+			"profileTooManyItems": "An account data import may hold at most {maxItems} items",
+			"profileTooLarge": "An account data import may be at most {maxBytes} bytes",
+			"profileItemInvalid": "The account data item at index {index} is not valid",
+			"profileTypeNotAllowed": "The account data type \"{type}\" moves with the identity export and cannot be imported"
+		}
+	},
+	"warn": {
+		"pendingMembershipHelper": {
+			"membershipCredentialFailed": "Issuing the membership credential of the organization \"{organization}\" for account \"{accountId}\" failed, the membership was kept without one"
+		},
+		"entityStorageAuthenticationAccountService": {
+			"identityImportRollbackFailed": "Undoing a step of a failed identity import for account \"{accountId}\" failed",
+			"organizationCreateRollbackFailed": "Undoing a step of creating the organization \"{organization}\" for account \"{accountId}\" failed"
+		},
+		"entityStorageOrganizationService": {
+			"organizationCreateRollbackFailed": "Undoing a step of creating the organization \"{identity}\" failed"
+		}
+	}
+}

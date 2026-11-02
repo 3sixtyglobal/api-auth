@@ -1,0 +1,7 @@
+{
+	"error": {
+		"entityStorageAuthenticationProviderConnector": {
+			"loginFailed": "The e-mail address or password is not valid"
+		}
+	}
+}
