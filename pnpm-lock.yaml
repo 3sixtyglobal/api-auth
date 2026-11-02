@@ -242,7 +242,7 @@ importers:
   packages/api-auth-account-rest-client:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-core':
         specifier: next
@@ -306,7 +306,7 @@ importers:
   packages/api-auth-account-service:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-models':
         specifier: next
@@ -394,13 +394,13 @@ importers:
   packages/api-auth-connector-entity-storage:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-entity-storage-service':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-service
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/core':
         specifier: next
@@ -458,7 +458,7 @@ importers:
   packages/api-auth-entity-storage-models:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/core':
         specifier: next
@@ -510,10 +510,10 @@ importers:
   packages/api-auth-entity-storage-rest-client:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-core':
         specifier: next
@@ -571,10 +571,10 @@ importers:
   packages/api-auth-entity-storage-service:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-models':
         specifier: next
@@ -729,10 +729,10 @@ importers:
   packages/api-auth-oauth-connector-google:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-auth-oauth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-oauth-models
       '@3sixty/core':
         specifier: next
@@ -787,10 +787,10 @@ importers:
   packages/api-auth-oauth-connector-microsoft:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-auth-oauth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-oauth-models
       '@3sixty/core':
         specifier: next
@@ -845,10 +845,10 @@ importers:
   packages/api-auth-oauth-models:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/core':
         specifier: next
@@ -912,13 +912,13 @@ importers:
   packages/api-auth-oauth-service:
     dependencies:
       '@3sixty/api-auth-entity-storage-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-entity-storage-models
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-auth-oauth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-oauth-models
       '@3sixty/api-models':
         specifier: next
@@ -988,7 +988,7 @@ importers:
   packages/api-auth-rest-client:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-core':
         specifier: next
@@ -1046,7 +1046,7 @@ importers:
   packages/api-auth-service:
     dependencies:
       '@3sixty/api-auth-models':
-        specifier: 0.20.0-next.2
+        specifier: 0.20.0-next.3
         version: link:../api-auth-models
       '@3sixty/api-models':
         specifier: next
