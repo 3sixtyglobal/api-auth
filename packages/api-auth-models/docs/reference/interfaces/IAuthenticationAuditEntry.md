@@ -60,11 +60,11 @@ The tenant identifier associated with the audit entry, if applicable.
 
 ***
 
-### ipAddressHashes? {#ipaddresshashes}
+### ipAddressHash? {#ipaddresshash}
 
-> `optional` **ipAddressHashes?**: `string`[]
+> `optional` **ipAddressHash?**: `string`
 
-The hashed IP addresses of the client.
+The hashed IP address of the client.
 
 ***
 

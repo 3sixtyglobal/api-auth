@@ -65,7 +65,10 @@
 										"summary": "The response for the login request.",
 										"value": {
 											"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-											"expiry": 1722514341067
+											"expiry": 1722514341067,
+											"roles": [
+												"user"
+											]
 										}
 									}
 								}
@@ -248,7 +251,7 @@
 		"/authentication/register": {
 			"post": {
 				"operationId": "authenticationRegister",
-				"summary": "Sign up for a password account when self sign up is enabled, accepted whether or not the address is taken when the e-mail address must be verified, otherwise signed in",
+				"summary": "Sign up for a password account, accepted whether or not the address is taken, with a verification link sent by e-mail",
 				"tags": [
 					"Authentication"
 				],
@@ -275,26 +278,6 @@
 					}
 				},
 				"responses": {
-					"200": {
-						"description": "Response from a login on the server.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/LoginResponse"
-								},
-								"examples": {
-									"registerResponseExample": {
-										"summary": "The response for the sign up request.",
-										"value": {
-											"accountId": "01a17afb-e05f-7939-83f2-d4f04c4bdf2e",
-											"expiry": 1722514341067,
-											"profileReadOnly": false
-										}
-									}
-								}
-							}
-						}
-					},
 					"202": {
 						"description": "The rest request ended in accepted response.",
 						"content": {
@@ -326,8 +309,8 @@
 							}
 						}
 					},
-					"409": {
-						"description": "The request resulted in a conflicting operation, see the content for more details.",
+					"403": {
+						"description": "The operation that you tried to perform is not possible, see the content for more details.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -336,12 +319,10 @@
 								"examples": {
 									"exampleResponse": {
 										"value": {
-											"name": "ConflictError",
+											"name": "ForbiddenError",
 											"message": "errorMessage",
 											"properties": {
-												"conflicts": [
-													"1"
-												]
+												"foo": "bar"
 											}
 										}
 									}
@@ -546,7 +527,10 @@
 											"profileEditUrl": "https://myaccount.google.com/personal-info",
 											"passwordChangeUrl": "https://myaccount.google.com/signinoptions/password",
 											"identity": "did:example:123456789abcdefghi",
-											"organization": "did:example:organization"
+											"organization": "did:example:organization",
+											"roles": [
+												"user"
+											]
 										}
 									}
 								}
@@ -2544,13 +2528,21 @@
 					"organization": {
 						"type": "string",
 						"description": "The organization DID of the account, when it has one."
+					},
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The roles the account holds."
 					}
 				},
 				"required": [
 					"accountId",
 					"email",
 					"authProviderId",
-					"profileReadOnly"
+					"profileReadOnly",
+					"roles"
 				]
 			},
 			"AuthenticationProviderCapabilities": {
@@ -3802,11 +3794,19 @@
 					"passwordChangeUrl": {
 						"type": "string",
 						"description": "The address where the password is changed, when the authentication provider manages it."
+					},
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The roles the account holds."
 					}
 				},
 				"required": [
 					"accountId",
-					"expiry"
+					"expiry",
+					"roles"
 				],
 				"description": "The login response details."
 			},

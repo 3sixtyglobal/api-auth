@@ -64,7 +64,7 @@ The class name of the component.
 
 ### login() {#login}
 
-> **login**(`email`, `password`): `Promise`\<\{ `token?`: `string`; `expiry`: `number`; \}\>
+> **login**(`email`, `password`): `Promise`\<`ILoginResult`\>
 
 Perform a login for the user.
 
@@ -84,13 +84,45 @@ The password for the user.
 
 #### Returns
 
-`Promise`\<\{ `token?`: `string`; `expiry`: `number`; \}\>
+`Promise`\<`ILoginResult`\>
 
-The authentication token for the user, if it uses a mechanism with public access.
+The token, and the profile when the provider holds one.
 
 #### Implementation of
 
 `IAuthenticationComponent.login`
+
+***
+
+### loginWithProvider() {#loginwithprovider}
+
+> **loginWithProvider**(`authProviderId`, `credentials`): `Promise`\<`ILoginResult`\>
+
+Perform a login through an authentication provider, creating the account on the first login.
+
+#### Parameters
+
+##### authProviderId
+
+`string`
+
+The authentication provider id.
+
+##### credentials
+
+`unknown`
+
+The provider specific credentials.
+
+#### Returns
+
+`Promise`\<`ILoginResult`\>
+
+The token, and the profile when the provider holds one.
+
+#### Implementation of
+
+`IAuthenticationComponent.loginWithProvider`
 
 ***
 
@@ -148,9 +180,9 @@ The refreshed token, if it uses a mechanism with public access.
 
 ### updatePassword() {#updatepassword}
 
-> **updatePassword**(`currentPassword`, `newPassword`): `Promise`\<`void`\>
+> **updatePassword**(`currentPassword`, `newPassword`): `Promise`\<\{ `token?`: `string`; `expiry`: `number`; \}\>
 
-Update the user's password.
+Update the user's password, ending the other sessions of the account.
 
 #### Parameters
 
@@ -168,13 +200,89 @@ The new password for the user.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`\<\{ `token?`: `string`; `expiry`: `number`; \}\>
 
-A promise that resolves when the password has been updated on the server.
+The new token for the current session.
 
 #### Implementation of
 
 `IAuthenticationComponent.updatePassword`
+
+***
+
+### forgotPassword() {#forgotpassword}
+
+> **forgotPassword**(`email`): `Promise`\<`void`\>
+
+Send a link to reset a forgotten password to the e-mail address, when a password account uses it.
+
+#### Parameters
+
+##### email
+
+`string`
+
+The e-mail address of the account.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the request has been handled.
+
+#### Implementation of
+
+`IAuthenticationComponent.forgotPassword`
+
+***
+
+### resetPassword() {#resetpassword}
+
+> **resetPassword**(`token`, `newPassword`): `Promise`\<`void`\>
+
+Reset a forgotten password with the token from the reset link.
+
+#### Parameters
+
+##### token
+
+`string`
+
+The token from the reset link.
+
+##### newPassword
+
+`string`
+
+The new password for the account.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the password has been reset.
+
+#### Implementation of
+
+`IAuthenticationComponent.resetPassword`
+
+***
+
+### removeAccount() {#removeaccount}
+
+> **removeAccount**(): `Promise`\<`void`\>
+
+Remove the signed in account and the data stored for it.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the account has been removed.
+
+#### Implementation of
+
+`IAuthenticationComponent.removeAccount`
 
 ***
 
@@ -193,3 +301,92 @@ The password policy options.
 #### Implementation of
 
 `IAuthenticationComponent.passwordPolicy`
+
+***
+
+### providers() {#providers}
+
+> **providers**(): `Promise`\<`IAuthenticationProviderDetails`[]\>
+
+Get the authentication providers enabled on the server.
+
+#### Returns
+
+`Promise`\<`IAuthenticationProviderDetails`[]\>
+
+The providers and what each supports, in the order they were registered.
+
+#### Implementation of
+
+`IAuthenticationComponent.providers`
+
+***
+
+### register() {#register}
+
+> **register**(`registration`): `Promise`\<`void`\>
+
+Sign up for a password account. A verification link is sent by e-mail, and the account can
+sign in once it has been verified.
+
+#### Parameters
+
+##### registration
+
+`IAuthenticationRegistration`
+
+The details of the account.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the sign up has been accepted.
+
+#### Implementation of
+
+`IAuthenticationComponent.register`
+
+***
+
+### verifyRegistration() {#verifyregistration}
+
+> **verifyRegistration**(`token`): `Promise`\<`void`\>
+
+Verify the e-mail address of a sign up with the token from the verification link.
+
+#### Parameters
+
+##### token
+
+`string`
+
+The token from the verification link.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the account has been verified.
+
+#### Implementation of
+
+`IAuthenticationComponent.verifyRegistration`
+
+***
+
+### me() {#me}
+
+> **me**(): `Promise`\<`IAuthenticationAccountSummary`\>
+
+Get the signed in account.
+
+#### Returns
+
+`Promise`\<`IAuthenticationAccountSummary`\>
+
+The account details.
+
+#### Implementation of
+
+`IAuthenticationComponent.me`

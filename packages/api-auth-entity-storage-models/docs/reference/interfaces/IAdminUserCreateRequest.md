@@ -6,12 +6,6 @@ Create a new user as an admin.
 
 ### body {#body}
 
-> **body**: [`IAuthenticationUser`](IAuthenticationUser.md) & `object`
+> **body**: [`IAuthenticationUserCreate`](IAuthenticationUserCreate.md)
 
 The body of the request.
-
-#### Type Declaration
-
-##### password
-
-> **password**: `string`

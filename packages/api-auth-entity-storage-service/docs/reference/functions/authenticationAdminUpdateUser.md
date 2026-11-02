@@ -2,7 +2,7 @@
 
 > **authenticationAdminUpdateUser**(`httpRequestContext`, `componentName`, `request`): `Promise`\<`INoContentResponse`\>
 
-Update an existing user.
+Update the identity or organization of an existing user.
 
 ## Parameters
 

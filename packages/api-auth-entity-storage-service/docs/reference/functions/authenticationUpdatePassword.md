@@ -1,6 +1,6 @@
 # Function: authenticationUpdatePassword()
 
-> **authenticationUpdatePassword**(`httpRequestContext`, `componentName`, `request`): `Promise`\<`INoContentResponse`\>
+> **authenticationUpdatePassword**(`httpRequestContext`, `componentName`, `request`): `Promise`\<`IUpdatePasswordResponse` & `IRestRouteResponseOptions`\>
 
 Update the user's password.
 
@@ -26,6 +26,6 @@ The request.
 
 ## Returns
 
-`Promise`\<`INoContentResponse`\>
+`Promise`\<`IUpdatePasswordResponse` & `IRestRouteResponseOptions`\>
 
 The response object with additional http response properties.

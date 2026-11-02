@@ -14,12 +14,12 @@ The path parameters for the request.
 
 > **email**: `string`
 
-The user email.
+The user email, or the account id.
 
 ***
 
 ### body {#body}
 
-> **body**: `Partial`\<`Omit`\<[`IAuthenticationUser`](IAuthenticationUser.md), `"email"`\>\>
+> **body**: `Partial`\<`Pick`\<[`IAuthenticationUser`](IAuthenticationUser.md), `"userIdentity"` \| `"organizationIdentity"`\>\>
 
 The body of the request.
