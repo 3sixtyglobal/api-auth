@@ -10,7 +10,6 @@
 			"selfRegistrationDisabled": "Signing up for an account is not enabled, as the password authentication provider is not registered",
 			"registrationVerificationInvalid": "The verification link is not valid or has expired",
 			"defaultRolesEscalated": "The default roles may not include the escalated privilege role \"{roleName}\"",
-			"userExists": "An account already exists for the e-mail address \"{conflictId}\"",
 			"userNotFound": "The user with the specified e-mail could not be found",
 			"nodeIdNotSet": "The node ID has not been set",
 			"accountDisabled": "The account has been disabled",
