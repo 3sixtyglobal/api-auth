@@ -25,7 +25,9 @@
 			"get": {
 				"operationId": "oauthStart",
 				"summary": "Start a sign in with an authentication provider",
-				"tags": ["OAuth"],
+				"tags": [
+					"OAuth"
+				],
 				"parameters": [
 					{
 						"name": "authProviderId",
@@ -117,7 +119,9 @@
 			"get": {
 				"operationId": "oauthCallback",
 				"summary": "Complete a sign in when the authentication provider sends the browser back",
-				"tags": ["OAuth"],
+				"tags": [
+					"OAuth"
+				],
 				"parameters": [
 					{
 						"name": "authProviderId",
@@ -245,7 +249,10 @@
 						"$ref": "#/components/schemas/Error"
 					}
 				},
-				"required": ["name", "message"]
+				"required": [
+					"name",
+					"message"
+				]
 			},
 			"NotFoundResponse": {
 				"type": "object",

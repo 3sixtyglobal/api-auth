@@ -24,7 +24,7 @@ Runtime name for the class.
 
 ### createToken() {#createtoken}
 
-> `static` **createToken**(`vaultConnector`, `nodeId`, `signingKeyName`, `userIdentity`, `organizationIdentity`, `tenantId`, `ttlMinutes`, `passwordVersion?`): `Promise`\<\{ `token`: `string`; `expiry`: `number`; \}\>
+> `static` **createToken**(`vaultConnector`, `nodeId`, `signingKeyName`, `accountId`, `tenantId`, `ttlMinutes`, `passwordVersion?`, `sessionStart?`, `maxSessionMinutes?`): `Promise`\<\{ `token`: `string`; `expiry`: `number`; \}\>
 
 Create a new token.
 
@@ -48,17 +48,11 @@ The node identifier, embedded as the JWT issuer claim.
 
 The signing key name, embedded as the JWT key identifier.
 
-##### userIdentity
+##### accountId
 
 `string`
 
 The subject for the token.
-
-##### organizationIdentity
-
-`string` \| `undefined`
-
-The organization for the token.
 
 ##### tenantId
 
@@ -77,6 +71,18 @@ The time to live for the token in minutes.
 `number`
 
 The user's current password version counter, embedded in the token so that a password change invalidates existing tokens.
+
+##### sessionStart?
+
+`number` \| `null`
+
+When the session started in seconds, embedded as the sst claim and kept across refreshes, now when omitted, and left out of the token when null, for a session whose start is not known.
+
+##### maxSessionMinutes?
+
+`number`
+
+The longest a session may last, the expiry is not set beyond it.
 
 #### Returns
 
@@ -120,9 +126,9 @@ The token to verify.
 
 ##### verifyUser?
 
-(`sub`, `org`, `tid`, `passwordVersion`) => `Promise`\<`string`[]\>
+(`sub`, `tid`, `passwordVersion`) => `Promise`\<`string`[]\>
 
-A function to verify the user identity and organization. The password version counter embedded in the token (pver claim) is passed so callers can detect if the password has changed since the token was issued.
+A function to verify the account and tenant. The password version counter embedded in the token (pver claim) is passed so callers can detect if the password has changed since the token was issued.
 
 #### Returns
 

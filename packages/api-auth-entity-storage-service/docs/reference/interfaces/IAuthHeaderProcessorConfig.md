@@ -32,6 +32,39 @@ access_token
 
 ***
 
+### logoutCookieNames? {#logoutcookienames}
+
+> `optional` **logoutCookieNames?**: `string`[]
+
+Other cookies to remove on logout, such as the cookie that keeps an OAuth sign in.
+
+#### Default
+
+```ts
+["oauth_transaction"]
+```
+
+***
+
+### cookieSameSite? {#cookiesamesite}
+
+> `optional` **cookieSameSite?**: `"Strict"` \| `"Lax"` \| `"None"`
+
+The SameSite attribute of the token cookie, the cookie is always Secure. Lax or Strict limit the
+cookie to requests from the same site, None also allows a site on another domain. With None,
+any site can make a browser send the cookie with a request that changes state, such as
+POST /authentication/logout and POST /authentication/refresh, which take no body, so enable the origin
+check processor, TWIN_ORIGIN_CHECK_ENABLED on a node, which refuses cookie authenticated changes
+from other origins.
+
+#### Default
+
+```ts
+None
+```
+
+***
+
 ### includeErrorStack? {#includeerrorstack}
 
 > `optional` **includeErrorStack?**: `boolean`
@@ -46,9 +79,10 @@ Include the stack with errors.
 
 The time in milliseconds a verified token is kept in the in-memory cache, counted from when it
 was verified and not extended by use, set to 0 to disable caching. A hit skips the vault
-signature check, the tenant lookup and the user lookup, so this is also the longest a password
-change, a user removal or a signing key rotation can go unnoticed. An entry never outlives the
-expiry claim of its own token either.
+signature check, the tenant lookup and the user lookup. A password change, reset, disable or
+removal clears the tokens of the account straight away, but only in the process that made it,
+other nodes and processes notice it up to this long later, as they do a signing key rotation.
+An entry never outlives the expiry claim of its own token either.
 
 #### Default
 

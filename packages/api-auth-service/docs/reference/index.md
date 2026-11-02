@@ -3,6 +3,7 @@
 ## Classes
 
 - [AuthenticationAuditEntry](classes/AuthenticationAuditEntry.md)
+- [AuthenticationAuditEntryV0](classes/AuthenticationAuditEntryV0.md)
 - [AuthenticationRateEntry](classes/AuthenticationRateEntry.md)
 - [TenantOverrideProcessor](classes/TenantOverrideProcessor.md)
 - [EntityStorageAuthenticationAuditService](classes/EntityStorageAuthenticationAuditService.md)

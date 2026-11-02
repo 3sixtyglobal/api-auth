@@ -168,7 +168,8 @@ A promise that resolves when the periodic cleanup task has been removed.
 
 > **check**(`action`, `identifier`): `Promise`\<`string`\>
 
-Check the authentication rate for a given action and identifier.
+Check the authentication rate for a given action and identifier, recording the attempt. Checks
+of the same entry are serialised in the process.
 
 #### Parameters
 
@@ -190,6 +191,10 @@ The identifier to be checked.
 
 The rate entry id.
 
+#### Throws
+
+TooManyRequestsError when the limit is reached.
+
 #### Implementation of
 
 `IAuthenticationRateComponent.check`
@@ -200,7 +205,8 @@ The rate entry id.
 
 > **clear**(`action`, `identifier`): `Promise`\<`void`\>
 
-Clear the authentication rate entry for the given action and identifier.
+Clear the authentication rate entry for the given action and identifier, serialised with the
+checks of the same entry in the process.
 
 #### Parameters
 

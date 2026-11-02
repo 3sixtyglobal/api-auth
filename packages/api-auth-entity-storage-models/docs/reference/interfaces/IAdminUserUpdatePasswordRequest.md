@@ -14,7 +14,7 @@ The path parameters for the request.
 
 > **email**: `string`
 
-The user email.
+The user email, or the account id.
 
 ***
 
@@ -29,9 +29,3 @@ The body of the request.
 > **newPassword**: `string`
 
 The new password for the user.
-
-#### currentPassword?
-
-> `optional` **currentPassword?**: `string`
-
-The current password for the user.

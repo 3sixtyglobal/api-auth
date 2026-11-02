@@ -662,12 +662,9 @@
 						"type": "string",
 						"description": "The tenant identifier associated with the audit entry, if applicable."
 					},
-					"ipAddressHashes": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "The hashed IP addresses of the client."
+					"ipAddressHash": {
+						"type": "string",
+						"description": "The hashed IP address of the client."
 					},
 					"userAgent": {
 						"type": "string",
@@ -736,12 +733,9 @@
 						"type": "string",
 						"description": "The tenant identifier associated with the audit entry, if applicable."
 					},
-					"ipAddressHashes": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "The hashed IP addresses of the client."
+					"ipAddressHash": {
+						"type": "string",
+						"description": "The hashed IP address of the client."
 					},
 					"userAgent": {
 						"type": "string",
@@ -840,12 +834,9 @@
 						"type": "string",
 						"description": "The tenant identifier associated with the audit entry, if applicable."
 					},
-					"ipAddressHashes": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "The hashed IP addresses of the client."
+					"ipAddressHash": {
+						"type": "string",
+						"description": "The hashed IP address of the client."
 					},
 					"userAgent": {
 						"type": "string",

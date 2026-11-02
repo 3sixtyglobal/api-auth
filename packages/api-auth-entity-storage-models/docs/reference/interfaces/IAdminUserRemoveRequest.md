@@ -14,4 +14,4 @@ The path parameters for the request.
 
 > **email**: `string`
 
-The user email.
+The user email, or the account id.

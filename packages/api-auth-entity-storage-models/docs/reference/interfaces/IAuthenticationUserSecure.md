@@ -20,11 +20,95 @@ The user e-mail address.
 
 ***
 
-### userIdentity {#useridentity}
+### accountId {#accountid}
 
-> **userIdentity**: `string`
+> **accountId**: `string`
 
-The user identity.
+Stable identifier of the account. This is the token subject.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`accountId`](IAuthenticationUser.md#accountid)
+
+***
+
+### authProviderId? {#authproviderid}
+
+> `optional` **authProviderId?**: `string`
+
+The authentication provider the account signs in with.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`authProviderId`](IAuthenticationUser.md#authproviderid)
+
+***
+
+### dateCreated? {#datecreated}
+
+> `optional` **dateCreated?**: `string`
+
+When the account was created, in ISO date format.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`dateCreated`](IAuthenticationUser.md#datecreated)
+
+***
+
+### dateLastLogin? {#datelastlogin}
+
+> `optional` **dateLastLogin?**: `string`
+
+When the account last logged in, in ISO date format.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`dateLastLogin`](IAuthenticationUser.md#datelastlogin)
+
+***
+
+### dateDisabled? {#datedisabled}
+
+> `optional` **dateDisabled?**: `string`
+
+When the account was disabled, in ISO date format, a disabled account cannot sign in.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`dateDisabled`](IAuthenticationUser.md#datedisabled)
+
+***
+
+### disabled? {#disabled}
+
+> `optional` **disabled?**: `boolean`
+
+True when the account is disabled and cannot sign in.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`disabled`](IAuthenticationUser.md#disabled)
+
+***
+
+### verified? {#verified}
+
+> `optional` **verified?**: `boolean`
+
+False until the e-mail address of a self sign up is verified, absent means verified.
+
+#### Inherited from
+
+[`IAuthenticationUser`](IAuthenticationUser.md).[`verified`](IAuthenticationUser.md#verified)
+
+***
+
+### userIdentity? {#useridentity}
+
+> `optional` **userIdentity?**: `string`
+
+The identity DID of the account, given when getting or updating a single user.
 
 #### Inherited from
 
@@ -32,11 +116,11 @@ The user identity.
 
 ***
 
-### organizationIdentity {#organizationidentity}
+### organizationIdentity? {#organizationidentity}
 
-> **organizationIdentity**: `string`
+> `optional` **organizationIdentity?**: `string`
 
-The users organization.
+The organization DID of the account, given when getting or updating a single user.
 
 #### Inherited from
 

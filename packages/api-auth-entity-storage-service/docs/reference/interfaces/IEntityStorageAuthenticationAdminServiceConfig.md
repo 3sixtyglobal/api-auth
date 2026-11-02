@@ -32,6 +32,14 @@ The maximum password length.
 
 ***
 
+### passwordHashOptions? {#passwordhashoptions}
+
+> `optional` **passwordHashOptions?**: `IPasswordHashOptions`
+
+The Argon2id parameters used to hash new passwords.
+
+***
+
 ### escalatedPrivilegeRole? {#escalatedprivilegerole}
 
 > `optional` **escalatedPrivilegeRole?**: `string`

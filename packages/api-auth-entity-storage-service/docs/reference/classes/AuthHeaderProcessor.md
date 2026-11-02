@@ -28,6 +28,22 @@ Options for the processor.
 
 ## Properties
 
+### DEFAULT\_COOKIE\_SAME\_SITE {#default_cookie_same_site}
+
+> `readonly` `static` **DEFAULT\_COOKIE\_SAME\_SITE**: `"Strict"` \| `"Lax"` \| `"None"` = `"None"`
+
+The default SameSite attribute of the token cookie.
+
+***
+
+### DEFAULT\_LOGOUT\_COOKIE\_NAMES {#default_logout_cookie_names}
+
+> `readonly` `static` **DEFAULT\_LOGOUT\_COOKIE\_NAMES**: `string`[]
+
+The default other cookies to remove on logout.
+
+***
+
 ### CLASS\_NAME {#class_name}
 
 > `readonly` `static` **CLASS\_NAME**: `string`

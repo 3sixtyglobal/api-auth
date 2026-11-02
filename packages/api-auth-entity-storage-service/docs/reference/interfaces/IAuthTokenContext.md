@@ -29,19 +29,11 @@ The public origin of the tenant the token belongs to.
 
 ***
 
-### userIdentity? {#useridentity}
+### accountId? {#accountid}
 
-> `optional` **userIdentity?**: `string`
+> `optional` **accountId?**: `string`
 
-The identity of the verified user.
-
-***
-
-### userOrganization? {#userorganization}
-
-> `optional` **userOrganization?**: `string`
-
-The organization of the verified user.
+The account id of the verified user. This is the token subject.
 
 ***
 
@@ -50,3 +42,11 @@ The organization of the verified user.
 > `optional` **expires?**: `number`
 
 The expiry of the token in milliseconds since the epoch, if it carried one.
+
+***
+
+### sessionStart? {#sessionstart}
+
+> `optional` **sessionStart?**: `number`
+
+When the session of the token started in seconds since the epoch, if it carried one.

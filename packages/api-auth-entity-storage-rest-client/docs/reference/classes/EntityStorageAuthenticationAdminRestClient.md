@@ -72,7 +72,7 @@ Create a login for the user.
 
 ##### user
 
-`IAuthenticationUser` & `object`
+`IAuthenticationUserCreate`
 
 The user to create.
 
@@ -85,32 +85,6 @@ Nothing.
 #### Implementation of
 
 `IAuthenticationAdminComponent.create`
-
-***
-
-### update() {#update}
-
-> **update**(`user`): `Promise`\<`void`\>
-
-Update a login for the user.
-
-#### Parameters
-
-##### user
-
-`Partial`\<`IAuthenticationUser`\>
-
-The user to update.
-
-#### Returns
-
-`Promise`\<`void`\>
-
-Nothing.
-
-#### Implementation of
-
-`IAuthenticationAdminComponent.update`
 
 ***
 
@@ -144,7 +118,7 @@ The user details.
 
 > **getByIdentity**(`identity`): `Promise`\<`IAuthenticationUser`\>
 
-Get a user by identity.
+Get the user whose identity is the DID.
 
 #### Parameters
 
@@ -163,6 +137,32 @@ The user details.
 #### Implementation of
 
 `IAuthenticationAdminComponent.getByIdentity`
+
+***
+
+### update() {#update}
+
+> **update**(`user`): `Promise`\<`void`\>
+
+Update the identity or organization of a user.
+
+#### Parameters
+
+##### user
+
+`Partial`\<`IAuthenticationUser`\>
+
+The user to update, found by email address or account id.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Nothing.
+
+#### Implementation of
+
+`IAuthenticationAdminComponent.update`
 
 ***
 
@@ -194,9 +194,9 @@ Nothing.
 
 ### updatePassword() {#updatepassword}
 
-> **updatePassword**(`email`, `newPassword`, `currentPassword?`): `Promise`\<`void`\>
+> **updatePassword**(`email`, `newPassword`): `Promise`\<`void`\>
 
-Update the user's password.
+Set the user's password as an override, without its current password.
 
 #### Parameters
 
@@ -212,12 +212,6 @@ The email address of the user to update.
 
 The new password for the user.
 
-##### currentPassword?
-
-`string`
-
-The current password, optional, if supplied will check against existing.
-
 #### Returns
 
 `Promise`\<`void`\>
@@ -227,3 +221,105 @@ Nothing.
 #### Implementation of
 
 `IAuthenticationAdminComponent.updatePassword`
+
+***
+
+### query() {#query}
+
+> **query**(`email?`, `exactEmail?`, `authProviderId?`, `cursor?`, `limit?`): `Promise`\<\{ `entities`: `IAuthenticationUser`[]; `cursor?`: `string`; \}\>
+
+Query the users.
+
+#### Parameters
+
+##### email?
+
+`string`
+
+The start of the e-mail address of the users to return, all when omitted.
+
+##### exactEmail?
+
+`boolean`
+
+True to match the e-mail address exactly rather than as a prefix.
+
+##### authProviderId?
+
+`string`
+
+The authentication provider of the users to return, all when omitted.
+
+##### cursor?
+
+`string`
+
+The cursor to request the next page.
+
+##### limit?
+
+`number`
+
+The maximum number of users to return.
+
+#### Returns
+
+`Promise`\<\{ `entities`: `IAuthenticationUser`[]; `cursor?`: `string`; \}\>
+
+The users and a cursor when there are more.
+
+#### Implementation of
+
+`IAuthenticationAdminComponent.query`
+
+***
+
+### disable() {#disable}
+
+> **disable**(`email`): `Promise`\<`void`\>
+
+Disable a user so it cannot sign in.
+
+#### Parameters
+
+##### email
+
+`string`
+
+The email address of the user to disable, or the account id.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Nothing.
+
+#### Implementation of
+
+`IAuthenticationAdminComponent.disable`
+
+***
+
+### enable() {#enable}
+
+> **enable**(`email`): `Promise`\<`void`\>
+
+Enable a disabled user.
+
+#### Parameters
+
+##### email
+
+`string`
+
+The email address of the user to enable, or the account id.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Nothing.
+
+#### Implementation of
+
+`IAuthenticationAdminComponent.enable`
