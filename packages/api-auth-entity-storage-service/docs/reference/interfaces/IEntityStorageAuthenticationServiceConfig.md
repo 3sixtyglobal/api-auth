@@ -454,3 +454,18 @@ have all expired, are removed, in minutes.
 ```ts
 60
 ```
+
+***
+
+### deliveryIntervalSeconds? {#deliveryintervalseconds}
+
+> `optional` **deliveryIntervalSeconds?**: `number`
+
+How often the e-mails queued after a response, such as a password reset or sign up, are
+delivered, in seconds.
+
+#### Default
+
+```ts
+60
+```

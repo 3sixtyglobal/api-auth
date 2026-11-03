@@ -82,7 +82,7 @@ The default locale of the password reset and sign up e-mails.
 
 ### DEFAULT\_REGISTRATION\_VERIFICATION\_EXPIRY\_MINUTES {#default_registration_verification_expiry_minutes}
 
-> `readonly` `static` **DEFAULT\_REGISTRATION\_VERIFICATION\_EXPIRY\_MINUTES**: `number` = `1440`
+> `readonly` `static` **DEFAULT\_REGISTRATION\_VERIFICATION\_EXPIRY\_MINUTES**: `number` = `DurationConstants.MinutesPerDay`
 
 The default time a sign up verification link can be used for, in minutes.
 
@@ -197,6 +197,14 @@ The rate limit action for resetting a password with a reset link.
 > `readonly` `static` **DEFAULT\_CLEANUP\_INTERVAL\_MINUTES**: `number` = `60`
 
 The default interval of the removal of expired sign ups and tokens, in minutes.
+
+***
+
+### DEFAULT\_DELIVERY\_INTERVAL\_SECONDS {#default_delivery_interval_seconds}
+
+> `readonly` `static` **DEFAULT\_DELIVERY\_INTERVAL\_SECONDS**: `number` = `60`
+
+The default delivery interval of the queued e-mails, in seconds.
 
 ## Methods
 
