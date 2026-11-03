@@ -168,7 +168,7 @@ A promise that resolves when the audit entry has been removed.
 
 > **query**(`options?`, `cursor?`, `limit?`): `Promise`\<\{ `entries`: `IAuthenticationAuditEntry`[]; `cursor?`: `string`; \}\>
 
-Query the audit entries.
+Query the audit entries, the newest first.
 
 #### Parameters
 
