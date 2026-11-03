@@ -1,6 +1,6 @@
 {
 	"name": "@3sixty/api-auth-rest-client",
-	"version": "0.20.0-next.3",
+	"version": "0.20.0-next.4",
 	"description": "REST client for the authentication audit endpoints.",
 	"repository": {
 		"type": "git",
@@ -30,7 +30,7 @@
 		"dist:no-test": "pnpm run clean && concurrently -g -n build,locales,types \"pnpm run build\" \"pnpm run validate-locales\" \"pnpm run test:build\""
 	},
 	"dependencies": {
-		"@3sixty/api-auth-models": "0.20.0-next.3",
+		"@3sixty/api-auth-models": "0.20.0-next.4",
 		"@3sixty/api-core": "next",
 		"@3sixty/api-models": "next",
 		"@3sixty/core": "next",
