@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.5...api-auth-models-v0.20.0-next.6) (2026-11-03)
+
+
+### Miscellaneous Chores
+
+* **api-auth-models:** Synchronize repo versions
+
 ## [0.20.0-next.5](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.4...api-auth-models-v0.20.0-next.5) (2026-11-03)
 
 
