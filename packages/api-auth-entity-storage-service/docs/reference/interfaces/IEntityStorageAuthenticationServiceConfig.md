@@ -339,7 +339,7 @@ password-reset
 
 > `optional` **emailLocale?**: `string`
 
-The locale of the password reset and sign up e-mails.
+The locale of the password reset and sign up e-mails when the request prefers no language.
 
 #### Default
 
