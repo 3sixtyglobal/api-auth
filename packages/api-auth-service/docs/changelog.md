@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.4](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.3...api-auth-service-v0.20.0-next.4) (2026-11-03)
+
+
+### Features
+
+* configurable delivery interval and duration constants ([#11](https://github.com/3sixtyglobal/api-auth/issues/11)) ([67b69c9](https://github.com/3sixtyglobal/api-auth/commit/67b69c9bb602867800a28dd2914759ebc8d4ef11))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.3 to 0.20.0-next.4
+
 ## [0.20.0-next.3](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.2...api-auth-service-v0.20.0-next.3) (2026-11-02)
 
 

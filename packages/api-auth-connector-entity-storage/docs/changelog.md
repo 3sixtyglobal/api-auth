@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0-next.4](https://github.com/3sixtyglobal/api-auth/compare/api-auth-connector-entity-storage-v0.20.0-next.3...api-auth-connector-entity-storage-v0.20.0-next.4) (2026-11-03)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-entity-storage-models bumped from 0.20.0-next.3 to 0.20.0-next.4
+    * @3sixty/api-auth-entity-storage-service bumped from 0.20.0-next.3 to 0.20.0-next.4
+    * @3sixty/api-auth-models bumped from 0.20.0-next.3 to 0.20.0-next.4
+
 ## [0.20.0-next.3](https://github.com/3sixtyglobal/api-auth/compare/api-auth-connector-entity-storage-v0.20.0-next.2...api-auth-connector-entity-storage-v0.20.0-next.3) (2026-11-02)
 
 
