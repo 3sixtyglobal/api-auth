@@ -40,7 +40,7 @@ The largest photo accepted, in bytes, when the options give no limit.
 
 ### DEFAULT\_TIMEOUT\_MS {#default_timeout_ms}
 
-> `readonly` `static` **DEFAULT\_TIMEOUT\_MS**: `number` = `10000`
+> `readonly` `static` **DEFAULT\_TIMEOUT\_MS**: `number`
 
 How long to wait for a photo, in milliseconds, when the options give no timeout.
 
