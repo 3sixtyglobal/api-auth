@@ -1683,7 +1683,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Send an e-mail to an account, a failure is logged and not returned.
+	 * Send an e-mail to an account, in the language the request that asked for it prefers, or the
+	 * e-mail locale when it gave none. A failure is logged and not returned.
 	 * @param kind The kind of e-mail.
 	 * @param user The account.
 	 * @param templateId The template.
@@ -1697,13 +1698,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		templateId: string,
 		data: { [key: string]: string }
 	): Promise<void> {
+		const contextIds = await ContextIdStore.getContextIds();
 		try {
 			await this._messagingComponent.sendCustomEmail(
 				this._emailSender,
 				[user.email],
 				templateId,
 				{ ...this._emailTemplateData, ...data },
-				this._emailLocale
+				contextIds?.[HttpContextIdKeys.Language] ?? this._emailLocale
 			);
 		} catch (error) {
 			// A failure is not returned, so the response does not reveal the account exists.

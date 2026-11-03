@@ -173,7 +173,7 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	passwordResetEmailTemplateId?: string;
 
 	/**
-	 * The locale of the password reset and sign up e-mails.
+	 * The locale of the password reset and sign up e-mails when the request prefers no language.
 	 * @default en
 	 */
 	emailLocale?: string;

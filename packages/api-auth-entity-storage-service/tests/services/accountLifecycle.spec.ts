@@ -246,6 +246,31 @@ describe("account lifecycle", () => {
 			});
 		});
 
+		test("e-mails in the language the request prefers, from the queued work", async () => {
+			await createUser("user@example.com", "user-1");
+			const service = createService({ config: { emailLocale: "fr" } });
+
+			await ContextIdStore.run(
+				{ ...NODE_CONTEXT, [HttpContextIdKeys.Language]: "de-CH" },
+				async () => service.forgotPassword("user@example.com")
+			);
+			await service.stop();
+
+			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][4]).toBe("de-CH");
+		});
+
+		test("e-mails in the e-mail locale when the request prefers no language", async () => {
+			await createUser("user@example.com", "user-1");
+			const service = createService({ config: { emailLocale: "fr" } });
+
+			await ContextIdStore.run(NODE_CONTEXT, async () =>
+				service.forgotPassword("user@example.com")
+			);
+			await service.stop();
+
+			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][4]).toBe("fr");
+		});
+
 		test("keeps only the latest token of an account", async () => {
 			await createUser("user@example.com", "user-1");
 			const service = createService();
