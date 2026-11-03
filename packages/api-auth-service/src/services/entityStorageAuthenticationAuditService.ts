@@ -18,7 +18,7 @@ import {
 	type IValidationFailure
 } from "@3sixty/core";
 import { Sha256 } from "@3sixty/crypto";
-import { ComparisonOperator } from "@3sixty/entity";
+import { ComparisonOperator, SortDirection } from "@3sixty/entity";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
@@ -233,7 +233,7 @@ export class EntityStorageAuthenticationAuditService implements IAuthenticationA
 	}
 
 	/**
-	 * Query the audit entries.
+	 * Query the audit entries, the newest first.
 	 * @param options The query options.
 	 * @param options.actorId The actor identifier to filter the audit entries, optional.
 	 * @param options.organizationId The organization identifier to filter the audit entries, optional.
@@ -361,9 +361,10 @@ export class EntityStorageAuthenticationAuditService implements IAuthenticationA
 			}
 		}
 
+		// The newest entries first, so the latest activity is on the first page.
 		const result = await this._authenticationAuditEntryEntityStorage.query(
 			conditions.length > 0 ? { conditions } : undefined,
-			undefined,
+			[{ property: "dateCreated", sortDirection: SortDirection.Descending }],
 			undefined,
 			cursor,
 			limit

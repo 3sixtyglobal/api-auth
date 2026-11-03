@@ -41,7 +41,7 @@ export interface IAuthenticationAuditComponent extends IComponent {
 	remove(id: string): Promise<void>;
 
 	/**
-	 * Query the audit entries.
+	 * Query the audit entries, the newest first.
 	 * @param options The query options.
 	 * @param options.actorId The actor identifier to filter the audit entries, optional.
 	 * @param options.organizationId The organisation identifier to filter the audit entries, optional.
