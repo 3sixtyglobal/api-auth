@@ -78,9 +78,9 @@ describe("account lifecycle", () => {
 		return PasswordHelper.createUser(userStorage, "entity-storage", accountId, email, PASSWORD);
 	}
 
-	async function runDeferredWork(): Promise<void> {
+	async function runDeliveries(): Promise<void> {
 		for (const [id, callback] of Object.entries(scheduledTasks)) {
-			if (id.startsWith("authentication-deferred-")) {
+			if (id.startsWith("authentication-delivery-")) {
 				await callback();
 			}
 		}
@@ -736,7 +736,7 @@ describe("account lifecycle", () => {
 				accountId: "user-1"
 			});
 			await service.forgotPassword("User@Example.com");
-			await runDeferredWork();
+			await runDeliveries();
 			expect(messaging.sendCustomEmail).toHaveBeenCalledTimes(1);
 		});
 
@@ -1010,7 +1010,7 @@ describe("account lifecycle", () => {
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await service.forgotPassword("unverified@example.com");
-			await runDeferredWork();
+			await runDeliveries();
 			const [, recipients, templateId, data] = vi.mocked(messaging.sendCustomEmail).mock.calls[0];
 			expect(recipients).toEqual(["unverified@example.com"]);
 			expect(templateId).toBe("password-reset");
@@ -1206,6 +1206,27 @@ describe("account lifecycle", () => {
 				(tasks.scheduler as { removeTask: ReturnType<typeof vi.fn> }).removeTask
 			).toHaveBeenCalledTimes(2);
 		});
+
+		test("delivers the queued e-mails every minute, or at the configured delivery interval", async () => {
+			for (const [config, intervalSeconds] of [
+				[{}, 60],
+				[{ deliveryIntervalSeconds: 1 }, 1]
+			] as const) {
+				const tasks = scheduler();
+				ComponentFactory.register("task-scheduler", () => tasks.scheduler as never);
+				components["task-scheduler"] = tasks.scheduler;
+				const service = createService({ config });
+				await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+				expect(
+					vi
+						.mocked((tasks.scheduler as { addTask: ReturnType<typeof vi.fn> }).addTask)
+						.mock.calls.find(([id]) => String(id).startsWith("authentication-delivery-"))?.[1]
+				).toEqual([{ intervalSeconds }]);
+
+				await service.stop();
+			}
+		});
 	});
 
 	describe("sign up", () => {
@@ -1229,7 +1250,7 @@ describe("account lifecycle", () => {
 			await expect(
 				service.register({ email: "New@Example.com", password: PASSWORD })
 			).resolves.toBeUndefined();
-			await runDeferredWork();
+			await runDeliveries();
 
 			const created = await AccountHelper.findByEmail(
 				userStorage,
@@ -1256,7 +1277,7 @@ describe("account lifecycle", () => {
 				message: "entityStorageAuthenticationService.passwordResetInvalid"
 			});
 			const again = await service.register({ email: "new@example.com", password: PASSWORD });
-			await runDeferredWork();
+			await runDeliveries();
 			expect(again).toBeUndefined();
 			const resent = vi.mocked(messaging.sendCustomEmail).mock.calls[1];
 			const newToken = new URL(resent[3].verifyUrl).searchParams.get("token") ?? "";
@@ -1289,10 +1310,10 @@ describe("account lifecycle", () => {
 
 			// The attacker signs up first with the victim's address, then the victim signs up.
 			await service.register({ email: "victim@example.com", password: ATTACKER_PASSWORD });
-			await runDeferredWork();
+			await runDeliveries();
 			const attackerToken = linkOf(0);
 			await service.register({ email: "victim@example.com", password: PASSWORD });
-			await runDeferredWork();
+			await runDeliveries();
 			const victimToken = linkOf(1);
 
 			// Only the latest link is kept, and the hash is stored with it but never sent.
@@ -1326,7 +1347,7 @@ describe("account lifecycle", () => {
 			await expect(
 				service.register({ email: "user@example.com", password: NEW_PASSWORD })
 			).resolves.toBeUndefined();
-			await runDeferredWork();
+			await runDeliveries();
 
 			expect((await userStorage.query()).entities).toHaveLength(1);
 			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][2]).toBe("registration-exists");
@@ -1345,7 +1366,7 @@ describe("account lifecycle", () => {
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
 
 			await service.register({ email: "user@example.com", password: NEW_PASSWORD });
-			await runDeferredWork();
+			await runDeliveries();
 
 			expect(await userStorage.get("user-1")).toBeUndefined();
 			const replaced = await AccountHelper.findByEmail(
@@ -1373,12 +1394,12 @@ describe("account lifecycle", () => {
 		});
 
 		test("works after the response", async () => {
-			let runDeferred: (() => Promise<void>) | undefined;
+			let runDelivery: (() => Promise<void>) | undefined;
 			const scheduler = {
 				className: () => "scheduler",
 				addTask: vi.fn(async (id: string, times: unknown, callback: () => Promise<void>) => {
-					if (id.startsWith("authentication-deferred-")) {
-						runDeferred = callback;
+					if (id.startsWith("authentication-delivery-")) {
+						runDelivery = callback;
 					}
 				}),
 				removeTask: vi.fn(),
@@ -1400,7 +1421,7 @@ describe("account lifecycle", () => {
 			expect(messaging.sendCustomEmail).not.toHaveBeenCalled();
 			expect((await userStorage.query()).entities).toHaveLength(1);
 
-			await runDeferred?.();
+			await runDelivery?.();
 
 			expect(
 				vi

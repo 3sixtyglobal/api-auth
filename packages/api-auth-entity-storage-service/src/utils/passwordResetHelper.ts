@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { Converter, Guards, Is, RandomHelper } from "@3sixty/core";
+import { Converter, DurationConstants, Guards, Is, RandomHelper } from "@3sixty/core";
 import { Sha256 } from "@3sixty/crypto";
 import { ComparisonOperator } from "@3sixty/entity";
 import type { IEntityStorageConnector } from "@3sixty/entity-storage-models";
@@ -60,7 +60,7 @@ export class PasswordResetHelper {
 			RandomHelper.generate(PasswordResetHelper._TOKEN_BYTES)
 		);
 		const now = Date.now();
-		const expiryMs = expiryMinutes * 60000;
+		const expiryMs = expiryMinutes * DurationConstants.MsPerMinute;
 		const expires = new Date(now + expiryMs).toISOString();
 		await storage.set({
 			id: PasswordResetHelper.hashToken(token),

@@ -1,7 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { Coerce, Is, UnauthorizedError } from "@3sixty/core";
+import { Coerce, DurationConstants, Is, UnauthorizedError } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { type IVaultConnector, VaultConnectorHelper } from "@3sixty/vault-models";
 import {
@@ -50,13 +50,18 @@ export class TokenHelper {
 		token: string;
 		expiry: number;
 	}> {
-		const nowSeconds = Math.trunc(Date.now() / 1000);
+		const nowSeconds = Math.trunc(Date.now() / DurationConstants.MsPerSecond);
 		const sessionStartSeconds = Is.null(sessionStart) ? undefined : (sessionStart ?? nowSeconds);
-		const maxSessionSeconds = Is.integer(maxSessionMinutes) ? maxSessionMinutes * 60 : 0;
+		const maxSessionSeconds = Is.integer(maxSessionMinutes)
+			? maxSessionMinutes * DurationConstants.SecondsPerMinute
+			: 0;
 		const sessionEndSeconds = (sessionStartSeconds ?? nowSeconds) + maxSessionSeconds;
 		const ttlSeconds = Is.integer(maxSessionMinutes)
-			? Math.max(0, Math.min(ttlMinutes * 60, sessionEndSeconds - nowSeconds))
-			: ttlMinutes * 60;
+			? Math.max(
+					0,
+					Math.min(ttlMinutes * DurationConstants.SecondsPerMinute, sessionEndSeconds - nowSeconds)
+				)
+			: ttlMinutes * DurationConstants.SecondsPerMinute;
 		const vaultKeyName = `${nodeId}/${signingKeyName}`;
 
 		const jwt = await Jwt.encodeWithSigner(
@@ -75,7 +80,7 @@ export class TokenHelper {
 
 		return {
 			token: jwt,
-			expiry: (nowSeconds + ttlSeconds) * 1000
+			expiry: (nowSeconds + ttlSeconds) * DurationConstants.MsPerSecond
 		};
 	}
 
@@ -122,7 +127,7 @@ export class TokenHelper {
 		} else if (!Is.integer(decoded.payload.exp)) {
 			// Every token this node creates expires, so one without an expiry is not its own.
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "payloadMissingExpiry");
-		} else if (decoded.payload.exp < Math.trunc(Date.now() / 1000)) {
+		} else if (decoded.payload.exp < Math.trunc(Date.now() / DurationConstants.MsPerSecond)) {
 			throw new UnauthorizedError(TokenHelper.CLASS_NAME, "expired");
 		}
 

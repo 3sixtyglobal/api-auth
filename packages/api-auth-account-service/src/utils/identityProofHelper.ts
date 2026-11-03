@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { AuthenticationAccountHelper } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { Is, UnauthorizedError } from "@3sixty/core";
+import { DurationConstants, Is, UnauthorizedError } from "@3sixty/core";
 import type { IIdentityComponent } from "@3sixty/identity-models";
 import { nameof } from "@3sixty/nameof";
 import type { IProof } from "@3sixty/standards-w3c-did";
@@ -26,7 +26,7 @@ export class IdentityProofHelper {
 	 * How far a proof may be created in the future, to allow for clock differences, in milliseconds.
 	 * @internal
 	 */
-	private static readonly _CLOCK_SKEW_MS: number = 30000;
+	private static readonly _CLOCK_SKEW_MS: number = 30 * DurationConstants.MsPerSecond;
 
 	/**
 	 * Verify the proof that the caller owns the DID being bound to the account. The proof must be
@@ -124,7 +124,7 @@ export class IdentityProofHelper {
 		if (
 			Number.isNaN(created) ||
 			created > now + IdentityProofHelper._CLOCK_SKEW_MS ||
-			now - created > maxAgeSeconds * 1000
+			now - created > maxAgeSeconds * DurationConstants.MsPerSecond
 		) {
 			throw new UnauthorizedError(IdentityProofHelper.CLASS_NAME, "identityProofExpired", {
 				maxAgeSeconds

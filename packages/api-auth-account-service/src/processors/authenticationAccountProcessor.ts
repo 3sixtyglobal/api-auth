@@ -11,7 +11,7 @@ import type {
 	IHttpServerRequest
 } from "@3sixty/api-models";
 import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context";
-import { Is, LfuCache } from "@3sixty/core";
+import { DurationConstants, Is, LfuCache } from "@3sixty/core";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
@@ -40,13 +40,14 @@ export class AuthenticationAccountProcessor implements IBaseRouteProcessor {
 	 * The default time to keep an account in the cache.
 	 * @internal
 	 */
-	private static readonly _DEFAULT_CACHE_TTL_MS: number = 30000;
+	private static readonly _DEFAULT_CACHE_TTL_MS: number = 30 * DurationConstants.MsPerSecond;
 
 	/**
 	 * The default time to keep an account without an identity in the cache.
 	 * @internal
 	 */
-	private static readonly _DEFAULT_NO_IDENTITY_CACHE_TTL_MS: number = 5000;
+	private static readonly _DEFAULT_NO_IDENTITY_CACHE_TTL_MS: number =
+		5 * DurationConstants.MsPerSecond;
 
 	/**
 	 * The entity storage for account data.

@@ -1,7 +1,15 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { EmailHelper, type IAuthenticationProviderIdentity } from "@3sixty/api-auth-models";
-import { BaseError, Coerce, GeneralError, Guards, Is, UnauthorizedError } from "@3sixty/core";
+import {
+	BaseError,
+	Coerce,
+	DurationConstants,
+	GeneralError,
+	Guards,
+	Is,
+	UnauthorizedError
+} from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { SchemaOrgContexts } from "@3sixty/standards-schema-org";
 import {
@@ -71,14 +79,14 @@ export class OidcHelper {
 	 * How long to keep a provider's signing keys, in milliseconds.
 	 * @internal
 	 */
-	private static readonly _JWKS_CACHE_TTL_MS: number = 3600000;
+	private static readonly _JWKS_CACHE_TTL_MS: number = DurationConstants.MsPerHour;
 
 	/**
 	 * The shortest time between fetches of a provider's signing keys for an unknown key id, in
 	 * milliseconds.
 	 * @internal
 	 */
-	private static readonly _JWKS_REFRESH_INTERVAL_MS: number = 60000;
+	private static readonly _JWKS_REFRESH_INTERVAL_MS: number = DurationConstants.MsPerMinute;
 
 	/**
 	 * When the signing keys at each address were last fetched for an unknown key id.
@@ -233,7 +241,10 @@ export class OidcHelper {
 			throw new UnauthorizedError(OidcHelper.CLASS_NAME, "idTokenIssuerInvalid");
 		} else if (!audience.includes(options.audience)) {
 			throw new UnauthorizedError(OidcHelper.CLASS_NAME, "idTokenAudienceInvalid");
-		} else if (!Is.integer(expires) || expires < Math.trunc(Date.now() / 1000)) {
+		} else if (
+			!Is.integer(expires) ||
+			expires < Math.trunc(Date.now() / DurationConstants.MsPerSecond)
+		) {
 			throw new UnauthorizedError(OidcHelper.CLASS_NAME, "idTokenExpired");
 		} else if (payload.nonce !== options.nonce) {
 			throw new UnauthorizedError(OidcHelper.CLASS_NAME, "idTokenNonceInvalid");

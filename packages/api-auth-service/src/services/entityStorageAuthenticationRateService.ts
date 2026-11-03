@@ -7,7 +7,15 @@ import type {
 } from "@3sixty/api-auth-models";
 import { TooManyRequestsError, type IPlatformComponent } from "@3sixty/api-models";
 import type { ITaskSchedulerComponent } from "@3sixty/background-task-models";
-import { ComponentFactory, Converter, GeneralError, Guards, Is, Mutex } from "@3sixty/core";
+import {
+	ComponentFactory,
+	Converter,
+	DurationConstants,
+	GeneralError,
+	Guards,
+	Is,
+	Mutex
+} from "@3sixty/core";
 import { Sha256 } from "@3sixty/crypto";
 import { ComparisonOperator } from "@3sixty/entity";
 import {
@@ -247,7 +255,7 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 	): Promise<void> {
 		const now = Date.now();
 		const nowIso = new Date(now).toISOString();
-		const windowMs = actionConfig.windowMinutes * 60 * 1000;
+		const windowMs = actionConfig.windowMinutes * DurationConstants.MsPerMinute;
 		const cutoff = now - windowMs;
 
 		// Resolve the existing rate entry for this action + identifier pair.
@@ -260,7 +268,9 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 		if (activeTimestamps.length >= actionConfig.maxAttempts) {
 			const oldestTimestamp = new Date(activeTimestamps[0]).getTime();
 			const nextRequestTime = new Date(oldestTimestamp + windowMs).toISOString();
-			const retryAfterSeconds = Math.ceil((oldestTimestamp + windowMs - now) / 1000);
+			const retryAfterSeconds = Math.ceil(
+				(oldestTimestamp + windowMs - now) / DurationConstants.MsPerSecond
+			);
 
 			throw new TooManyRequestsError(
 				EntityStorageAuthenticationRateService.CLASS_NAME,
@@ -297,7 +307,7 @@ export class EntityStorageAuthenticationRateService implements IAuthenticationRa
 
 			for (const action of Object.keys(this._actionConfigs)) {
 				const actionConfig = this._actionConfigs[action];
-				const windowMs = actionConfig.windowMinutes * 60 * 1000;
+				const windowMs = actionConfig.windowMinutes * DurationConstants.MsPerMinute;
 				const cutoffIso = new Date(now - windowMs).toISOString();
 				const ids: string[] = [];
 				let cursor: string | undefined;

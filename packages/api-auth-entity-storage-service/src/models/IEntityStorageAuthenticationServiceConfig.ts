@@ -226,4 +226,11 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	 * @default 60
 	 */
 	cleanupIntervalMinutes?: number;
+
+	/**
+	 * How often the e-mails queued after a response, such as a password reset or sign up, are
+	 * delivered, in seconds.
+	 * @default 60
+	 */
+	deliveryIntervalSeconds?: number;
 }
