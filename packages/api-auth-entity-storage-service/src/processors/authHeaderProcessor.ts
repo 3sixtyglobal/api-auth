@@ -16,6 +16,7 @@ import {
 	Coerce,
 	ComponentFactory,
 	Converter,
+	DurationConstants,
 	GeneralError,
 	Guards,
 	Is,
@@ -65,7 +66,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	 * The default time to keep a verified token in the cache.
 	 * @internal
 	 */
-	private static readonly _DEFAULT_TOKEN_CACHE_TTL_MS: number = 30000;
+	private static readonly _DEFAULT_TOKEN_CACHE_TTL_MS: number = 30 * DurationConstants.MsPerSecond;
 
 	/**
 	 * The vault for the keys.
@@ -478,7 +479,9 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			tenantOrganizationId,
 			tenantPublicOrigin,
 			accountId: user?.accountId,
-			expires: Is.integer(expiresSeconds) ? expiresSeconds * 1000 : undefined,
+			expires: Is.integer(expiresSeconds)
+				? expiresSeconds * DurationConstants.MsPerSecond
+				: undefined,
 			sessionStart: Coerce.integer(payload.sst)
 		};
 	}

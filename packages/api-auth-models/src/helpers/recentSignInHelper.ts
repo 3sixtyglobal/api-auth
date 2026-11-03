@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { Is, UnauthorizedError } from "@3sixty/core";
+import { DurationConstants, Is, UnauthorizedError } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 
 /**
@@ -33,7 +33,7 @@ export class RecentSignInHelper {
 	 * the caller can be asked to sign in again.
 	 */
 	public static guard(sessionStart: number | undefined, maxAgeSeconds: number): void {
-		const nowSeconds = Math.floor(Date.now() / 1000);
+		const nowSeconds = Math.floor(Date.now() / DurationConstants.MsPerSecond);
 		if (
 			!Is.integer(sessionStart) ||
 			nowSeconds - sessionStart > maxAgeSeconds ||

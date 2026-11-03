@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { BaseError, Converter, GeneralError, Guards, Is } from "@3sixty/core";
+import { BaseError, Converter, DurationConstants, GeneralError, Guards, Is } from "@3sixty/core";
 import type { ILoggingComponent } from "@3sixty/logging-models";
 import { nameof } from "@3sixty/nameof";
 import { SchemaOrgContexts } from "@3sixty/standards-schema-org";
@@ -30,7 +30,7 @@ export class AvatarHelper {
 	/**
 	 * How long to wait for a photo, in milliseconds, when the options give no timeout.
 	 */
-	public static readonly DEFAULT_TIMEOUT_MS: number = 10000;
+	public static readonly DEFAULT_TIMEOUT_MS: number = 10 * DurationConstants.MsPerSecond;
 
 	/**
 	 * Fetch a photo as a schema.org ImageObject holding a data URL. A failure is logged and never

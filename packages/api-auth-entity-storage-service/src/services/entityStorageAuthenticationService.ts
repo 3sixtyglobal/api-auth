@@ -42,6 +42,7 @@ import {
 	Coerce,
 	ComponentFactory,
 	Converter,
+	DurationConstants,
 	GeneralError,
 	Guards,
 	Is,
@@ -107,7 +108,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	/**
 	 * The default time a sign up verification link can be used for, in minutes.
 	 */
-	public static readonly DEFAULT_REGISTRATION_VERIFICATION_EXPIRY_MINUTES: number = 1440;
+	public static readonly DEFAULT_REGISTRATION_VERIFICATION_EXPIRY_MINUTES: number =
+		DurationConstants.MinutesPerDay;
 
 	/**
 	 * The default template of the sign up verification e-mail.
@@ -182,6 +184,11 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	public static readonly DEFAULT_CLEANUP_INTERVAL_MINUTES: number = 60;
 
 	/**
+	 * The default delivery interval of the queued e-mails, in seconds.
+	 */
+	public static readonly DEFAULT_DELIVERY_INTERVAL_SECONDS: number = 60;
+
+	/**
 	 * Default TTL in minutes.
 	 * @internal
 	 */
@@ -237,22 +244,28 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _vaultConnector: IVaultConnector;
 
 	/**
-	 * The task scheduler that runs deferred work and the cleanup.
+	 * The task scheduler that runs the deliveries and the cleanup.
 	 * @internal
 	 */
 	private readonly _taskScheduler: ITaskSchedulerComponent;
 
 	/**
-	 * The id of the scheduler task that runs deferred work.
+	 * The id of the scheduler task that runs the deliveries.
 	 * @internal
 	 */
-	private readonly _deferredTaskId: string;
+	private readonly _deliveryTaskId: string;
 
 	/**
-	 * The work waiting to run after the responses that queued it.
+	 * The deliveries waiting to run after the responses that queued them.
 	 * @internal
 	 */
-	private readonly _deferredJobs: { contextIds?: IContextIds; method: () => Promise<void> }[];
+	private readonly _deliveryJobs: { contextIds?: IContextIds; method: () => Promise<void> }[];
+
+	/**
+	 * The delivery interval of the queued e-mails, in seconds.
+	 * @internal
+	 */
+	private readonly _deliveryIntervalSeconds: number;
 
 	/**
 	 * The id of the scheduler task that removes expired sign ups and tokens.
@@ -483,8 +496,8 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._taskScheduler = ComponentFactory.get<ITaskSchedulerComponent>(
 			options?.taskSchedulerComponentType ?? "task-scheduler"
 		);
-		this._deferredTaskId = `authentication-deferred-${RandomHelper.generateUuidV7()}`;
-		this._deferredJobs = [];
+		this._deliveryTaskId = `authentication-delivery-${RandomHelper.generateUuidV7()}`;
+		this._deliveryJobs = [];
 		this._cleanupTaskId = `authentication-cleanup-${RandomHelper.generateUuidV7()}`;
 		this._platformComponent = ComponentFactory.get<IPlatformComponent>(
 			options?.platformComponentType ?? "platform"
@@ -521,6 +534,9 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._cleanupIntervalMinutes =
 			config?.cleanupIntervalMinutes ??
 			EntityStorageAuthenticationService.DEFAULT_CLEANUP_INTERVAL_MINUTES;
+		this._deliveryIntervalSeconds =
+			config?.deliveryIntervalSeconds ??
+			EntityStorageAuthenticationService.DEFAULT_DELIVERY_INTERVAL_SECONDS;
 
 		const configured: { [action: string]: IAuthenticationRateActionConfig | undefined } = {
 			login: config?.loginRateLimit,
@@ -630,8 +646,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			await this._authenticationRateService.registerAction(action, config);
 		}
 
-		await this._taskScheduler.addTask(this._deferredTaskId, [{ intervalMinutes: 1 }], async () =>
-			this.runDeferredJobs()
+		await this._taskScheduler.addTask(
+			this._deliveryTaskId,
+			[{ intervalSeconds: this._deliveryIntervalSeconds }],
+			async () => this.runDeliveries()
 		);
 
 		await this._taskScheduler.addTask(
@@ -647,10 +665,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @returns A promise that resolves when all rate-limit actions have been unregistered.
 	 */
 	public async stop(nodeLoggingComponentType?: string): Promise<void> {
-		await this._taskScheduler.removeTask(this._deferredTaskId);
+		await this._taskScheduler.removeTask(this._deliveryTaskId);
 		await this._taskScheduler.removeTask(this._cleanupTaskId);
-		// Work still waiting is run now so no e-mail is lost.
-		await this.runDeferredJobs();
+		// Deliveries still waiting are run now so no e-mail is lost.
+		await this.runDeliveries();
 
 		for (const action of Object.keys(this._rateLimits)) {
 			await this._authenticationRateService.unregisterAction(action);
@@ -949,7 +967,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			givenName: normalised.givenName,
 			familyName: normalised.familyName
 		};
-		await this.runDeferred(async () => this.completeRegistration(details, passwordHash));
+		await this.queueDelivery(async () => this.completeRegistration(details, passwordHash));
 	}
 
 	/**
@@ -1152,14 +1170,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			);
 
 			refreshSub = headerAndPayload.payload.sub ?? "";
-			const nowSeconds = Math.trunc(Date.now() / 1000);
+			const nowSeconds = Math.trunc(Date.now() / DurationConstants.MsPerSecond);
 			sessionStart = Coerce.integer(headerAndPayload.payload.sst);
 			if (Is.integer(this._maxSessionMinutes)) {
 				// A token from an earlier version has no session start, so the length of its session
 				// cannot be limited and it signs in again.
 				if (
 					!Is.integer(sessionStart) ||
-					nowSeconds - sessionStart >= this._maxSessionMinutes * 60
+					nowSeconds - sessionStart >= this._maxSessionMinutes * DurationConstants.SecondsPerMinute
 				) {
 					throw new UnauthorizedError(
 						EntityStorageAuthenticationService.CLASS_NAME,
@@ -1328,7 +1346,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			await this._authenticationRateService.check(rateAction, clientKey);
 		}
 
-		await this.runDeferred(async () => this.sendPasswordReset(email));
+		await this.queueDelivery(async () => this.sendPasswordReset(email));
 	}
 
 	/**
@@ -1548,7 +1566,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		registration: Omit<IAuthenticationRegistration, "password">,
 		passwordHash: Awaited<ReturnType<typeof PasswordHelper.hashPassword>>
 	): Promise<void> {
-		const expiryMs = this._registrationVerificationExpiryMinutes * 60000;
+		const expiryMs = this._registrationVerificationExpiryMinutes * DurationConstants.MsPerMinute;
 		const lockKey = await AccountHelper.lockKey(`register|${registration.email}`);
 		await Mutex.lock(lockKey, { throwOnTimeout: true });
 		let result: { user: AuthenticationUser; created: boolean };
@@ -1701,14 +1719,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Queue work to run after the response, on the next scheduler run or when the service stops.
-	 * Failures are logged, as the response does not wait for the work.
-	 * @param method The work.
-	 * @returns A promise that resolves when the work has been queued.
+	 * Queue a delivery to run after the response, on the next delivery run or when the service
+	 * stops. Failures are logged, as the response does not wait for the delivery.
+	 * @param method The delivery.
+	 * @returns A promise that resolves when the delivery has been queued.
 	 * @internal
 	 */
-	private async runDeferred(method: () => Promise<void>): Promise<void> {
-		this._deferredJobs.push({ contextIds: await ContextIdStore.getContextIds(), method });
+	private async queueDelivery(method: () => Promise<void>): Promise<void> {
+		this._deliveryJobs.push({ contextIds: await ContextIdStore.getContextIds(), method });
 	}
 
 	/**
@@ -1733,7 +1751,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		await PasswordResetHelper.removeExpired(this._passwordResetEntityStorage);
 
 		// The ids are gathered first, as removing while paging would move the cursor past accounts.
-		const expiryMs = this._registrationVerificationExpiryMinutes * 60000;
+		const expiryMs = this._registrationVerificationExpiryMinutes * DurationConstants.MsPerMinute;
 		const cutoff = Date.now() - expiryMs;
 		const accountIds: string[] = [];
 		let cursor: string | undefined;
@@ -1810,12 +1828,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	}
 
 	/**
-	 * Run the queued work, each in the context it was queued in.
-	 * @returns A promise that resolves when the work has run.
+	 * Run the queued deliveries, each in the context it was queued in.
+	 * @returns A promise that resolves when the deliveries have run.
 	 * @internal
 	 */
-	private async runDeferredJobs(): Promise<void> {
-		const jobs = this._deferredJobs.splice(0);
+	private async runDeliveries(): Promise<void> {
+		const jobs = this._deliveryJobs.splice(0);
 		for (const job of jobs) {
 			await ContextIdStore.run(job.contextIds ?? {}, async () => this.runJob(job.method));
 		}
@@ -1835,7 +1853,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				level: "error",
 				source: EntityStorageAuthenticationService.CLASS_NAME,
 				ts: Date.now(),
-				message: "deferredWorkFailed",
+				message: "scheduledTaskFailed",
 				error: BaseError.fromError(error)
 			});
 		}

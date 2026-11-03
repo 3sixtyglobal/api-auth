@@ -17,6 +17,7 @@ import {
 	BaseError,
 	ComponentFactory,
 	Converter,
+	DurationConstants,
 	Guards,
 	Is,
 	NotFoundError,
@@ -157,7 +158,7 @@ export class OAuthService implements IOAuthComponent {
 		this._config = options.config;
 		this._transactionTtlMs =
 			(options.config.transactionTtlSeconds ?? OAuthService._DEFAULT_TRANSACTION_TTL_SECONDS) *
-			1000;
+			DurationConstants.MsPerSecond;
 		this._vaultConnector = VaultConnectorFactory.get(options.vaultConnectorType ?? "vault");
 		this._transactionSigningKeyName =
 			options.config.transactionSigningKeyName ?? OAuthService.DEFAULT_TRANSACTION_SIGNING_KEY_NAME;

@@ -14,7 +14,7 @@
 			"nodeIdNotSet": "The node ID has not been set",
 			"accountDisabled": "The account has been disabled",
 			"passwordResetInvalid": "The password reset link is not valid or has expired",
-			"deferredWorkFailed": "Work run after a response failed",
+			"scheduledTaskFailed": "A scheduled task failed",
 			"accountRestoreFailed": "The account \"{accountId}\" could not be enabled again after its removal failed"
 		},
 		"entityStorageAuthenticationAdminService": {
