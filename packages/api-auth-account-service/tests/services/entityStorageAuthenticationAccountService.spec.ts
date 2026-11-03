@@ -6,6 +6,7 @@ import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import {
 	ComponentFactory,
 	ConflictError,
+	DurationConstants,
 	GeneralError,
 	Is,
 	NotFoundError,
@@ -44,7 +45,7 @@ import {
 
 initSchema();
 
-const FIVE_MINUTES_MS = 300000;
+const FIVE_MINUTES_MS = 5 * DurationConstants.MsPerMinute;
 const SIX_MINUTES_MS = 360000;
 
 /**
@@ -52,7 +53,7 @@ const SIX_MINUTES_MS = 360000;
  * @returns The time.
  */
 function nowSeconds(): number {
-	return Math.floor(Date.now() / 1000);
+	return Math.floor(Date.now() / DurationConstants.MsPerSecond);
 }
 
 /**
@@ -1008,8 +1009,8 @@ describe("EntityStorageAuthenticationAccountService", () => {
 	it("should read the requests of the account once for its organization and request", async () => {
 		const now = Date.now();
 		for (const [id, status, offset] of [
-			["request-1", "rejected", 2000],
-			["request-2", "pending", 1000]
+			["request-1", "rejected", 2 * DurationConstants.MsPerSecond],
+			["request-2", "pending", DurationConstants.MsPerSecond]
 		] as const) {
 			const date = new Date(now - offset).toISOString();
 			await requests.set({

@@ -1,7 +1,7 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { ComponentFactory } from "@3sixty/core";
+import { ComponentFactory, DurationConstants } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
@@ -56,7 +56,7 @@ const LOGO = {
  * @returns The time.
  */
 function nowSeconds(): number {
-	return Math.floor(Date.now() / 1000);
+	return Math.floor(Date.now() / DurationConstants.MsPerSecond);
 }
 
 /**

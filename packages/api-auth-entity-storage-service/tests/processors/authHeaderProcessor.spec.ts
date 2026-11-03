@@ -6,6 +6,7 @@ import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context
 import {
 	ComponentFactory,
 	Converter,
+	DurationConstants,
 	type IError,
 	LfuCache,
 	UnauthorizedError
@@ -926,11 +927,13 @@ describe("AuthHeaderProcessor", () => {
 			// Only the clock is faked; the cache and its mutex rely on real timers.
 			vi.useFakeTimers({ toFake: ["Date"] });
 			const start = Date.now();
-			mockVerify(Math.trunc(start / 1000) + 60);
+			mockVerify(Math.trunc(start / DurationConstants.MsPerSecond) + 60);
 
 			// The cache lifetime is far longer than the token, so only the expiry claim can be
 			// what ends the entry.
-			const authProcessor = new AuthHeaderProcessor({ config: { tokenCacheTtlMs: 600000 } });
+			const authProcessor = new AuthHeaderProcessor({
+				config: { tokenCacheTtlMs: 10 * DurationConstants.MsPerMinute }
+			});
 			await authProcessor.start();
 
 			await runRequest(authProcessor);
@@ -951,13 +954,16 @@ describe("AuthHeaderProcessor", () => {
 			vi.useFakeTimers({ toFake: ["Date"] });
 			const start = Date.now();
 			mockVerify();
-			const authProcessor = new AuthHeaderProcessor({ config: { tokenCacheTtlMs: 60000 } });
+			const authProcessor = new AuthHeaderProcessor({
+				config: { tokenCacheTtlMs: DurationConstants.MsPerMinute }
+			});
 			await authProcessor.start();
 
 			await runRequest(authProcessor);
 
 			// Steady traffic inside the lifetime keeps hitting the same entry.
-			vi.setSystemTime(start + 30000);
+			const thirtySecondsMs = 30 * DurationConstants.MsPerSecond;
+			vi.setSystemTime(start + thirtySecondsMs);
 			await runRequest(authProcessor);
 			expect(TokenHelper.verify).toHaveBeenCalledTimes(1);
 

@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { Converter, UnauthorizedError } from "@3sixty/core";
+import { Converter, DurationConstants, UnauthorizedError } from "@3sixty/core";
 import { FetchHelper, type IJwk, type IJwtPayload, Jwt } from "@3sixty/web";
 import { OidcHelper } from "../../src/helpers/oidcHelper.js";
 import type { IOidcIdTokenOptions } from "../../src/models/IOidcIdTokenOptions.js";
@@ -59,7 +59,7 @@ describe("OidcHelper", () => {
 				aud: CLIENT_ID,
 				sub: "subject-1",
 				nonce: NONCE,
-				exp: Math.trunc(Date.now() / 1000) + 300,
+				exp: Math.trunc(Date.now() / DurationConstants.MsPerSecond) + 300,
 				email: "user@example.com",
 				[OidcHelper.CLAIM_GIVEN_NAME]: "Ada",
 				[OidcHelper.CLAIM_FAMILY_NAME]: "Lovelace",
@@ -245,7 +245,7 @@ describe("OidcHelper", () => {
 		it("should reject an expired token", async () => {
 			await expect(
 				OidcHelper.verifyIdToken(
-					await signIdToken({ exp: Math.trunc(Date.now() / 1000) - 60 }),
+					await signIdToken({ exp: Math.trunc(Date.now() / DurationConstants.MsPerSecond) - 60 }),
 					options
 				)
 			).rejects.toThrow(UnauthorizedError);
@@ -289,7 +289,7 @@ describe("OidcHelper", () => {
 				// The first lookup fetches again, the others use the keys already held.
 				expect(fetchSpy).toHaveBeenCalledTimes(4);
 
-				vi.advanceTimersByTime(60000);
+				vi.advanceTimersByTime(DurationConstants.MsPerMinute);
 				await expect(
 					OidcHelper.verifyIdToken(await signIdToken({}, "made-up-3"), throttledOptions)
 				).rejects.toMatchObject({ message: "oidcHelper.signingKeyNotFound" });

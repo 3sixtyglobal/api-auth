@@ -7,7 +7,7 @@ import {
 } from "@3sixty/api-auth-models";
 import type { IAuthorizationComponent } from "@3sixty/authorization-models";
 import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context";
-import { ComponentFactory, GeneralError, Is } from "@3sixty/core";
+import { ComponentFactory, DurationConstants, GeneralError, Is } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import { EntityStorageConnectorFactory } from "@3sixty/entity-storage-models";
 import type { IIdentityComponent } from "@3sixty/identity-models";
@@ -838,7 +838,7 @@ describe("EntityStorageOrganizationService identity export and import", () => {
 	 * @returns The time.
 	 */
 	function nowSeconds(): number {
-		return Math.floor(Date.now() / 1000);
+		return Math.floor(Date.now() / DurationConstants.MsPerSecond);
 	}
 
 	beforeEach(() => {

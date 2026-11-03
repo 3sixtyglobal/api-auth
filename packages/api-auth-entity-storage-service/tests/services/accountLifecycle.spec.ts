@@ -14,6 +14,7 @@ import { ContextIdKeys, ContextIdStore, type IContextIds } from "@3sixty/context
 import {
 	ComponentFactory,
 	Converter,
+	DurationConstants,
 	GeneralError,
 	NotFoundError,
 	UnauthorizedError
@@ -362,7 +363,7 @@ describe("account lifecycle", () => {
 			const stored = await resetStorage.get(PasswordResetHelper.hashToken(token));
 			await resetStorage.set({
 				...(stored as AuthenticationPasswordReset),
-				expires: new Date(Date.now() - 1000).toISOString()
+				expires: new Date(Date.now() - DurationConstants.MsPerSecond).toISOString()
 			});
 
 			await expect(service.resetPassword(token, NEW_PASSWORD)).rejects.toMatchObject({
@@ -541,7 +542,7 @@ describe("account lifecycle", () => {
 					[ContextIdKeys.Account]: "user-1",
 					[ContextIdKeys.UserOrganization]: "did:example:org"
 				},
-				async () => service.removeAccount(Math.floor(Date.now() / 1000))
+				async () => service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 			);
 
 			expect(await userStorage.get("user-1")).toBeUndefined();
@@ -567,7 +568,7 @@ describe("account lifecycle", () => {
 
 			await expect(
 				ContextIdStore.run({ [ContextIdKeys.Account]: "missing" }, async () =>
-					service.removeAccount(Math.floor(Date.now() / 1000))
+					service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 				)
 			).rejects.toMatchObject({ name: "NotFoundError" });
 		});
@@ -576,7 +577,10 @@ describe("account lifecycle", () => {
 			await createUser("user@example.com", "user-1");
 			const service = createService();
 
-			for (const sessionStart of [undefined, Math.floor(Date.now() / 1000) - 301]) {
+			for (const sessionStart of [
+				undefined,
+				Math.floor(Date.now() / DurationConstants.MsPerSecond) - 301
+			]) {
 				await expect(
 					ContextIdStore.run({ [ContextIdKeys.Account]: "user-1" }, async () =>
 						service.removeAccount(sessionStart)
@@ -591,7 +595,7 @@ describe("account lifecycle", () => {
 
 		test("removes the identity through the account component as the signed in account", async () => {
 			await createUser("user@example.com", "user-1");
-			const sessionStart = Math.floor(Date.now() / 1000);
+			const sessionStart = Math.floor(Date.now() / DurationConstants.MsPerSecond);
 			const calls: string[] = [];
 			const disabledWhenRemoved: boolean[] = [];
 			const accountComponent = {
@@ -634,7 +638,7 @@ describe("account lifecycle", () => {
 			const service = createService();
 
 			await ContextIdStore.run({ [ContextIdKeys.Account]: "user-1" }, async () =>
-				service.removeAccount(Math.floor(Date.now() / 1000))
+				service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 			);
 
 			expect(await userStorage.get("user-1")).toBeUndefined();
@@ -651,7 +655,7 @@ describe("account lifecycle", () => {
 			const service = createService({ config: { authorizationModelId: "trade" } });
 
 			await ContextIdStore.run({ [ContextIdKeys.Account]: "user-1" }, async () =>
-				service.removeAccount(Math.floor(Date.now() / 1000))
+				service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 			);
 
 			expect(authorization.removeAllRolesForSubject).toHaveBeenCalledWith("trade", "user-1");
@@ -670,7 +674,7 @@ describe("account lifecycle", () => {
 
 			await expect(
 				ContextIdStore.run({ [ContextIdKeys.Account]: "user-1" }, async () =>
-					service.removeAccount(Math.floor(Date.now() / 1000))
+					service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 				)
 			).rejects.toThrow("vault down");
 			const user = await userStorage.get("user-1");
@@ -882,7 +886,7 @@ describe("account lifecycle", () => {
 
 			await createUser("other@example.com", "user-2");
 			await ContextIdStore.run({ ...NODE_CONTEXT, [ContextIdKeys.Account]: "user-2" }, async () =>
-				service.removeAccount(Math.floor(Date.now() / 1000))
+				service.removeAccount(Math.floor(Date.now() / DurationConstants.MsPerSecond))
 			);
 			// Disabled before its identity is removed, and checked again when the account is removed.
 			expect(invalidate).toHaveBeenCalledTimes(7);
@@ -1058,7 +1062,7 @@ describe("account lifecycle", () => {
 			await createUser("user@example.com", "user-1");
 			const service = createService({ config: { maxSessionMinutes: 60 } });
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
-			const nowSeconds = Math.trunc(Date.now() / 1000);
+			const nowSeconds = Math.trunc(Date.now() / DurationConstants.MsPerSecond);
 			let sessionStart = nowSeconds - 1800;
 			vi.spyOn(TokenHelper, "verify").mockImplementation(async () => ({
 				header: { alg: "EdDSA" },
@@ -1089,7 +1093,7 @@ describe("account lifecycle", () => {
 			await createUser("user@example.com", "user-1");
 			const service = createService();
 			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
-			const sessionStart = Math.trunc(Date.now() / 1000) - 60;
+			const sessionStart = Math.trunc(Date.now() / DurationConstants.MsPerSecond) - 60;
 			vi.spyOn(TokenHelper, "verify").mockImplementation(async () => ({
 				header: { alg: "EdDSA" },
 				payload: { sub: "user-1", sst: sessionStart, pver: 0 }

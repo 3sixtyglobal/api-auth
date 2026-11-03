@@ -1,7 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { UnauthorizedError } from "@3sixty/core";
+import { DurationConstants, UnauthorizedError } from "@3sixty/core";
 import type { IVaultConnector } from "@3sixty/vault-models";
 import { HeaderTypes, type IHttpHeaders, Jwt } from "@3sixty/web";
 import { TokenHelper } from "../../src/utils/tokenHelper.js";
@@ -99,9 +99,9 @@ describe("TokenHelper.createToken session", () => {
 			capturedPayload = payload as { [key: string]: unknown };
 			return "mock.jwt.token";
 		});
-		const nowSeconds = Math.trunc(Date.now() / 1000);
+		const nowSeconds = Math.trunc(Date.now() / DurationConstants.MsPerSecond);
 		const fiftyMinutes = 3000;
-		const oneHour = 3600;
+		const oneHour = DurationConstants.SecondsPerHour;
 		const sessionStart = nowSeconds - fiftyMinutes;
 		const sessionEnd = sessionStart + oneHour;
 
@@ -119,8 +119,10 @@ describe("TokenHelper.createToken session", () => {
 
 		expect(capturedPayload?.sst).toBe(sessionStart);
 		expect(Math.abs(Number(capturedPayload?.exp) - sessionEnd)).toBeLessThanOrEqual(1);
-		const sessionEndMs = sessionEnd * 1000;
-		expect(Math.abs(result.expiry - sessionEndMs)).toBeLessThanOrEqual(1000);
+		const sessionEndMs = sessionEnd * DurationConstants.MsPerSecond;
+		expect(Math.abs(result.expiry - sessionEndMs)).toBeLessThanOrEqual(
+			DurationConstants.MsPerSecond
+		);
 	});
 
 	it("should start the session now when no start is given", async () => {
@@ -139,7 +141,7 @@ describe("TokenHelper.createToken session", () => {
 			60
 		);
 
-		const nowSeconds = Date.now() / 1000;
+		const nowSeconds = Date.now() / DurationConstants.MsPerSecond;
 		expect(Math.abs(Number(capturedPayload?.sst) - nowSeconds)).toBeLessThanOrEqual(2);
 	});
 
@@ -162,7 +164,9 @@ describe("TokenHelper.createToken session", () => {
 		);
 
 		expect(capturedPayload?.sst).toBeUndefined();
-		expect(Math.abs(result.expiry - (Date.now() + 3600000))).toBeLessThanOrEqual(2000);
+		expect(
+			Math.abs(result.expiry - (Date.now() + DurationConstants.MsPerHour))
+		).toBeLessThanOrEqual(2000);
 	});
 });
 
@@ -270,7 +274,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "valid.jwt.token";
@@ -289,7 +294,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "wrong-kid.jwt.token";
@@ -307,7 +313,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: "different-node",
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "wrong-iss.jwt.token";
@@ -345,7 +352,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) - 3600 // Expired 1 hour ago
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) - DurationConstants.SecondsPerHour // Expired 1 hour ago
 			};
 
 			const token = "expired.jwt.token";
@@ -362,7 +370,8 @@ describe("TokenHelper", () => {
 		it("should throw UnauthorizedError when subject is missing", async () => {
 			const payload = {
 				iss: nodeId,
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "no-subject.jwt.token";
@@ -380,7 +389,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "empty-subject.jwt.token";
@@ -398,7 +408,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "no-org.jwt.token";
@@ -417,7 +428,8 @@ describe("TokenHelper", () => {
 				iss: nodeId,
 				sub: "user123",
 				tid: "tenant789",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "with-tenant.jwt.token";
@@ -435,7 +447,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600,
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour,
 				customClaim: "customValue"
 			};
 
@@ -451,7 +464,7 @@ describe("TokenHelper", () => {
 		});
 
 		it("should throw UnauthorizedError when token is exactly at expiry time", async () => {
-			const now = Math.trunc(Date.now() / 1000);
+			const now = Math.trunc(Date.now() / DurationConstants.MsPerSecond);
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
@@ -484,7 +497,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "verified-user.jwt.token";
@@ -511,7 +525,8 @@ describe("TokenHelper", () => {
 				iss: nodeId,
 				sub: "user123",
 				pver: 3,
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "token-with-pver.jwt.token";
@@ -537,7 +552,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "token-without-pver.jwt.token";
@@ -556,7 +572,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "missing-user-verification.jwt.token";
@@ -576,7 +593,8 @@ describe("TokenHelper", () => {
 				iss: nodeId,
 				sub: "user123",
 				tid: "tenant-xyz",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "missing-tenant-verification.jwt.token";
@@ -597,7 +615,8 @@ describe("TokenHelper", () => {
 				iss: nodeId,
 				sub: "user123",
 				tid: tenantId,
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "with-tenant.jwt.token";
@@ -616,7 +635,8 @@ describe("TokenHelper", () => {
 			const payload = {
 				iss: nodeId,
 				sub: "user123",
-				exp: Math.trunc(Date.now() / 1000) + 3600
+				exp:
+					Math.trunc(Date.now() / DurationConstants.MsPerSecond) + DurationConstants.SecondsPerHour
 			};
 
 			const token = "without-tenant.jwt.token";

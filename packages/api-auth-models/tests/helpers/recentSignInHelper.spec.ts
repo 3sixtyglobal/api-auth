@@ -1,9 +1,10 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { DurationConstants } from "@3sixty/core";
 import { RecentSignInHelper } from "../../src/helpers/recentSignInHelper.js";
 
 describe("RecentSignInHelper", () => {
-	const now = Math.floor(Date.now() / 1000);
+	const now = Math.floor(Date.now() / DurationConstants.MsPerSecond);
 
 	test("accepts a session that started within the window", () => {
 		expect(() => RecentSignInHelper.guard(now, 300)).not.toThrow();
@@ -31,7 +32,7 @@ describe("RecentSignInHelper", () => {
 	test("refuses a session start in the future or in milliseconds", () => {
 		for (const sessionStart of [
 			now + RecentSignInHelper.MAX_FUTURE_SKEW_SECONDS + 5,
-			now + 3600,
+			now + DurationConstants.SecondsPerHour,
 			Date.now()
 		]) {
 			expect(() => RecentSignInHelper.guard(sessionStart, 300)).toThrow(

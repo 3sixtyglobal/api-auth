@@ -6,7 +6,7 @@ import {
 	OrganizationRequestStatus
 } from "@3sixty/api-auth-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
-import { ComponentFactory, GeneralError, Is } from "@3sixty/core";
+import { ComponentFactory, DurationConstants, GeneralError, Is } from "@3sixty/core";
 import { MemoryEntityStorageConnector } from "@3sixty/entity-storage-connector-memory";
 import {
 	EntityStorageConnectorFactory,
@@ -52,7 +52,7 @@ const IDENTITY_FILE = { type: "account-identity", version: 1 };
  * @returns The time.
  */
 function nowSeconds(): number {
-	return Math.floor(Date.now() / 1000);
+	return Math.floor(Date.now() / DurationConstants.MsPerSecond);
 }
 
 /**
@@ -401,7 +401,11 @@ describe("EntityStorageAuthenticationAccountService export and import", () => {
 
 		it("should refuse an adoption or import without a recent sign in", async () => {
 			await asAccount("account-1", async () => {
-				for (const sessionStart of [undefined, nowSeconds() - 301, nowSeconds() + 3600]) {
+				for (const sessionStart of [
+					undefined,
+					nowSeconds() - 301,
+					nowSeconds() + DurationConstants.SecondsPerHour
+				]) {
 					await expect(
 						service.adoptIdentity(undefined, undefined, sessionStart)
 					).rejects.toMatchObject({

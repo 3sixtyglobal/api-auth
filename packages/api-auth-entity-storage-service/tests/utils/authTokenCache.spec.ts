@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { LfuCache } from "@3sixty/core";
+import { DurationConstants, LfuCache } from "@3sixty/core";
 import type { IAuthTokenContext } from "../../src/models/IAuthTokenContext.js";
 import { AuthTokenCache } from "../../src/utils/authTokenCache.js";
 
@@ -9,7 +9,7 @@ describe("AuthTokenCache", () => {
 	let accountKeys: Map<string, Set<string>>;
 
 	beforeEach(() => {
-		cache = new LfuCache<IAuthTokenContext>({ ttiMs: 60000 });
+		cache = new LfuCache<IAuthTokenContext>({ ttiMs: DurationConstants.MsPerMinute });
 		accountKeys = new Map<string, Set<string>>();
 		AuthTokenCache.register(cache, accountKeys);
 	});
