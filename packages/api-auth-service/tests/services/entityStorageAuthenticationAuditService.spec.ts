@@ -4,7 +4,7 @@ import { HttpContextIdKeys } from "@3sixty/api-models";
 import { ContextIdKeys, ContextIdStore } from "@3sixty/context";
 import { Converter, RandomHelper, Validation } from "@3sixty/core";
 import { Sha256 } from "@3sixty/crypto";
-import { ComparisonOperator } from "@3sixty/entity";
+import { ComparisonOperator, SortDirection } from "@3sixty/entity";
 import {
 	EntityStorageConnectorFactory,
 	type IEntityStorageConnector
@@ -271,7 +271,7 @@ describe("EntityStorageAuthenticationAuditService", () => {
 					}
 				]
 			},
-			undefined,
+			[{ property: "dateCreated", sortDirection: SortDirection.Descending }],
 			undefined,
 			"start-cursor",
 			25
@@ -300,7 +300,14 @@ describe("EntityStorageAuthenticationAuditService", () => {
 
 		const result = await service.query();
 
-		expect(queryMock).toHaveBeenCalledWith(undefined, undefined, undefined, undefined, undefined);
+		// The newest entries come first.
+		expect(queryMock).toHaveBeenCalledWith(
+			undefined,
+			[{ property: "dateCreated", sortDirection: SortDirection.Descending }],
+			undefined,
+			undefined,
+			undefined
+		);
 		expect(result).toEqual({ entries: [], cursor: undefined });
 	});
 
