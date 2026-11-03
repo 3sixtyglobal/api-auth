@@ -1,6 +1,6 @@
 {
 	"name": "@3sixty/api-auth-account-service",
-	"version": "0.20.0-next.4",
+	"version": "0.20.0-next.5",
 	"description": "Account data storage, request processing and REST routes backed by entity storage.",
 	"repository": {
 		"type": "git",
@@ -31,7 +31,7 @@
 		"docs:api": "ts-to-openapi ./ts-to-openapi.json ./docs/open-api/spec.json"
 	},
 	"dependencies": {
-		"@3sixty/api-auth-models": "0.20.0-next.4",
+		"@3sixty/api-auth-models": "0.20.0-next.5",
 		"@3sixty/api-models": "next",
 		"@3sixty/authorization-models": "next",
 		"@3sixty/context": "next",
