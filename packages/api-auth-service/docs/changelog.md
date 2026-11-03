@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.5](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.4...api-auth-service-v0.20.0-next.5) (2026-11-03)
+
+
+### Bug Fixes
+
+* return audit entries newest first ([#14](https://github.com/3sixtyglobal/api-auth/issues/14)) ([b8d0984](https://github.com/3sixtyglobal/api-auth/commit/b8d0984a4962cd05ca98e53bcd8f48e7c678a260))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.4 to 0.20.0-next.5
+
 ## [0.20.0-next.4](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.3...api-auth-service-v0.20.0-next.4) (2026-11-03)
 
 
