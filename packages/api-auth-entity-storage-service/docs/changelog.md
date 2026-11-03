@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-entity-storage-service-v0.20.0-next.5...api-auth-entity-storage-service-v0.20.0-next.6) (2026-11-03)
+
+
+### Features
+
+* send e-mails in the language of the request ([#17](https://github.com/3sixtyglobal/api-auth/issues/17)) ([e2dad25](https://github.com/3sixtyglobal/api-auth/commit/e2dad25f9c23783337bdbe85428c92521cefc5f0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-entity-storage-models bumped from 0.20.0-next.5 to 0.20.0-next.6
+    * @3sixty/api-auth-models bumped from 0.20.0-next.5 to 0.20.0-next.6
+
 ## [0.20.0-next.5](https://github.com/3sixtyglobal/api-auth/compare/api-auth-entity-storage-service-v0.20.0-next.4...api-auth-entity-storage-service-v0.20.0-next.5) (2026-11-03)
 
 

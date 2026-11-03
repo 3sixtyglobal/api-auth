@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-account-service-v0.20.0-next.5...api-auth-account-service-v0.20.0-next.6) (2026-11-03)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.5 to 0.20.0-next.6
+
 ## [0.20.0-next.5](https://github.com/3sixtyglobal/api-auth/compare/api-auth-account-service-v0.20.0-next.4...api-auth-account-service-v0.20.0-next.5) (2026-11-03)
 
 
