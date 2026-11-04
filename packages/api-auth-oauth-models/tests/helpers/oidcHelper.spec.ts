@@ -93,7 +93,8 @@ describe("OidcHelper", () => {
 				["state", "state-1"],
 				["nonce", NONCE],
 				["code_challenge", "challenge-1"],
-				["code_challenge_method", "S256"]
+				["code_challenge_method", "S256"],
+				["prompt", "select_account"]
 			]);
 		});
 	});

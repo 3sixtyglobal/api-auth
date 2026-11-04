@@ -95,7 +95,7 @@ export class OidcHelper {
 	private static readonly _JWKS_REFRESHED: Map<string, number> = new Map<string, number>();
 
 	/**
-	 * Build the authorization address for a provider, using PKCE.
+	 * Build the authorization address for a provider, using PKCE and always showing the provider's account picker.
 	 * @param authorizationEndpoint The provider's authorization endpoint.
 	 * @param config The connector configuration.
 	 * @param request The values for the authorization request.
@@ -118,6 +118,7 @@ export class OidcHelper {
 		url.searchParams.set("nonce", request.nonce);
 		url.searchParams.set("code_challenge", request.codeChallenge);
 		url.searchParams.set("code_challenge_method", "S256");
+		url.searchParams.set("prompt", "select_account");
 		return url.toString();
 	}
 

@@ -16,6 +16,7 @@ import type { ILoggingComponent } from "@3sixty/logging-models";
 import { nameof } from "@3sixty/nameof";
 import type { IMicrosoftOAuthProviderConnectorConfig } from "./models/IMicrosoftOAuthProviderConnectorConfig.js";
 import type { IMicrosoftOAuthProviderConnectorConstructorOptions } from "./models/IMicrosoftOAuthProviderConnectorConstructorOptions.js";
+import { MicrosoftMultiTenantName } from "./models/microsoftMultiTenantName.js";
 
 /**
  * Authentication provider that signs accounts in with Microsoft.
@@ -90,12 +91,6 @@ export class MicrosoftOAuthProviderConnector implements IOAuthProviderConnector 
 	 */
 	public static readonly AVATAR_URL: string =
 		"https://graph.microsoft.com/v1.0/me/photos/504x504/$value";
-
-	/**
-	 * The tenant names that accept accounts from more than one tenant.
-	 * @internal
-	 */
-	private static readonly _MULTI_TENANT_NAMES: string[] = ["common", "organizations", "consumers"];
 
 	/**
 	 * The client registered with Microsoft.
@@ -295,7 +290,7 @@ export class MicrosoftOAuthProviderConnector implements IOAuthProviderConnector 
 			return false;
 		}
 		if (
-			!MicrosoftOAuthProviderConnector._MULTI_TENANT_NAMES.includes(this._tenant) &&
+			!Is.arrayOneOf<string>(this._tenant, Object.values(MicrosoftMultiTenantName)) &&
 			tenantId !== this._tenant
 		) {
 			return false;
