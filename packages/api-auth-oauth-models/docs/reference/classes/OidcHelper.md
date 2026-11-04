@@ -90,7 +90,7 @@ The token response field with the access token.
 
 > `static` **authorizationUrl**(`authorizationEndpoint`, `config`, `request`): `string`
 
-Build the authorization address for a provider, using PKCE.
+Build the authorization address for a provider, using PKCE and always showing the provider's account picker.
 
 #### Parameters
 

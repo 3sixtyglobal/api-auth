@@ -3,3 +3,4 @@
 ## Classes
 
 - [EntityStorageAuthenticationAuditRestClient](classes/EntityStorageAuthenticationAuditRestClient.md)
+- [FeatureRestClient](classes/FeatureRestClient.md)

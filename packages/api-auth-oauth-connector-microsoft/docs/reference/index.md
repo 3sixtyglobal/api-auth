@@ -8,3 +8,11 @@
 
 - [IMicrosoftOAuthProviderConnectorConfig](interfaces/IMicrosoftOAuthProviderConnectorConfig.md)
 - [IMicrosoftOAuthProviderConnectorConstructorOptions](interfaces/IMicrosoftOAuthProviderConnectorConstructorOptions.md)
+
+## Type Aliases
+
+- [MicrosoftMultiTenantName](type-aliases/MicrosoftMultiTenantName.md)
+
+## Variables
+
+- [MicrosoftMultiTenantName](variables/MicrosoftMultiTenantName.md)

@@ -2,4 +2,4 @@
 
 > `const` **restEntryPoints**: `IRestRouteEntryPoint`[]
 
-REST entry points for the authentication audit service.
+REST entry points for the authentication audit and feature services.
