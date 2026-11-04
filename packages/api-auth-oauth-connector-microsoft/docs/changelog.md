@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-connector-microsoft-v0.20.0-next.6...api-auth-oauth-connector-microsoft-v0.20.0-next.7) (2026-11-04)
+
+
+### Features
+
+* extension features and the provider account picker ([#20](https://github.com/3sixtyglobal/api-auth/issues/20)) ([1d8bb02](https://github.com/3sixtyglobal/api-auth/commit/1d8bb027ff3ebdfb2933db3c9cd7fe16d49b0a99))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.6 to 0.20.0-next.7
+    * @3sixty/api-auth-oauth-models bumped from 0.20.0-next.6 to 0.20.0-next.7
+
 ## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-connector-microsoft-v0.20.0-next.5...api-auth-oauth-connector-microsoft-v0.20.0-next.6) (2026-11-03)
 
 

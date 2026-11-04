@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-connector-google-v0.20.0-next.6...api-auth-oauth-connector-google-v0.20.0-next.7) (2026-11-04)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.6 to 0.20.0-next.7
+    * @3sixty/api-auth-oauth-models bumped from 0.20.0-next.6 to 0.20.0-next.7
+
 ## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-connector-google-v0.20.0-next.5...api-auth-oauth-connector-google-v0.20.0-next.6) (2026-11-03)
 
 
