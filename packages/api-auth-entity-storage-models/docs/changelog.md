@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-entity-storage-models-v0.20.0-next.6...api-auth-entity-storage-models-v0.20.0-next.7) (2026-11-04)
+
+
+### Miscellaneous Chores
+
+* **api-auth-entity-storage-models:** Synchronize repo versions
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.6 to 0.20.0-next.7
+
 ## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-entity-storage-models-v0.20.0-next.5...api-auth-entity-storage-models-v0.20.0-next.6) (2026-11-03)
 
 

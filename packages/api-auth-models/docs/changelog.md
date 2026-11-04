@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.6...api-auth-models-v0.20.0-next.7) (2026-11-04)
+
+
+### Features
+
+* extension features and the provider account picker ([#20](https://github.com/3sixtyglobal/api-auth/issues/20)) ([1d8bb02](https://github.com/3sixtyglobal/api-auth/commit/1d8bb027ff3ebdfb2933db3c9cd7fe16d49b0a99))
+
 ## [0.20.0-next.6](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.5...api-auth-models-v0.20.0-next.6) (2026-11-03)
 
 
