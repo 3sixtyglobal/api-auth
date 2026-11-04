@@ -93,6 +93,29 @@ console.log(auditPage.entries.length); // 1
 console.log(auditPage.cursor); // eyJpZCI6IjAxOGYyZjY3YmI5ZDRhMGNhYWQ4Mzg2ZjU2ZGY4NWNlIn0=
 ```
 
+## FeatureService
+
+The service lists the features registered with `FeatureFactory` that the signed in account can use, checking `execute` on the object `feature:<name>` with the authorization component for each one. Any component can register a feature, at any time.
+
+```typescript
+import { FeatureFactory } from '@3sixty/api-auth-models';
+import { FeatureService } from '@3sixty/api-auth-service';
+
+FeatureFactory.register('supply-chain', () => ({
+  name: 'supply-chain',
+  roles: ['user'],
+  config: { title: 'Supply chain' }
+}));
+FeatureFactory.register('reports', () => ({ name: 'reports', roles: ['global-admin'] }));
+
+const featureService = new FeatureService();
+
+// Run with the signed in account in the context, as the REST routes do.
+const features = await featureService.list();
+
+console.log(features); // [{ name: 'supply-chain', config: { title: 'Supply chain' } }]
+```
+
 ## TenantOverrideProcessor
 
 The processor runs after `AuthHeaderProcessor`. A caller holding the escalated privilege role can supply the `override-tenant` query parameter to act on another tenant.

@@ -1,6 +1,6 @@
 # 3Sixty API Auth Service
 
-This package provides authentication audit and rate limiting services, tenant override processing and audit REST routes backed by entity storage.
+This package provides authentication audit and rate limiting services, tenant override processing, the feature service and audit and feature REST routes.
 
 ## Installation
 
