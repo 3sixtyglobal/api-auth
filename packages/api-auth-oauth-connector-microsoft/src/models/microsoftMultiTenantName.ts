@@ -4,7 +4,6 @@
 /**
  * The Microsoft tenant names that accept accounts from more than one tenant.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const MicrosoftMultiTenantName = {
 	/**
 	 * Work, school and personal accounts.

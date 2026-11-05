@@ -5,7 +5,6 @@
  * How access to a feature is checked, as the object prefix and action of its authorization policies.
  * The object of a feature's policies is the prefix followed by the name of the feature.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const FeatureAuthorization = {
 	/**
 	 * The prefix of the object of a feature's policies.

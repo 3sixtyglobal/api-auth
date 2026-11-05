@@ -5,7 +5,6 @@
  * The common types of account data, any other type may also be stored, with a JSON object as its
  * value. Types are stored in kebab case, so every value here is kebab case.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const AuthenticationAccountDataType = {
 	/**
 	 * The profile of the account or organization, one item, a JSON-LD object such as a schema.org

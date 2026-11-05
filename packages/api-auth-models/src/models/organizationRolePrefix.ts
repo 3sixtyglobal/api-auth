@@ -5,7 +5,6 @@
  * The default prefixes of the roles held for an organization, each followed by the DID of the
  * organization.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const OrganizationRolePrefix = {
 	/**
 	 * The org admin role of an organization.

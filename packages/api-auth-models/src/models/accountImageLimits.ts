@@ -6,7 +6,6 @@ import { MimeTypes } from "@3sixty/web";
  * The limits of the images an account or an organization uploads as account data, the avatar of an
  * account and the logo of an organization.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const AccountImageLimits = {
 	/**
 	 * The content type of an avatar the account uploads.

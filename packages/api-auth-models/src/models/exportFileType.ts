@@ -5,7 +5,6 @@
  * The types of the files the node exports, held in their type field so an import can check it was
  * given the right kind of file before doing anything else.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const ExportFileType = {
 	/**
 	 * The identity of an account with its private keys and credentials.

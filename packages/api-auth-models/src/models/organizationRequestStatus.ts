@@ -4,7 +4,6 @@
 /**
  * The status of a request to join an organization.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const OrganizationRequestStatus = {
 	/**
 	 * Waiting for an admin to accept or reject it.

@@ -6,6 +6,5 @@ import type { IAccountDataVerifier } from "../models/IAccountDataVerifier.js";
 /**
  * Factory for the verifiers of account data, keyed by the normalised type of the item they verify.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const AccountDataValidationFactory =
 	Factory.createFactory<IAccountDataVerifier>("account-data-validation");

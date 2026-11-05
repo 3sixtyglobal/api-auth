@@ -6,5 +6,4 @@ import type { IFeatureDefinition } from "../models/IFeatureDefinition.js";
 /**
  * Factory for the features of the node, keyed by the name of the feature, which any component can register.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const FeatureFactory = Factory.createFactory<IFeatureDefinition>("feature");

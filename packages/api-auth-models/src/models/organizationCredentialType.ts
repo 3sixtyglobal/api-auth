@@ -5,7 +5,6 @@
  * The types the credentials an organization issues carry after VerifiableCredential, so a holder
  * can tell what each is for.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const OrganizationCredentialType = {
 	/**
 	 * The credential of a membership of the organization.

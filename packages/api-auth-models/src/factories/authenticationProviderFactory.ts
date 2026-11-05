@@ -6,6 +6,5 @@ import type { IAuthenticationProvider } from "../models/IAuthenticationProvider.
 /**
  * Factory for authentication providers, keyed by the authentication provider id.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const AuthenticationProviderFactory =
 	Factory.createFactory<IAuthenticationProvider>("authentication-provider");
