@@ -160,7 +160,7 @@
 										"nonce": "n-0S6_WzA2Mj",
 										"codeChallenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
 										"codeChallengeMethod": "S256",
-										"redirectUri": "https://example.com/authentication/oauth/entity-storage-oauth/callback"
+										"redirectUri": "https://example.com/authentication/oauth/3sixty-oauth/callback"
 									}
 								}
 							}
@@ -179,7 +179,7 @@
 									"authorizeResponseExample": {
 										"summary": "The address to send the browser to with the code.",
 										"value": {
-											"location": "https://example.com/authentication/oauth/entity-storage-oauth/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=3c9e1b7a5d2f"
+											"location": "https://example.com/authentication/oauth/3sixty-oauth/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=3c9e1b7a5d2f"
 										}
 									}
 								}
@@ -1696,7 +1696,7 @@
 										"value": {
 											"providers": [
 												{
-													"authProviderId": "entity-storage",
+													"authProviderId": "3sixty",
 													"type": "basic",
 													"signInMethod": "password",
 													"passwordChange": "api",
@@ -1912,7 +1912,7 @@
 						"schema": {
 							"type": "string"
 						},
-						"example": "entity-storage"
+						"example": "3sixty"
 					},
 					{
 						"name": "cursor",
@@ -1954,7 +1954,7 @@
 												{
 													"email": "user@example.com",
 													"accountId": "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
-													"authProviderId": "entity-storage",
+													"authProviderId": "3sixty",
 													"dateCreated": "2026-01-12T09:05:23.123Z"
 												}
 											]

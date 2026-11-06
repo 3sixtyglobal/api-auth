@@ -42,7 +42,7 @@ Runtime name for the class.
 
 ### AUTH\_PROVIDER\_ID {#auth_provider_id}
 
-> `readonly` `static` **AUTH\_PROVIDER\_ID**: `string` = `"entity-storage"`
+> `readonly` `static` **AUTH\_PROVIDER\_ID**: `string` = `"3sixty"`
 
 The provider id stored on accounts created by this service.
 

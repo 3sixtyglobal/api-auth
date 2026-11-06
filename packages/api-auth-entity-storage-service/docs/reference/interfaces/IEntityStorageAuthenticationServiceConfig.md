@@ -321,6 +321,53 @@ How long a password reset link can be used for, in minutes.
 
 ***
 
+### authorizationCodeExpirySeconds? {#authorizationcodeexpiryseconds}
+
+> `optional` **authorizationCodeExpirySeconds?**: `number`
+
+How long an OAuth 2.0 authorization code for a password account can be used for, in seconds.
+
+#### Default
+
+```ts
+60
+```
+
+***
+
+### authorizationRedirectUris? {#authorizationredirecturis}
+
+> `optional` **authorizationRedirectUris?**: `string`[]
+
+The redirect addresses, besides those on the node's public origin, an authorization code may be
+sent to, matched exactly, such as the callback of an app that exchanges the code at the token
+endpoint.
+
+***
+
+### authorizationEndpoint? {#authorizationendpoint}
+
+> `optional` **authorizationEndpoint?**: `string`
+
+The address of the login page that takes an OAuth 2.0 authorization request, given as the
+authorization endpoint in the authorization server metadata, which is only served when it is set.
+
+***
+
+### tokenEndpointPath? {#tokenendpointpath}
+
+> `optional` **tokenEndpointPath?**: `string`
+
+The path of the token endpoint on the node's public origin, given in the authorization server metadata.
+
+#### Default
+
+```ts
+authentication/token
+```
+
+***
+
 ### passwordResetEmailTemplateId? {#passwordresetemailtemplateid}
 
 > `optional` **passwordResetEmailTemplateId?**: `string`

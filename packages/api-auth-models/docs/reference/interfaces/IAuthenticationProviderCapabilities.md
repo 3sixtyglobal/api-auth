@@ -8,6 +8,14 @@ What an authentication provider supports, so a client knows how to present it.
 
 ## Properties
 
+### type {#type}
+
+> **type**: [`AuthenticationProviderType`](../type-aliases/AuthenticationProviderType.md)
+
+The protocol the provider signs accounts in with.
+
+***
+
 ### signInMethod {#signinmethod}
 
 > **signInMethod**: `"password"` \| `"redirect"`

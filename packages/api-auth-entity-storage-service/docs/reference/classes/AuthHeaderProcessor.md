@@ -30,7 +30,7 @@ Options for the processor.
 
 ### DEFAULT\_COOKIE\_SAME\_SITE {#default_cookie_same_site}
 
-> `readonly` `static` **DEFAULT\_COOKIE\_SAME\_SITE**: `"Strict"` \| `"Lax"` \| `"None"` = `"None"`
+> `readonly` `static` **DEFAULT\_COOKIE\_SAME\_SITE**: `CookieSameSite` = `CookieSameSite.None`
 
 The default SameSite attribute of the token cookie.
 

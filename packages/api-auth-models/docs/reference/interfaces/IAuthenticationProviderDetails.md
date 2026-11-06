@@ -8,6 +8,18 @@ An enabled authentication provider and what it supports.
 
 ## Properties
 
+### type {#type}
+
+> **type**: [`AuthenticationProviderType`](../type-aliases/AuthenticationProviderType.md)
+
+The protocol the provider signs accounts in with.
+
+#### Inherited from
+
+[`IAuthenticationProviderCapabilities`](IAuthenticationProviderCapabilities.md).[`type`](IAuthenticationProviderCapabilities.md#type)
+
+***
+
 ### signInMethod {#signinmethod}
 
 > **signInMethod**: `"password"` \| `"redirect"`

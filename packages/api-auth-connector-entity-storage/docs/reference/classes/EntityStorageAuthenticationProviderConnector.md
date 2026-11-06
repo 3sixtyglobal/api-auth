@@ -30,7 +30,7 @@ The options for the connector.
 
 ### NAMESPACE {#namespace}
 
-> `readonly` `static` **NAMESPACE**: `string` = `"entity-storage"`
+> `readonly` `static` **NAMESPACE**: `string` = `"3sixty"`
 
 The authentication provider id to register the connector with.
 

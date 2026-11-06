@@ -9,7 +9,10 @@
 - [IAuthenticationUser](interfaces/IAuthenticationUser.md)
 - [IAuthenticationUserCreate](interfaces/IAuthenticationUserCreate.md)
 - [IAuthenticationUserSecure](interfaces/IAuthenticationUserSecure.md)
+- [IAuthorizationCodeRequest](interfaces/IAuthorizationCodeRequest.md)
+- [IAuthorizationServerMetadata](interfaces/IAuthorizationServerMetadata.md)
 - [ILoginResult](interfaces/ILoginResult.md)
+- [IOAuthAccessToken](interfaces/IOAuthAccessToken.md)
 - [IPasswordHashOptions](interfaces/IPasswordHashOptions.md)
 - [IPasswordOptions](interfaces/IPasswordOptions.md)
 - [IAdminUserCreateRequest](interfaces/IAdminUserCreateRequest.md)
@@ -23,6 +26,9 @@
 - [IAdminUserRemoveRequest](interfaces/IAdminUserRemoveRequest.md)
 - [IAdminUserUpdatePasswordRequest](interfaces/IAdminUserUpdatePasswordRequest.md)
 - [IAdminUserUpdateRequest](interfaces/IAdminUserUpdateRequest.md)
+- [IAuthorizationServerMetadataResponse](interfaces/IAuthorizationServerMetadataResponse.md)
+- [IAuthorizeRequest](interfaces/IAuthorizeRequest.md)
+- [IAuthorizeResponse](interfaces/IAuthorizeResponse.md)
 - [ILoginRequest](interfaces/ILoginRequest.md)
 - [ILoginResponse](interfaces/ILoginResponse.md)
 - [ILoginWithProviderRequest](interfaces/ILoginWithProviderRequest.md)
@@ -31,11 +37,27 @@
 - [IPasswordForgotRequest](interfaces/IPasswordForgotRequest.md)
 - [IPasswordPolicyResponse](interfaces/IPasswordPolicyResponse.md)
 - [IPasswordResetRequest](interfaces/IPasswordResetRequest.md)
+- [IProvidersRequest](interfaces/IProvidersRequest.md)
 - [IProvidersResponse](interfaces/IProvidersResponse.md)
 - [IRefreshTokenRequest](interfaces/IRefreshTokenRequest.md)
 - [IRefreshTokenResponse](interfaces/IRefreshTokenResponse.md)
 - [IRegisterAcceptedResponse](interfaces/IRegisterAcceptedResponse.md)
 - [IRegisterRequest](interfaces/IRegisterRequest.md)
 - [IRegisterVerifyRequest](interfaces/IRegisterVerifyRequest.md)
+- [ITokenErrorResponse](interfaces/ITokenErrorResponse.md)
+- [ITokenRequest](interfaces/ITokenRequest.md)
+- [ITokenResponse](interfaces/ITokenResponse.md)
 - [IUpdatePasswordRequest](interfaces/IUpdatePasswordRequest.md)
 - [IUpdatePasswordResponse](interfaces/IUpdatePasswordResponse.md)
+
+## Type Aliases
+
+- [AuthOperation](type-aliases/AuthOperation.md)
+- [AuthorizationServerMetadataField](type-aliases/AuthorizationServerMetadataField.md)
+- [OAuthParameter](type-aliases/OAuthParameter.md)
+
+## Variables
+
+- [AuthOperation](variables/AuthOperation.md)
+- [AuthorizationServerMetadataField](variables/AuthorizationServerMetadataField.md)
+- [OAuthParameter](variables/OAuthParameter.md)

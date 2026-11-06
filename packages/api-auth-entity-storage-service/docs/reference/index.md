@@ -2,6 +2,7 @@
 
 ## Classes
 
+- [AuthenticationAuthorizationCode](classes/AuthenticationAuthorizationCode.md)
 - [AuthenticationPasswordReset](classes/AuthenticationPasswordReset.md)
 - [AuthenticationUser](classes/AuthenticationUser.md)
 - [AuthenticationUserV0](classes/AuthenticationUserV0.md)
@@ -11,6 +12,7 @@
 - [EntityStorageAuthenticationService](classes/EntityStorageAuthenticationService.md)
 - [AccountHelper](classes/AccountHelper.md)
 - [AuthTokenCache](classes/AuthTokenCache.md)
+- [AuthorizationCodeHelper](classes/AuthorizationCodeHelper.md)
 - [PasswordHelper](classes/PasswordHelper.md)
 - [PasswordResetHelper](classes/PasswordResetHelper.md)
 - [TokenHelper](classes/TokenHelper.md)
@@ -45,6 +47,9 @@
 - [authenticationAdminRemoveUser](functions/authenticationAdminRemoveUser.md)
 - [generateRestRoutesAuthentication](functions/generateRestRoutesAuthentication.md)
 - [authenticationLogin](functions/authenticationLogin.md)
+- [authenticationAuthorize](functions/authenticationAuthorize.md)
+- [authenticationToken](functions/authenticationToken.md)
+- [authenticationAuthorizationServerMetadata](functions/authenticationAuthorizationServerMetadata.md)
 - [authenticationLoginWithProvider](functions/authenticationLoginWithProvider.md)
 - [authenticationRegister](functions/authenticationRegister.md)
 - [authenticationRegisterVerify](functions/authenticationRegisterVerify.md)
