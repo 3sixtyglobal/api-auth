@@ -20,7 +20,7 @@ The name of the component to use in the routes.
 
 ### request
 
-`INoContentRequest`
+`IProvidersRequest`
 
 The request.
 

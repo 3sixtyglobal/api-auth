@@ -36,6 +36,89 @@ The token, and the profile when the provider holds one.
 
 ***
 
+### authorize() {#authorize}
+
+> **authorize**(`email`, `password`, `authorization`): `Promise`\<`string`\>
+
+Check the e-mail address and password of a password account and issue an OAuth 2.0
+authorization code for it, redeemed by the entity storage OAuth provider.
+
+#### Parameters
+
+##### email
+
+`string`
+
+The email address for the user.
+
+##### password
+
+`string`
+
+The password for the user.
+
+##### authorization
+
+[`IAuthorizationCodeRequest`](IAuthorizationCodeRequest.md)
+
+The authorization request the code is issued for.
+
+#### Returns
+
+`Promise`\<`string`\>
+
+The address to send the browser to, with the code and state added.
+
+***
+
+### exchangeAuthorizationCode() {#exchangeauthorizationcode}
+
+> **exchangeAuthorizationCode**(`code`, `codeVerifier`, `redirectUri`): `Promise`\<[`IOAuthAccessToken`](IOAuthAccessToken.md)\>
+
+Exchange an OAuth 2.0 authorization code issued by authorize for a session of its account.
+
+#### Parameters
+
+##### code
+
+`string`
+
+The authorization code.
+
+##### codeVerifier
+
+`string`
+
+The PKCE code verifier the code challenge was made from.
+
+##### redirectUri
+
+`string`
+
+The redirect address the code was sent to.
+
+#### Returns
+
+`Promise`\<[`IOAuthAccessToken`](IOAuthAccessToken.md)\>
+
+The access token.
+
+***
+
+### authorizationServerMetadata() {#authorizationservermetadata}
+
+> **authorizationServerMetadata**(): `Promise`\<[`IAuthorizationServerMetadata`](IAuthorizationServerMetadata.md)\>
+
+Get the OAuth 2.0 authorization server metadata of the node.
+
+#### Returns
+
+`Promise`\<[`IAuthorizationServerMetadata`](IAuthorizationServerMetadata.md)\>
+
+The metadata.
+
+***
+
 ### loginWithProvider() {#loginwithprovider}
 
 > **loginWithProvider**(`authProviderId`, `credentials`): `Promise`\<[`ILoginResult`](ILoginResult.md)\>
@@ -298,9 +381,17 @@ The password policy options.
 
 ### providers() {#providers}
 
-> **providers**(): `Promise`\<`IAuthenticationProviderDetails`[]\>
+> **providers**(`types?`): `Promise`\<`IAuthenticationProviderDetails`[]\>
 
 Get the authentication providers enabled on the server.
+
+#### Parameters
+
+##### types?
+
+`AuthenticationProviderType`[]
+
+The provider types to include, all types when left out.
 
 #### Returns
 

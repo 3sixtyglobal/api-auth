@@ -32,6 +32,20 @@ authentication-password-reset
 
 ***
 
+### authorizationCodeEntityStorageType? {#authorizationcodeentitystoragetype}
+
+> `optional` **authorizationCodeEntityStorageType?**: `string`
+
+The entity storage for the OAuth 2.0 authorization codes of password accounts, which must be registered.
+
+#### Default
+
+```ts
+authentication-authorization-code
+```
+
+***
+
 ### vaultConnectorType? {#vaultconnectortype}
 
 > `optional` **vaultConnectorType?**: `string`

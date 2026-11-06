@@ -64,6 +64,30 @@ The default time a password reset link can be used for, in minutes.
 
 ***
 
+### DEFAULT\_AUTHORIZATION\_CODE\_EXPIRY\_SECONDS {#default_authorization_code_expiry_seconds}
+
+> `readonly` `static` **DEFAULT\_AUTHORIZATION\_CODE\_EXPIRY\_SECONDS**: `number` = `60`
+
+The default time an authorization code can be used for, in seconds.
+
+***
+
+### CODE\_CHALLENGE\_METHOD {#code_challenge_method}
+
+> `readonly` `static` **CODE\_CHALLENGE\_METHOD**: `string` = `"S256"`
+
+The only PKCE code challenge method accepted.
+
+***
+
+### DEFAULT\_TOKEN\_ENDPOINT\_PATH {#default_token_endpoint_path}
+
+> `readonly` `static` **DEFAULT\_TOKEN\_ENDPOINT\_PATH**: `string` = `"authentication/token"`
+
+The default path of the token endpoint on the node's public origin.
+
+***
+
 ### DEFAULT\_PASSWORD\_RESET\_EMAIL\_TEMPLATE\_ID {#default_password_reset_email_template_id}
 
 > `readonly` `static` **DEFAULT\_PASSWORD\_RESET\_EMAIL\_TEMPLATE\_ID**: `string` = `"password-reset"`
@@ -313,6 +337,122 @@ password matches an enabled account whose e-mail address is not verified yet.
 #### Implementation of
 
 `IAuthenticationComponent.login`
+
+***
+
+### authorize() {#authorize}
+
+> **authorize**(`email`, `password`, `authorization`): `Promise`\<`string`\>
+
+Check the e-mail address and password of a password account and issue an OAuth 2.0
+authorization code for it, redeemed by the entity storage OAuth provider. The password is
+checked and rate limited the same way as a login, the sign in itself is audited when the code
+is redeemed.
+
+#### Parameters
+
+##### email
+
+`string`
+
+The email address for the user.
+
+##### password
+
+`string`
+
+The password for the user.
+
+##### authorization
+
+`IAuthorizationCodeRequest`
+
+The authorization request the code is issued for.
+
+#### Returns
+
+`Promise`\<`string`\>
+
+The address to send the browser to, with the code and state added.
+
+#### Throws
+
+UnprocessableError when the redirect address is not on the node's public origin.
+
+#### Throws
+
+UnauthorizedError the same way as a login.
+
+#### Implementation of
+
+`IAuthenticationComponent.authorize`
+
+***
+
+### exchangeAuthorizationCode() {#exchangeauthorizationcode}
+
+> **exchangeAuthorizationCode**(`code`, `codeVerifier`, `redirectUri`): `Promise`\<`IOAuthAccessToken`\>
+
+Exchange an OAuth 2.0 authorization code issued by authorize for a session of its account, as
+the token endpoint does. The code can only be used once, and only with the redirect address and
+code verifier it was issued for.
+
+#### Parameters
+
+##### code
+
+`string`
+
+The authorization code.
+
+##### codeVerifier
+
+`string`
+
+The PKCE code verifier the code challenge was made from.
+
+##### redirectUri
+
+`string`
+
+The redirect address the code was sent to.
+
+#### Returns
+
+`Promise`\<`IOAuthAccessToken`\>
+
+The access token, a session token of the node.
+
+#### Throws
+
+UnauthorizedError when the code is unknown, used, expired or does not match, or the
+account can no longer sign in.
+
+#### Implementation of
+
+`IAuthenticationComponent.exchangeAuthorizationCode`
+
+***
+
+### authorizationServerMetadata() {#authorizationservermetadata}
+
+> **authorizationServerMetadata**(): `Promise`\<`IAuthorizationServerMetadata`\>
+
+Get the OAuth 2.0 authorization server metadata of the node, for the public origin of the request.
+
+#### Returns
+
+`Promise`\<`IAuthorizationServerMetadata`\>
+
+The metadata.
+
+#### Throws
+
+NotFoundError when no authorization endpoint is configured.
+
+#### Implementation of
+
+`IAuthenticationComponent.authorizationServerMetadata`
 
 ***
 
@@ -686,9 +826,17 @@ NotFoundError when the account no longer exists.
 
 ### providers() {#providers}
 
-> **providers**(): `Promise`\<`IAuthenticationProviderDetails`[]\>
+> **providers**(`types?`): `Promise`\<`IAuthenticationProviderDetails`[]\>
 
 Get the authentication providers enabled on the server.
+
+#### Parameters
+
+##### types?
+
+`AuthenticationProviderType`[]
+
+The provider types to include, all types when left out.
 
 #### Returns
 

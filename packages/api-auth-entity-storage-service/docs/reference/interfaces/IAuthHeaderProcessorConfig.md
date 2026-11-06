@@ -48,7 +48,7 @@ Other cookies to remove on logout, such as the cookie that keeps an OAuth sign i
 
 ### cookieSameSite? {#cookiesamesite}
 
-> `optional` **cookieSameSite?**: `"Strict"` \| `"Lax"` \| `"None"`
+> `optional` **cookieSameSite?**: `CookieSameSite`
 
 The SameSite attribute of the token cookie, the cookie is always Secure. Lax or Strict limit the
 cookie to requests from the same site, None also allows a site on another domain. With None,
