@@ -1,6 +1,6 @@
 {
 	"name": "@3sixty/api-auth-connector-entity-storage",
-	"version": "0.20.0-next.8",
+	"version": "0.20.0-next.9",
 	"description": "Authentication provider that verifies passwords for accounts held in entity storage.",
 	"repository": {
 		"type": "git",
@@ -31,9 +31,9 @@
 		"dist:no-test": "pnpm run clean && concurrently -g -n build,locales,types \"pnpm run build\" \"pnpm run validate-locales\" \"pnpm run test:build\""
 	},
 	"dependencies": {
-		"@3sixty/api-auth-entity-storage-models": "0.20.0-next.8",
-		"@3sixty/api-auth-entity-storage-service": "0.20.0-next.8",
-		"@3sixty/api-auth-models": "0.20.0-next.8",
+		"@3sixty/api-auth-entity-storage-models": "0.20.0-next.9",
+		"@3sixty/api-auth-entity-storage-service": "0.20.0-next.9",
+		"@3sixty/api-auth-models": "0.20.0-next.9",
 		"@3sixty/core": "next",
 		"@3sixty/crypto": "next",
 		"@3sixty/entity-storage-models": "next",

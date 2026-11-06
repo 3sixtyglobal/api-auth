@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.9](https://github.com/3sixtyglobal/api-auth/compare/api-auth-account-rest-client-v0.20.0-next.8...api-auth-account-rest-client-v0.20.0-next.9) (2026-11-06)
+
+
+### Features
+
+* release to next [skip ci] ([#27](https://github.com/3sixtyglobal/api-auth/issues/27)) ([e3a4a4f](https://github.com/3sixtyglobal/api-auth/commit/e3a4a4f3788587a202383e581cba00fc2d916276))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.8 to 0.20.0-next.9
+
 ## [0.20.0-next.8](https://github.com/3sixtyglobal/api-auth/compare/api-auth-account-rest-client-v0.20.0-next.7...api-auth-account-rest-client-v0.20.0-next.8) (2026-11-06)
 
 
