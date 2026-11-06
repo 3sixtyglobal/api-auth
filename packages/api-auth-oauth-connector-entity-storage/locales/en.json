@@ -1,0 +1,7 @@
+{
+	"error": {
+		"entityStorageOAuthProviderConnector": {
+			"codeInvalid": "The authorization code is not valid, has expired or has already been used"
+		}
+	}
+}

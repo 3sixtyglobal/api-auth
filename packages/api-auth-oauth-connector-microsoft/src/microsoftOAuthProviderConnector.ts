@@ -1,8 +1,9 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type {
-	IAuthenticationProviderCapabilities,
-	IAuthenticationProviderIdentity
+import {
+	AuthenticationProviderType,
+	type IAuthenticationProviderCapabilities,
+	type IAuthenticationProviderIdentity
 } from "@3sixty/api-auth-models";
 import {
 	AvatarHelper,
@@ -184,6 +185,7 @@ export class MicrosoftOAuthProviderConnector implements IOAuthProviderConnector 
 	public getCapabilities(providerTenantId?: string): IAuthenticationProviderCapabilities {
 		const personal = providerTenantId === MicrosoftOAuthProviderConnector.CONSUMER_TENANT_ID;
 		return {
+			type: AuthenticationProviderType.OAuth2,
 			signInMethod: "redirect",
 			passwordChange: "external",
 			passwordChangeUrl: personal

@@ -328,7 +328,7 @@ export function generateRestRoutesAuthenticationAdmin(
 					request: {
 						query: {
 							email: "user@",
-							authProviderId: "entity-storage"
+							authProviderId: "3sixty"
 						}
 					}
 				}
@@ -347,7 +347,7 @@ export function generateRestRoutesAuthenticationAdmin(
 									{
 										email: "user@example.com",
 										accountId: "6f1c2c0e-4b7a-4f0e-9c1a-2d3e4f5a6b7c",
-										authProviderId: "entity-storage",
+										authProviderId: "3sixty",
 										dateCreated: "2026-01-12T09:05:23.123Z"
 									}
 								]

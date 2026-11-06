@@ -1,6 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import { AuthenticationProviderFactory } from "@3sixty/api-auth-models";
+import { AuthenticationProviderFactory, AuthenticationProviderType } from "@3sixty/api-auth-models";
 import { Is, UnauthorizedError } from "@3sixty/core";
 import {
 	EntityStorageConnectorFactory,
@@ -20,6 +20,7 @@ export function registerTestPasswordProvider(): void {
 		() => ({
 			className: () => "TestPasswordProvider",
 			getCapabilities: () => ({
+				type: AuthenticationProviderType.Basic,
 				signInMethod: "password",
 				passwordChange: "api",
 				profileReadOnly: false

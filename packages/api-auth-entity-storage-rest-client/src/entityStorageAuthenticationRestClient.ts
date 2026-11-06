@@ -5,28 +5,45 @@ import type {
 	IAuthenticationAccountSummary,
 	IAuthenticationComponent,
 	IAuthenticationRegistration,
+	IAuthorizationCodeRequest,
+	IAuthorizeRequest,
+	IAuthorizationServerMetadata,
+	IAuthorizationServerMetadataResponse,
+	IAuthorizeResponse,
 	ILoginRequest,
 	ILoginResponse,
 	ILoginResult,
 	ILoginWithProviderRequest,
+	IOAuthAccessToken,
 	ILogoutRequest,
 	IMeResponse,
 	IPasswordForgotRequest,
 	IPasswordPolicyResponse,
 	IPasswordOptions,
 	IPasswordResetRequest,
+	IProvidersRequest,
 	IProvidersResponse,
 	IRefreshTokenRequest,
 	IRefreshTokenResponse,
 	IRegisterAcceptedResponse,
 	IRegisterRequest,
 	IRegisterVerifyRequest,
+	ITokenRequest,
+	ITokenResponse,
 	IUpdatePasswordRequest,
 	IUpdatePasswordResponse
 } from "@3sixty/api-auth-entity-storage-models";
-import type { IAuthenticationProviderDetails } from "@3sixty/api-auth-models";
+import { OAuthParameter } from "@3sixty/api-auth-entity-storage-models";
+import type {
+	AuthenticationProviderType,
+	IAuthenticationProviderDetails
+} from "@3sixty/api-auth-models";
 import { BaseRestClient } from "@3sixty/api-core";
-import type { INoContentRequest, INoContentResponse } from "@3sixty/api-models";
+import {
+	HttpParameterHelper,
+	type INoContentRequest,
+	type INoContentResponse
+} from "@3sixty/api-models";
 import { Guards } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
 import { CookieHelper, HeaderTypes } from "@3sixty/web";
@@ -108,6 +125,92 @@ export class EntityStorageAuthenticationRestClient
 			passwordChangeUrl: response.body.passwordChangeUrl,
 			roles: response.body.roles
 		};
+	}
+
+	/**
+	 * Check the e-mail address and password of a password account and issue an OAuth 2.0
+	 * authorization code for it.
+	 * @param email The email address for the user.
+	 * @param password The password for the user.
+	 * @param authorization The authorization request the code is issued for.
+	 * @returns The address to send the browser to, with the code and state added.
+	 */
+	public async authorize(
+		email: string,
+		password: string,
+		authorization: IAuthorizationCodeRequest
+	): Promise<string> {
+		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(email), email);
+		Guards.stringValue(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(password),
+			password
+		);
+		Guards.object<IAuthorizationCodeRequest>(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(authorization),
+			authorization
+		);
+
+		const response = await this.fetch<IAuthorizeRequest, IAuthorizeResponse>("/authorize", "POST", {
+			body: {
+				...authorization,
+				email,
+				password
+			}
+		});
+
+		return response.body.location;
+	}
+
+	/**
+	 * Exchange an OAuth 2.0 authorization code issued by authorize at the token endpoint.
+	 * @param code The authorization code.
+	 * @param codeVerifier The PKCE code verifier the code challenge was made from.
+	 * @param redirectUri The redirect address the code was sent to.
+	 * @returns The access token.
+	 */
+	public async exchangeAuthorizationCode(
+		code: string,
+		codeVerifier: string,
+		redirectUri: string
+	): Promise<IOAuthAccessToken> {
+		Guards.stringValue(EntityStorageAuthenticationRestClient.CLASS_NAME, nameof(code), code);
+		Guards.stringValue(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(codeVerifier),
+			codeVerifier
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationRestClient.CLASS_NAME,
+			nameof(redirectUri),
+			redirectUri
+		);
+
+		const response = await this.fetch<ITokenRequest, ITokenResponse>("/token", "POST", {
+			body: {
+				[OAuthParameter.GrantType]: "authorization_code",
+				[OAuthParameter.Code]: code,
+				[OAuthParameter.CodeVerifier]: codeVerifier,
+				[OAuthParameter.RedirectUri]: redirectUri
+			}
+		});
+
+		return response.body;
+	}
+
+	/**
+	 * Get the OAuth 2.0 authorization server metadata of the node.
+	 * @returns The metadata.
+	 */
+	public async authorizationServerMetadata(): Promise<IAuthorizationServerMetadata> {
+		const response = await this.fetch<INoContentRequest, IAuthorizationServerMetadataResponse>(
+			"/.well-known/oauth-authorization-server",
+			"GET",
+			undefined,
+			{ overridePrefix: "" }
+		);
+		return response.body;
 	}
 
 	/**
@@ -301,10 +404,17 @@ export class EntityStorageAuthenticationRestClient
 
 	/**
 	 * Get the authentication providers enabled on the server.
+	 * @param types The provider types to include, all types when left out.
 	 * @returns The providers and what each supports, in the order they were registered.
 	 */
-	public async providers(): Promise<IAuthenticationProviderDetails[]> {
-		const response = await this.fetch<INoContentRequest, IProvidersResponse>("/providers", "GET");
+	public async providers(
+		types?: AuthenticationProviderType[]
+	): Promise<IAuthenticationProviderDetails[]> {
+		const response = await this.fetch<IProvidersRequest, IProvidersResponse>("/providers", "GET", {
+			query: {
+				types: HttpParameterHelper.arrayToString(types)
+			}
+		});
 		return response.body.providers;
 	}
 

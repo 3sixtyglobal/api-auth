@@ -187,7 +187,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(await userEntityStorage.get("user@example.com", "email")).toEqual({
 			email: "user@example.com",
 			salt: "AQIDBA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			providerAccountId: "user@example.com",
 			dateCreated: expect.any(String),
 			dateModified: expect.any(String),
@@ -247,7 +247,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			email: "user@example.com",
 			password: "stored-password",
 			salt: "AQIDBA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			accountId: "user-1"
@@ -290,7 +290,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			email: "user@example.com",
 			password: "stored-password",
 			salt: "AQIDBA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			accountId: "user-1"
@@ -301,7 +301,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(result).toEqual({
 			email: "user@example.com",
 			accountId: "user-1",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			disabled: false,
 			verified: true
@@ -335,7 +335,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 	it("should prefer the password account when more than one provider holds the e-mail address", async () => {
 		for (const [accountId, authProviderId] of [
 			["user-1", "google"],
-			["user-2", "entity-storage"]
+			["user-2", "3sixty"]
 		]) {
 			await userEntityStorage.set({
 				email: "shared@example.com",
@@ -375,7 +375,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 	it("should find a user by e-mail address with one query and no account id lookup", async () => {
 		for (const [accountId, authProviderId] of [
 			["user-1", "google"],
-			["user-2", "entity-storage"]
+			["user-2", "3sixty"]
 		]) {
 			await userEntityStorage.set({
 				email: "shared@example.com",
@@ -406,7 +406,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		await userEntityStorage.set({
 			email: "shared@example.com",
 			accountId: "user-password",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -425,7 +425,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			email: "user@example.com",
 			password: "stored-password",
 			salt: "AQIDBA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			accountId: "user-1"
@@ -459,7 +459,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			email: "user@example.com",
 			password: "stored-password",
 			salt: "AQIDBA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			accountId: "user-1"
@@ -478,7 +478,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 		expect(await userEntityStorage.get("user@example.com", "email")).toEqual({
 			email: "user@example.com",
 			salt: "BQYHCA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: expect.not.stringMatching("2026-01-01T00:00:00.000Z"),
 			password: "new-password-hash",
@@ -529,7 +529,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			accountId: "user-1",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -545,7 +545,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 			password: "stored-password",
 			salt: "AQIDBA==",
 			accountId: "user-1",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -658,7 +658,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				password: "stored-password",
 				salt: "AQIDBA==",
 				accountId: "user-1",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				providerAccountId: "admin@example.com",
 				dateCreated: "2026-01-01T00:00:00.000Z",
 				dateModified: "2026-01-01T00:00:00.000Z"
@@ -934,7 +934,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				await userEntityStorage.set({
 					email,
 					accountId,
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: email,
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1142,7 +1142,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				expect(await userEntityStorage.get("user@example.com", "email")).toEqual({
 					email: "user@example.com",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: expect.any(String),
 					dateModified: expect.any(String),
@@ -1161,7 +1161,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"
@@ -1172,7 +1172,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 				expect(result).toEqual({
 					email: "user@example.com",
 					accountId: "user-1",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					disabled: false,
 					verified: true
@@ -1186,7 +1186,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"
@@ -1210,7 +1210,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"
@@ -1262,7 +1262,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"
@@ -1280,7 +1280,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"
@@ -1304,7 +1304,7 @@ describe("EntityStorageAuthenticationAdminService", () => {
 					email: "user@example.com",
 					password: "stored-password",
 					salt: "AQIDBA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z",
 					accountId: "user-1"

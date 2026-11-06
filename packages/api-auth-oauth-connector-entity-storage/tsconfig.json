@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"incremental": true,
+		"tsBuildInfoFile": ".cache/tsconfig.tsbuildinfo",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"target": "ES2022",
+		"rootDir": "./src",
+		"outDir": "dist/es",
+		"strict": true,
+		"forceConsistentCasingInFileNames": true,
+		"stripInternal": true,
+		"noEmitHelpers": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"erasableSyntaxOnly": true,
+		"sourceMap": true,
+		"inlineSources": true,
+		"declaration": true,
+		"declarationDir": "dist/types",
+		"types": ["node"],
+		"plugins": [{ "transform": "@3sixty/nameof-transformer" }],
+		"skipLibCheck": true
+	},
+	"include": ["src/**/*.ts"]
+}

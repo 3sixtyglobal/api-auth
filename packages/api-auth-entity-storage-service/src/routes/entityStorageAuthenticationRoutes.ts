@@ -1,41 +1,53 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type {
-	IAuthenticationComponent,
-	ILoginRequest,
-	ILoginResponse,
-	ILoginWithProviderRequest,
-	ILogoutRequest,
-	IMeResponse,
-	IPasswordForgotRequest,
-	IPasswordPolicyResponse,
-	IPasswordResetRequest,
-	IProvidersResponse,
-	IRefreshTokenRequest,
-	IRefreshTokenResponse,
-	IRegisterAcceptedResponse,
-	IRegisterRequest,
-	IRegisterVerifyRequest,
-	IUpdatePasswordRequest,
-	IUpdatePasswordResponse
+import {
+	AuthOperation,
+	OAuthParameter,
+	type IAuthenticationComponent,
+	type IAuthorizationServerMetadataResponse,
+	type IAuthorizeRequest,
+	type IAuthorizeResponse,
+	type ILoginRequest,
+	type ILoginResponse,
+	type ILoginWithProviderRequest,
+	type ILogoutRequest,
+	type IMeResponse,
+	type IPasswordForgotRequest,
+	type IPasswordPolicyResponse,
+	type IPasswordResetRequest,
+	type IProvidersRequest,
+	type IProvidersResponse,
+	type IRefreshTokenRequest,
+	type IRefreshTokenResponse,
+	type IRegisterAcceptedResponse,
+	type IRegisterRequest,
+	type IRegisterVerifyRequest,
+	type ITokenErrorResponse,
+	type ITokenRequest,
+	type ITokenResponse,
+	type IUpdatePasswordRequest,
+	type IUpdatePasswordResponse
 } from "@3sixty/api-auth-entity-storage-models";
-import type {
-	IAcceptedResponse,
-	IForbiddenResponse,
-	IHttpRequestContext,
-	INoContentRequest,
-	INoContentResponse,
-	INotFoundResponse,
-	IRestRoute,
-	IRestRouteResponseOptions,
-	ITag,
-	ITooManyRequestsResponse,
-	IUnauthorizedResponse
+import type { AuthenticationProviderType } from "@3sixty/api-auth-models";
+import {
+	HttpParameterHelper,
+	type IAcceptedResponse,
+	type IForbiddenResponse,
+	type IHttpRequestContext,
+	type INoContentRequest,
+	type INoContentResponse,
+	type INotFoundResponse,
+	type IRestRoute,
+	type IRestRouteResponseOptions,
+	type ITag,
+	type ITooManyRequestsResponse,
+	type IUnauthorizedResponse,
+	type IUnprocessableEntityResponse
 } from "@3sixty/api-models";
-import { Coerce, ComponentFactory, Guards } from "@3sixty/core";
+import { BaseError, Coerce, ComponentFactory, Guards, Is, UnauthorizedError } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
-import { HttpStatusCode } from "@3sixty/web";
+import { HeaderTypes, HttpStatusCode, MimeTypes } from "@3sixty/web";
 
 /**
  * The source used when communicating about these routes.
@@ -107,6 +119,111 @@ export function generateRestRoutesAuthentication(
 			}
 		],
 		skipAuth: true
+	};
+
+	const authorizeRoute: IRestRoute<IAuthorizeRequest, IAuthorizeResponse> = {
+		operationId: "authenticationAuthorize",
+		summary:
+			"Check the e-mail address and password of a password account and issue an OAuth 2.0 authorization code",
+		tag: tagsAuthentication[0].name,
+		method: "POST",
+		path: `${baseRouteName}/authorize`,
+		handler: async (httpRequestContext, request) =>
+			authenticationAuthorize(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<IAuthorizeRequest>(),
+			examples: [
+				{
+					id: "authorizeRequestExample",
+					description: "The request to issue an authorization code for a password account.",
+					request: {
+						body: {
+							email: "user@example.com",
+							password: "MyPassword123!",
+							state: "3c9e1b7a5d2f",
+							nonce: "n-0S6_WzA2Mj",
+							codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+							codeChallengeMethod: "S256",
+							redirectUri: "https://example.com/authentication/oauth/3sixty-oauth/callback"
+						}
+					}
+				}
+			]
+		},
+		responseType: [
+			{
+				type: nameof<IAuthorizeResponse>(),
+				examples: [
+					{
+						id: "authorizeResponseExample",
+						description: "The address to send the browser to with the code.",
+						response: {
+							body: {
+								location:
+									"https://example.com/authentication/oauth/3sixty-oauth/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=3c9e1b7a5d2f"
+							}
+						}
+					}
+				]
+			},
+			{
+				type: nameof<IUnauthorizedResponse>()
+			},
+			{
+				type: nameof<IUnprocessableEntityResponse>()
+			}
+		],
+		skipAuth: true
+	};
+
+	const tokenRoute: IRestRoute<ITokenRequest, ITokenResponse | ITokenErrorResponse> = {
+		operationId: "authenticationToken",
+		summary:
+			"Exchange an OAuth 2.0 authorization code for an access token, the token endpoint of RFC 6749",
+		tag: tagsAuthentication[0].name,
+		method: "POST",
+		path: `${baseRouteName}/token`,
+		handler: async (httpRequestContext, request) =>
+			authenticationToken(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<ITokenRequest>(),
+			mimeType: MimeTypes.FormUrlEncoded
+		},
+		responseType: [
+			{
+				type: nameof<ITokenResponse>()
+			},
+			{
+				type: nameof<ITokenErrorResponse>()
+			}
+		],
+		skipAuth: true
+	};
+
+	const authorizationServerMetadataRoute: IRestRoute<
+		INoContentRequest,
+		IAuthorizationServerMetadataResponse
+	> = {
+		operationId: "authenticationAuthorizationServerMetadata",
+		summary: "Get the OAuth 2.0 authorization server metadata of the node, as RFC 8414 describes",
+		tag: tagsAuthentication[0].name,
+		method: "GET",
+		path: "/.well-known/oauth-authorization-server",
+		handler: async (httpRequestContext, request) =>
+			authenticationAuthorizationServerMetadata(httpRequestContext, componentName, request),
+		requestType: {
+			type: nameof<INoContentRequest>()
+		},
+		responseType: [
+			{
+				type: nameof<IAuthorizationServerMetadataResponse>()
+			},
+			{
+				type: nameof<INotFoundResponse>()
+			}
+		],
+		skipAuth: true,
+		skipTenant: true
 	};
 
 	const loginWithProviderRoute: IRestRoute<ILoginWithProviderRequest, ILoginResponse> = {
@@ -522,7 +639,7 @@ export function generateRestRoutesAuthentication(
 		skipTenant: true
 	};
 
-	const providersRoute: IRestRoute<INoContentRequest, IProvidersResponse> = {
+	const providersRoute: IRestRoute<IProvidersRequest, IProvidersResponse> = {
 		operationId: "authenticationProviders",
 		summary: "Get the enabled authentication providers",
 		tag: tagsAuthentication[0].name,
@@ -531,7 +648,18 @@ export function generateRestRoutesAuthentication(
 		handler: async (httpRequestContext, request) =>
 			authenticationProviders(httpRequestContext, componentName, request),
 		requestType: {
-			type: nameof<INoContentRequest>()
+			type: nameof<IProvidersRequest>(),
+			examples: [
+				{
+					id: "providersRequestExample",
+					description: "The request for the OAuth 2.0 providers only.",
+					request: {
+						query: {
+							types: "oauth2"
+						}
+					}
+				}
+			]
 		},
 		responseType: [
 			{
@@ -544,13 +672,15 @@ export function generateRestRoutesAuthentication(
 							body: {
 								providers: [
 									{
-										authProviderId: "entity-storage",
+										authProviderId: "3sixty",
+										type: "basic",
 										signInMethod: "password",
 										passwordChange: "api",
 										profileReadOnly: false
 									},
 									{
 										authProviderId: "google",
+										type: "oauth2",
 										signInMethod: "redirect",
 										passwordChange: "external",
 										passwordChangeUrl: "https://myaccount.google.com/signinoptions/password",
@@ -570,6 +700,9 @@ export function generateRestRoutesAuthentication(
 
 	return [
 		loginRoute,
+		authorizeRoute,
+		tokenRoute,
+		authorizationServerMetadataRoute,
 		loginWithProviderRoute,
 		registerRoute,
 		registerVerifyRoute,
@@ -605,7 +738,7 @@ export async function authenticationLogin(
 
 	// Need to give a hint to any auth processors about the operation
 	// in case they need to manipulate the response
-	httpRequestContext.processorState.authOperation = "login";
+	httpRequestContext.processorState.authOperation = AuthOperation.Login;
 	httpRequestContext.processorState.authToken = result.token;
 
 	return {
@@ -618,6 +751,106 @@ export async function authenticationLogin(
 			passwordChangeUrl: result.passwordChangeUrl,
 			roles: result.roles
 		}
+	};
+}
+
+/**
+ * Check the e-mail address and password of a password account and issue an OAuth 2.0 authorization code.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAuthorize(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: IAuthorizeRequest
+): Promise<IAuthorizeResponse> {
+	Guards.object<IAuthorizeRequest>(ROUTES_SOURCE, nameof(request), request);
+	Guards.object<IAuthorizeRequest["body"]>(ROUTES_SOURCE, nameof(request.body), request.body);
+
+	const { email, password, ...authorization } = request.body;
+	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+	const location = await component.authorize(email, password, authorization);
+
+	return {
+		body: {
+			location
+		}
+	};
+}
+
+/**
+ * Exchange an OAuth 2.0 authorization code for an access token, answering with the errors RFC 6749
+ * gives when the request is refused.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationToken(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: ITokenRequest
+): Promise<ITokenResponse | ITokenErrorResponse> {
+	const headers = {
+		[HeaderTypes.CacheControl]: "no-store"
+	};
+	const {
+		[OAuthParameter.GrantType]: grantType,
+		[OAuthParameter.Code]: code,
+		[OAuthParameter.RedirectUri]: redirectUri,
+		[OAuthParameter.CodeVerifier]: codeVerifier
+	} = request?.body ?? {};
+
+	let error: string | undefined;
+	if (grantType !== "authorization_code") {
+		error = Is.stringValue(grantType) ? "unsupported_grant_type" : "invalid_request";
+	} else if (
+		!Is.stringValue(code) ||
+		!Is.stringValue(redirectUri) ||
+		!Is.stringValue(codeVerifier)
+	) {
+		error = "invalid_request";
+	}
+
+	if (!Is.stringValue(error)) {
+		const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+		try {
+			return {
+				headers,
+				body: await component.exchangeAuthorizationCode(code, codeVerifier, redirectUri)
+			};
+		} catch (err) {
+			if (!BaseError.isErrorName(err, UnauthorizedError.CLASS_NAME)) {
+				throw err;
+			}
+			error = "invalid_grant";
+		}
+	}
+
+	return {
+		statusCode: HttpStatusCode.badRequest,
+		headers,
+		body: { error }
+	};
+}
+
+/**
+ * Get the OAuth 2.0 authorization server metadata of the node.
+ * @param httpRequestContext The request context for the API.
+ * @param componentName The name of the component to use in the routes.
+ * @param request The request.
+ * @returns The response object with additional http response properties.
+ */
+export async function authenticationAuthorizationServerMetadata(
+	httpRequestContext: IHttpRequestContext,
+	componentName: string,
+	request: INoContentRequest
+): Promise<IAuthorizationServerMetadataResponse> {
+	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
+	return {
+		body: await component.authorizationServerMetadata()
 	};
 }
 
@@ -652,7 +885,7 @@ export async function authenticationLoginWithProvider(
 
 	// Need to give a hint to any auth processors about the operation
 	// in case they need to manipulate the response
-	httpRequestContext.processorState.authOperation = "login";
+	httpRequestContext.processorState.authOperation = AuthOperation.Login;
 	httpRequestContext.processorState.authToken = result.token;
 
 	return {
@@ -748,7 +981,7 @@ export async function authenticationRemoveAccount(
 	await component.removeAccount(Coerce.integer(httpRequestContext.processorState.authSessionStart));
 
 	// The auth processors remove the token cookie as on a logout.
-	httpRequestContext.processorState.authOperation = "logout";
+	httpRequestContext.processorState.authOperation = AuthOperation.Logout;
 
 	return {
 		statusCode: HttpStatusCode.noContent
@@ -774,7 +1007,7 @@ export async function authenticationLogout(
 
 	// Need to give a hint to any auth processors about the operation
 	// in case they need to manipulate the response
-	httpRequestContext.processorState.authOperation = "logout";
+	httpRequestContext.processorState.authOperation = AuthOperation.Logout;
 
 	return {
 		statusCode: HttpStatusCode.noContent
@@ -804,7 +1037,7 @@ export async function authenticationRefreshToken(
 
 	// Need to give a hint to any auth processors about the operation
 	// in case they need to manipulate the response
-	httpRequestContext.processorState.authOperation = "refresh";
+	httpRequestContext.processorState.authOperation = AuthOperation.Refresh;
 	httpRequestContext.processorState.authToken = result.token;
 
 	return {
@@ -839,7 +1072,7 @@ export async function authenticationUpdatePassword(
 	);
 
 	// The auth processors replace the cookie as on a refresh, so the current session continues.
-	httpRequestContext.processorState.authOperation = "refresh";
+	httpRequestContext.processorState.authOperation = AuthOperation.Refresh;
 	httpRequestContext.processorState.authToken = result.token;
 
 	return {
@@ -928,10 +1161,12 @@ export async function authenticationPasswordPolicy(
 export async function authenticationProviders(
 	httpRequestContext: IHttpRequestContext,
 	componentName: string,
-	request: INoContentRequest
+	request: IProvidersRequest
 ): Promise<IProvidersResponse> {
 	const component = ComponentFactory.get<IAuthenticationComponent>(componentName);
-	const providers = await component.providers();
+	const providers = await component.providers(
+		HttpParameterHelper.arrayFromString<AuthenticationProviderType>(request?.query?.types)
+	);
 
 	return {
 		body: {

@@ -1,8 +1,9 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
 
+import { type ITokenRequest, OAuthParameter } from "@3sixty/api-auth-entity-storage-models";
 import { ForbiddenError, HttpErrorHelper, type IHttpRequestContext } from "@3sixty/api-models";
-import { ComponentFactory } from "@3sixty/core";
+import { ComponentFactory, GeneralError, UnauthorizedError } from "@3sixty/core";
 import { HttpStatusCode } from "@3sixty/web";
 import {
 	authenticationAdminGetUserByIdentity,
@@ -10,13 +11,17 @@ import {
 	generateRestRoutesAuthenticationAdmin
 } from "../../src/routes/entityStorageAuthenticationAdminRoutes.js";
 import {
+	authenticationAuthorizationServerMetadata,
+	authenticationAuthorize,
 	authenticationLoginWithProvider,
 	authenticationMe,
 	authenticationPasswordForgot,
 	authenticationPasswordReset,
+	authenticationProviders,
 	authenticationRegister,
 	authenticationRegisterVerify,
 	authenticationRemoveAccount,
+	authenticationToken,
 	authenticationUpdatePassword,
 	generateRestRoutesAuthentication
 } from "../../src/routes/entityStorageAuthenticationRoutes.js";
@@ -103,6 +108,9 @@ describe("generateRestRoutesAuthentication", () => {
 
 		expect(routes.map(route => route.operationId)).toEqual([
 			"authenticationLogin",
+			"authenticationAuthorize",
+			"authenticationToken",
+			"authenticationAuthorizationServerMetadata",
 			"authenticationLoginWithProvider",
 			"authenticationRegister",
 			"authenticationRegisterVerify",
@@ -154,6 +162,184 @@ describe("generateRestRoutesAuthentication", () => {
 			})
 		).rejects.toMatchObject({ name: "GuardError" });
 		expect(loginWithProvider).not.toHaveBeenCalled();
+	});
+
+	it("should issue an authorization code as a public route without starting a session", async () => {
+		const routes = generateRestRoutesAuthentication("/authentication", "authentication");
+		const route = routes.find(r => r.operationId === "authenticationAuthorize");
+		expect(route?.method).toBe("POST");
+		expect(route?.path).toBe("/authentication/authorize");
+		expect(route?.skipAuth).toBe(true);
+
+		const authorize = vi.fn().mockResolvedValue("https://node.example.com/callback?code=c&state=s");
+		const component = { className: () => "authentication", authorize };
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+		const httpRequestContext = {
+			serverRequest: { headers: {} },
+			processorState: {}
+		} as unknown as IHttpRequestContext;
+		const authorization = {
+			state: "s",
+			nonce: "n",
+			codeChallenge: "challenge",
+			codeChallengeMethod: "S256",
+			redirectUri: "https://node.example.com/callback"
+		};
+
+		const result = await authenticationAuthorize(httpRequestContext, "authentication", {
+			body: { email: "user@example.com", password: "MyPassword123!", ...authorization }
+		});
+
+		expect(authorize).toHaveBeenCalledWith("user@example.com", "MyPassword123!", authorization);
+		expect(result.body.location).toBe("https://node.example.com/callback?code=c&state=s");
+		expect(httpRequestContext.processorState.authOperation).toBeUndefined();
+	});
+
+	describe("token endpoint", () => {
+		const noStore = { "cache-control": "no-store" };
+		const accessToken = {
+			[OAuthParameter.AccessToken]: "jwt",
+			[OAuthParameter.TokenType]: "Bearer",
+			[OAuthParameter.ExpiresIn]: 3600
+		};
+		const validBody: ITokenRequest["body"] = {
+			[OAuthParameter.GrantType]: "authorization_code",
+			[OAuthParameter.Code]: "code-1",
+			[OAuthParameter.RedirectUri]: "https://app.example.com/callback",
+			[OAuthParameter.CodeVerifier]: "verifier-1"
+		};
+
+		it("should be a public form route", () => {
+			const routes = generateRestRoutesAuthentication("/authentication", "authentication");
+			const route = routes.find(r => r.operationId === "authenticationToken");
+
+			expect(route?.method).toBe("POST");
+			expect(route?.path).toBe("/authentication/token");
+			expect(route?.skipAuth).toBe(true);
+			expect(route?.requestType?.mimeType).toBe("application/x-www-form-urlencoded");
+		});
+
+		it("should exchange the code and stop the token being cached", async () => {
+			const exchangeAuthorizationCode = vi.fn().mockResolvedValue(accessToken);
+			const component = { className: () => "authentication", exchangeAuthorizationCode };
+			vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+			const result = await authenticationToken(
+				{} as unknown as IHttpRequestContext,
+				"authentication",
+				{ body: validBody }
+			);
+
+			expect(exchangeAuthorizationCode).toHaveBeenCalledWith(
+				"code-1",
+				"verifier-1",
+				"https://app.example.com/callback"
+			);
+			expect(result).toEqual({ headers: noStore, body: accessToken });
+		});
+
+		it.each([
+			{
+				reason: "another grant type",
+				error: "unsupported_grant_type",
+				change: { [OAuthParameter.GrantType]: "password" }
+			},
+			{
+				reason: "no grant type",
+				error: "invalid_request",
+				change: { [OAuthParameter.GrantType]: "" }
+			},
+			{ reason: "no code", error: "invalid_request", change: { [OAuthParameter.Code]: "" } },
+			{
+				reason: "no code verifier",
+				error: "invalid_request",
+				change: { [OAuthParameter.CodeVerifier]: "" }
+			}
+		])("should refuse a request with $reason", async ({ error, change }) => {
+			const exchangeAuthorizationCode = vi.fn();
+			const component = { className: () => "authentication", exchangeAuthorizationCode };
+			vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+			const result = await authenticationToken(
+				{} as unknown as IHttpRequestContext,
+				"authentication",
+				{ body: { ...validBody, ...change } }
+			);
+
+			expect(result).toEqual({ statusCode: 400, headers: noStore, body: { error } });
+			expect(exchangeAuthorizationCode).not.toHaveBeenCalled();
+		});
+
+		it("should answer invalid_grant for a code that is not valid", async () => {
+			const component = {
+				className: () => "authentication",
+				exchangeAuthorizationCode: vi
+					.fn()
+					.mockRejectedValue(new UnauthorizedError("test", "authorizationCodeInvalid"))
+			};
+			vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+			const result = await authenticationToken(
+				{} as unknown as IHttpRequestContext,
+				"authentication",
+				{ body: validBody }
+			);
+
+			expect(result).toMatchObject({ statusCode: 400, body: { error: "invalid_grant" } });
+		});
+
+		it("should not hide an unexpected failure as invalid_grant", async () => {
+			const component = {
+				className: () => "authentication",
+				exchangeAuthorizationCode: vi
+					.fn()
+					.mockRejectedValue(new GeneralError("test", "nodeIdNotSet"))
+			};
+			vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+			await expect(
+				authenticationToken({} as unknown as IHttpRequestContext, "authentication", {
+					body: validBody
+				})
+			).rejects.toThrow(GeneralError);
+		});
+	});
+
+	it("should serve the authorization server metadata at the well-known address", async () => {
+		const routes = generateRestRoutesAuthentication("/authentication", "authentication");
+		const route = routes.find(r => r.operationId === "authenticationAuthorizationServerMetadata");
+		expect(route?.method).toBe("GET");
+		expect(route?.path).toBe("/.well-known/oauth-authorization-server");
+		expect(route?.skipAuth).toBe(true);
+
+		const metadata = { issuer: "https://node.example.com" };
+		const component = {
+			className: () => "authentication",
+			authorizationServerMetadata: vi.fn().mockResolvedValue(metadata)
+		};
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		const result = await authenticationAuthorizationServerMetadata(
+			{} as unknown as IHttpRequestContext,
+			"authentication",
+			{}
+		);
+
+		expect(result.body).toEqual(metadata);
+	});
+
+	it("should pass the requested provider types to the component", async () => {
+		const providers = vi.fn().mockResolvedValue([]);
+		const component = { className: () => "authentication", providers };
+		vi.spyOn(ComponentFactory, "get").mockReturnValue(component);
+
+		await authenticationProviders({} as unknown as IHttpRequestContext, "authentication", {
+			query: { types: "oauth2,basic" }
+		});
+		await authenticationProviders({} as unknown as IHttpRequestContext, "authentication", {});
+
+		expect(providers).toHaveBeenNthCalledWith(1, ["oauth2", "basic"]);
+		expect(providers).toHaveBeenNthCalledWith(2, undefined);
 	});
 
 	it("should keep the sign up public and the signed in account unauthorized by role", () => {
@@ -208,7 +394,7 @@ describe("generateRestRoutesAuthentication", () => {
 		const summary = {
 			accountId: "account-1",
 			email: "user@example.com",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			profileReadOnly: false
 		};
 		const component = { className: () => "authentication", me: vi.fn().mockResolvedValue(summary) };

@@ -60,6 +60,7 @@ describe("OAuthService", () => {
 		AuthenticationProviderFactory.register("google", () => ({
 			className: () => "TestGoogleConnector",
 			getCapabilities: () => ({
+				type: "oauth2",
 				signInMethod: "redirect",
 				passwordChange: "external",
 				profileReadOnly: true
@@ -70,9 +71,10 @@ describe("OAuthService", () => {
 				return `https://accounts.example.com/authorize?state=${request.state}`;
 			}
 		}));
-		AuthenticationProviderFactory.register("entity-storage", () => ({
+		AuthenticationProviderFactory.register("3sixty", () => ({
 			className: () => "TestPasswordProvider",
 			getCapabilities: () => ({
+				type: "basic",
 				signInMethod: "password",
 				passwordChange: "api",
 				profileReadOnly: false
@@ -93,7 +95,7 @@ describe("OAuthService", () => {
 
 	afterEach(() => {
 		AuthenticationProviderFactory.unregister("google");
-		AuthenticationProviderFactory.unregister("entity-storage");
+		AuthenticationProviderFactory.unregister("3sixty");
 	});
 
 	it("should require the redirect addresses", () => {
@@ -125,7 +127,7 @@ describe("OAuthService", () => {
 	});
 
 	it("should refuse to start with a provider that does not use OAuth as not found", async () => {
-		for (const authProviderId of ["entity-storage", "unknown"]) {
+		for (const authProviderId of ["3sixty", "unknown"]) {
 			const error = await service.beginSignIn(authProviderId, CALLBACK_URL).catch(err => err);
 			expect(error).toMatchObject({
 				name: NotFoundError.CLASS_NAME,

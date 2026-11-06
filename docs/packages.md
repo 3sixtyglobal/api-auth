@@ -80,6 +80,14 @@ This package provides authentication provider that signs accounts in with Micros
 - [Examples](../packages/api-auth-oauth-connector-microsoft/docs/examples.md)
 - [Changelog](../packages/api-auth-oauth-connector-microsoft/docs/changelog.md)
 
+## api-auth-oauth-connector-entity-storage
+
+This package provides authentication provider that signs password accounts held in entity storage in through OAuth 2.0.
+
+- [README](../packages/api-auth-oauth-connector-entity-storage/README.md)
+- [Examples](../packages/api-auth-oauth-connector-entity-storage/docs/examples.md)
+- [Changelog](../packages/api-auth-oauth-connector-entity-storage/docs/changelog.md)
+
 ## api-auth-oauth-service
 
 This package provides oAuth sign in flow and REST routes for authentication providers.

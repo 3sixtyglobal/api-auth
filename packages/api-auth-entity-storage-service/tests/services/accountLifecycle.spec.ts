@@ -27,6 +27,7 @@ import type { IMessagingComponent } from "@3sixty/messaging-models";
 import { nameof } from "@3sixty/nameof";
 import { type IVaultConnector, VaultConnectorFactory } from "@3sixty/vault-models";
 import { HttpStatusCode } from "@3sixty/web";
+import type { AuthenticationAuthorizationCode } from "../../src/entities/authenticationAuthorizationCode.js";
 import type { AuthenticationPasswordReset } from "../../src/entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../../src/entities/authenticationUser.js";
 import type { IEntityStorageAuthenticationServiceConfig } from "../../src/models/IEntityStorageAuthenticationServiceConfig.js";
@@ -51,6 +52,7 @@ const NODE_CONTEXT: IContextIds = { [ContextIdKeys.Node]: "node-1" };
 describe("account lifecycle", () => {
 	let userStorage: MemoryEntityStorageConnector<AuthenticationUser>;
 	let resetStorage: MemoryEntityStorageConnector<AuthenticationPasswordReset>;
+	let codeStorage: MemoryEntityStorageConnector<AuthenticationAuthorizationCode>;
 	let rate: IAuthenticationRateComponent;
 	let audit: IAuthenticationAuditComponent;
 	let messaging: IMessagingComponent;
@@ -76,7 +78,7 @@ describe("account lifecycle", () => {
 	}
 
 	async function createUser(email: string, accountId: string): Promise<AuthenticationUser> {
-		return PasswordHelper.createUser(userStorage, "entity-storage", accountId, email, PASSWORD);
+		return PasswordHelper.createUser(userStorage, "3sixty", accountId, email, PASSWORD);
 	}
 
 	async function runDeliveries(): Promise<void> {
@@ -97,7 +99,12 @@ describe("account lifecycle", () => {
 			config: { storageKey: "lifecycle-password-reset" }
 		});
 		EntityStorageConnectorFactory.register("authentication-user", () => userStorage);
+		codeStorage = new MemoryEntityStorageConnector<AuthenticationAuthorizationCode>({
+			entitySchema: nameof<AuthenticationAuthorizationCode>(),
+			config: { storageKey: "lifecycle-authorization-code" }
+		});
 		EntityStorageConnectorFactory.register("authentication-password-reset", () => resetStorage);
+		EntityStorageConnectorFactory.register("authentication-authorization-code", () => codeStorage);
 		VaultConnectorFactory.register("vault", () => ({}) as unknown as IVaultConnector);
 
 		rate = {
@@ -181,9 +188,11 @@ describe("account lifecycle", () => {
 		}
 		EntityStorageConnectorFactory.unregister("authentication-user");
 		EntityStorageConnectorFactory.unregister("authentication-password-reset");
+		EntityStorageConnectorFactory.unregister("authentication-authorization-code");
 		VaultConnectorFactory.unregister("vault");
 		await userStorage.teardown();
 		await resetStorage.teardown();
+		await codeStorage.teardown();
 		vi.restoreAllMocks();
 	});
 
@@ -798,7 +807,7 @@ describe("account lifecycle", () => {
 			const legacy: AuthenticationUser = {
 				accountId: "user-1",
 				email: "user@example.com",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				providerAccountId: "user@example.com",
 				salt: Converter.bytesToBase64(salt),
 				password: await PasswordGenerator.hashPassword(Converter.utf8ToBytes(PASSWORD), salt),
@@ -1281,11 +1290,7 @@ describe("account lifecycle", () => {
 			).resolves.toBeUndefined();
 			await runDeliveries();
 
-			const created = await AccountHelper.findByEmail(
-				userStorage,
-				"entity-storage",
-				"new@example.com"
-			);
+			const created = await AccountHelper.findByEmail(userStorage, "3sixty", "new@example.com");
 			expect(created).toMatchObject({ email: "new@example.com", verified: false });
 			expect(authorization.addRoleForSubject).not.toHaveBeenCalled();
 			const [sender, recipients, templateId, data] = vi.mocked(messaging.sendCustomEmail).mock
@@ -1398,11 +1403,7 @@ describe("account lifecycle", () => {
 			await runDeliveries();
 
 			expect(await userStorage.get("user-1")).toBeUndefined();
-			const replaced = await AccountHelper.findByEmail(
-				userStorage,
-				"entity-storage",
-				"user@example.com"
-			);
+			const replaced = await AccountHelper.findByEmail(userStorage, "3sixty", "user@example.com");
 			expect(replaced?.verified).toBe(false);
 			expect(vi.mocked(messaging.sendCustomEmail).mock.calls[0][2]).toBe("registration-verify");
 		});
@@ -1532,6 +1533,308 @@ describe("account lifecycle", () => {
 			expect(keys.some(([action, key]) => action === "login-client" || key.includes("ip-"))).toBe(
 				false
 			);
+		});
+	});
+
+	describe("authorize", () => {
+		const PUBLIC_CONTEXT: IContextIds = {
+			...NODE_CONTEXT,
+			[HttpContextIdKeys.PublicOrigin]: "https://node.example.com/api"
+		};
+		const CALLBACK = "https://node.example.com/api/authentication/oauth/3sixty-oauth/callback";
+		const AUTHORIZATION = {
+			state: "state-1",
+			nonce: "nonce-1",
+			codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+			codeChallengeMethod: "S256",
+			redirectUri: CALLBACK
+		};
+
+		test("issues a single use code bound to the request and sends it to the callback", async () => {
+			await createUser("user@example.com", "user-1");
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			const location = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorize("User@Example.com", PASSWORD, AUTHORIZATION)
+			);
+
+			const url = new URL(location);
+			expect(`${url.origin}${url.pathname}`).toBe(CALLBACK);
+			expect(url.searchParams.get("state")).toBe("state-1");
+			const code = url.searchParams.get("code") ?? "";
+			expect(code.length).toBeGreaterThan(20);
+
+			// Only the hash of the code is stored, with what it was issued for.
+			const stored = await codeStorage.get(PasswordResetHelper.hashToken(code));
+			expect(stored).toMatchObject({
+				accountId: "user-1",
+				redirectUri: CALLBACK,
+				codeChallenge: AUTHORIZATION.codeChallenge,
+				nonce: "nonce-1"
+			});
+			expect(Date.parse(stored?.expires ?? "") - Date.now()).toBeLessThanOrEqual(60000);
+			// No session is started until the code is redeemed.
+			expect((await userStorage.get("user-1"))?.dateLastLogin).toBeUndefined();
+		});
+
+		test("refuses a wrong password, a disabled account and an unknown one like a login", async () => {
+			const disabled = await createUser("disabled@example.com", "user-1");
+			await userStorage.set({ ...disabled, dateDisabled: new Date().toISOString() });
+			await createUser("user@example.com", "user-2");
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			const errors = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				Promise.all([
+					service.authorize("disabled@example.com", PASSWORD, AUTHORIZATION).catch(e => e),
+					service.authorize("user@example.com", NEW_PASSWORD, AUTHORIZATION).catch(e => e),
+					service.authorize("missing@example.com", PASSWORD, AUTHORIZATION).catch(e => e)
+				])
+			);
+
+			for (const error of errors) {
+				expect(error).toBeInstanceOf(UnauthorizedError);
+				expect(error.message).toBe("entityStorageAuthenticationService.loginFailed");
+			}
+			expect((await codeStorage.query()).entities).toHaveLength(0);
+		});
+
+		test("tells the owner of an unverified account to verify it", async () => {
+			const unverified = await createUser("unverified@example.com", "user-1");
+			await userStorage.set({ ...unverified, verified: false });
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			await expect(
+				ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+					service.authorize("unverified@example.com", PASSWORD, AUTHORIZATION)
+				)
+			).rejects.toMatchObject({ message: "entityStorageAuthenticationService.accountNotVerified" });
+		});
+
+		test.each([
+			{
+				reason: "another origin",
+				redirectUri: "https://evil.example.com/api/authentication/oauth/3sixty-oauth/callback"
+			},
+			{ reason: "a path outside the node", redirectUri: "https://node.example.com/other/callback" },
+			{
+				reason: "a query",
+				redirectUri: "https://node.example.com/api/callback?next=https://evil.example.com"
+			},
+			{ reason: "a fragment", redirectUri: "https://node.example.com/api/callback#code" },
+			{ reason: "an invalid address", redirectUri: "not a url" }
+		])(
+			"refuses a redirect address with $reason before checking the password",
+			async ({ redirectUri }) => {
+				await createUser("user@example.com", "user-1");
+				const service = createService();
+				await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+				await expect(
+					ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+						service.authorize("user@example.com", PASSWORD, { ...AUTHORIZATION, redirectUri })
+					)
+				).rejects.toMatchObject({
+					name: "UnprocessableError",
+					message: "entityStorageAuthenticationService.authorizationRedirectInvalid"
+				});
+				expect(rate.check).not.toHaveBeenCalled();
+			}
+		);
+
+		test("refuses a code challenge method other than S256", async () => {
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			await expect(
+				ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+					service.authorize("user@example.com", PASSWORD, {
+						...AUTHORIZATION,
+						codeChallengeMethod: "plain"
+					})
+				)
+			).rejects.toMatchObject({ name: "GuardError" });
+		});
+
+		test("signs the existing account in when a provider gives its id, without creating one", async () => {
+			await createUser("user@example.com", "user-1");
+			AuthenticationProviderFactory.register("3sixty-oauth", () => ({
+				className: () => "TestEntityStorageOAuthProvider",
+				getCapabilities: () => ({
+					type: "oauth2",
+					signInMethod: "password",
+					passwordChange: "api",
+					profileReadOnly: false
+				}),
+				authenticate: async () => ({
+					providerAccountId: "user@example.com",
+					accountId: "user-1",
+					email: "user@example.com"
+				})
+			}));
+			vi.spyOn(TokenHelper, "createToken").mockResolvedValue({ token: "jwt", expiry: 123 });
+			try {
+				const service = createService();
+				await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+				const login = await ContextIdStore.run(NODE_CONTEXT, async () =>
+					service.loginWithProvider("3sixty-oauth", { code: "code-1" })
+				);
+
+				expect(login).toMatchObject({ accountId: "user-1", token: "jwt" });
+				expect((await userStorage.query()).entities).toHaveLength(1);
+				expect((await userStorage.get("user-1"))?.dateLastLogin).toEqual(expect.any(String));
+			} finally {
+				AuthenticationProviderFactory.unregister("3sixty-oauth");
+			}
+		});
+
+		test("exchanges a code at the token endpoint once, with its code verifier", async () => {
+			await createUser("user@example.com", "user-1");
+			const codeVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+			const codeChallenge = Converter.bytesToBase64Url(
+				Sha256.sum256(Converter.utf8ToBytes(codeVerifier))
+			);
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			const location = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorize("user@example.com", PASSWORD, { ...AUTHORIZATION, codeChallenge })
+			);
+			const code = new URL(location).searchParams.get("code") ?? "";
+
+			await expect(
+				service.exchangeAuthorizationCode(code, "another-verifier", CALLBACK)
+			).rejects.toMatchObject({
+				name: "UnauthorizedError",
+				message: "entityStorageAuthenticationService.authorizationCodeInvalid"
+			});
+
+			// A failed exchange uses the code up, so a guessed verifier cannot be retried.
+			await expect(
+				service.exchangeAuthorizationCode(code, codeVerifier, CALLBACK)
+			).rejects.toMatchObject({ name: "UnauthorizedError" });
+
+			const second = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorize("user@example.com", PASSWORD, { ...AUTHORIZATION, codeChallenge })
+			);
+			const secondCode = new URL(second).searchParams.get("code") ?? "";
+			const token = await ContextIdStore.run(NODE_CONTEXT, async () =>
+				service.exchangeAuthorizationCode(secondCode, codeVerifier, CALLBACK)
+			);
+
+			expect(Object.entries(token)).toEqual([
+				["access_token", "jwt"],
+				["token_type", "Bearer"],
+				["expires_in", 0]
+			]);
+			expect((await userStorage.get("user-1"))?.dateLastLogin).toEqual(expect.any(String));
+			await expect(
+				service.exchangeAuthorizationCode(secondCode, codeVerifier, CALLBACK)
+			).rejects.toMatchObject({ name: "UnauthorizedError" });
+		});
+
+		test("refuses an exchange for an account disabled after the code was issued", async () => {
+			const user = await createUser("user@example.com", "user-1");
+			const codeVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+			const codeChallenge = Converter.bytesToBase64Url(
+				Sha256.sum256(Converter.utf8ToBytes(codeVerifier))
+			);
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+			const location = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorize("user@example.com", PASSWORD, { ...AUTHORIZATION, codeChallenge })
+			);
+			await userStorage.set({ ...user, dateDisabled: new Date().toISOString() });
+
+			await expect(
+				ContextIdStore.run(NODE_CONTEXT, async () =>
+					service.exchangeAuthorizationCode(
+						new URL(location).searchParams.get("code") ?? "",
+						codeVerifier,
+						CALLBACK
+					)
+				)
+			).rejects.toMatchObject({ name: "UnauthorizedError" });
+		});
+
+		test("sends a code to a registered redirect address on another origin", async () => {
+			await createUser("user@example.com", "user-1");
+			const appCallback = "https://app.example.com/oauth/callback";
+			const service = createService({ config: { authorizationRedirectUris: [appCallback] } });
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			const location = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorize("user@example.com", PASSWORD, {
+					...AUTHORIZATION,
+					redirectUri: appCallback
+				})
+			);
+
+			expect(location.startsWith(`${appCallback}?code=`)).toBe(true);
+			await expect(
+				ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+					service.authorize("user@example.com", PASSWORD, {
+						...AUTHORIZATION,
+						redirectUri: `${appCallback}/other`
+					})
+				)
+			).rejects.toMatchObject({ name: "UnprocessableError" });
+		});
+
+		test("gives the authorization server metadata for the public origin", async () => {
+			const service = createService({
+				config: { authorizationEndpoint: "https://app.example.com/login" }
+			});
+
+			const metadata = await ContextIdStore.run(PUBLIC_CONTEXT, async () =>
+				service.authorizationServerMetadata()
+			);
+
+			expect(Object.entries(metadata)).toEqual([
+				["issuer", "https://node.example.com/api"],
+				["authorization_endpoint", "https://app.example.com/login"],
+				["token_endpoint", "https://node.example.com/api/authentication/token"],
+				["response_types_supported", ["code"]],
+				["grant_types_supported", ["authorization_code"]],
+				["code_challenge_methods_supported", ["S256"]],
+				["token_endpoint_auth_methods_supported", ["none"]]
+			]);
+		});
+
+		test("serves no metadata without an authorization endpoint", async () => {
+			const service = createService();
+
+			await expect(
+				ContextIdStore.run(PUBLIC_CONTEXT, async () => service.authorizationServerMetadata())
+			).rejects.toMatchObject({
+				name: "NotFoundError",
+				message: "entityStorageAuthenticationService.authorizationServerNotConfigured"
+			});
+		});
+
+		test("removes expired codes in the cleanup", async () => {
+			await codeStorage.set({
+				id: "expired",
+				accountId: "user-1",
+				redirectUri: CALLBACK,
+				codeChallenge: "challenge",
+				nonce: "nonce",
+				expires: new Date(Date.now() - 1000).toISOString(),
+				dateCreated: new Date().toISOString()
+			});
+			const service = createService();
+			await ContextIdStore.run(NODE_CONTEXT, async () => service.start());
+
+			for (const [id, callback] of Object.entries(scheduledTasks)) {
+				if (id.startsWith("authentication-cleanup")) {
+					await callback();
+				}
+			}
+
+			await expect(codeStorage.get("expired")).resolves.toBeUndefined();
 		});
 	});
 });

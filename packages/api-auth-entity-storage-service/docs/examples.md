@@ -48,7 +48,7 @@ import { EntityStorageAuthenticationAdminService } from '@3sixty/api-auth-entity
 const adminService = new EntityStorageAuthenticationAdminService();
 
 // Find accounts by the start of their e-mail address, or exactly, and by provider.
-const page = await adminService.query('alice@', false, 'entity-storage', undefined, 20);
+const page = await adminService.query('alice@', false, '3sixty', undefined, 20);
 console.log(page.entities[0].dateCreated); // 2026-01-12T09:05:23.123Z
 console.log(page.entities[0].verified); // true
 
@@ -92,9 +92,11 @@ const policy = await authService.passwordPolicy();
 // The providers to offer on the login page, and how each changes passwords and profiles.
 const providers = await authService.providers();
 console.log(providers.map(p => `${p.authProviderId}:${p.signInMethod}`)); // ['entity-storage:password']
+console.log(providers.map(p => p.type)); // ['basic']
+console.log(await authService.providers(['oauth2'])); // []
 console.log(policy.minPasswordLength); // 8
 
-// Password logins use the provider registered as entity-storage. An unknown or disabled account fails
+// Password logins use the provider registered as 3sixty. An unknown or disabled account fails
 // the same way as a wrong password, as does a rate limited login. The correct password for an account
 // whose e-mail address is not verified yet fails with accountNotVerified instead, so the owner can be
 // told to follow the verification link, a wrong password for it still fails with loginFailed. Logins are limited
@@ -102,6 +104,34 @@ console.log(policy.minPasswordLength); // 8
 // address together with the client address, and per e-mail address from every client with a higher
 // limit, so an attacker cannot lock an account out for everyone.
 const loginResult = await authService.login('alice@example.org', 'correct-horse-battery-staple');
+
+// For an OAuth 2.0 sign in the login page posts the password with the authorization request instead.
+// The password is checked and rate limited the same way, and a single use code, valid for
+// authorizationCodeExpirySeconds, is issued for the redirect address, which must be on the node's
+// public origin. The entity storage OAuth provider redeems it when the browser reaches the callback.
+const location = await authService.authorize('alice@example.org', 'correct-horse-battery-staple', {
+  state: 'state',
+  nonce: 'nonce',
+  codeChallenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+  codeChallengeMethod: 'S256',
+  redirectUri: 'https://node.example.org/authentication/oauth/3sixty-oauth/callback'
+});
+console.log(location); // the callback with the code and state added
+
+// A client that has the code, such as an app at a redirect address listed in
+// authorizationRedirectUris, exchanges it at POST /authentication/token, sent as a form with the
+// RFC 6749 field names. The code can only be used once, even when the exchange fails.
+const accessToken = await authService.exchangeAuthorizationCode(
+  'code-from-the-redirect',
+  'code-verifier',
+  'https://app.example.org/oauth/callback'
+);
+console.log(accessToken.token_type); // Bearer
+
+// With authorizationEndpoint set, GET /.well-known/oauth-authorization-server gives the RFC 8414
+// metadata for the public origin of the request, and is not found otherwise.
+const metadata = await authService.authorizationServerMetadata();
+console.log(metadata.token_endpoint); // https://node.example.org/authentication/token
 
 // Any other registered provider creates the account on the first login, gives it the default roles
 // and stores its profile read only. A provider is enabled by registering it with the factory.
@@ -150,7 +180,7 @@ await authService.stop('default');
 
 `PUT /authentication/password` answers 200 OK with `{ token, expiry }`, and 403 Forbidden when the current password does not match. The new token carries the new password version, so the other sessions of the account end while this one continues until the end of its maximum length. A request signed in by cookie gets the new token as the cookie and no `token` in the body, a bearer request takes it from the body. A password set by an admin or with a reset link ends every session of the account.
 
-Password sign up is enabled when the `entity-storage` provider is registered with the authentication provider factory, otherwise `register` and `verifyRegistration` are refused with a 403, `selfRegistrationDisabled`. A sign up must verify its e-mail address: `register` resolves when the sign up is accepted, and the route answers 202 Accepted without a body, whether or not the address already has an account. A new account is stored unverified without roles and sent a verification link, while the owner of an address that already has an account is told of the sign up instead. Verifying the link gives the account the default roles, until then it cannot sign in. Resetting the password with a link sent to the address also verifies the account and gives it the default roles. An unverified sign up older than the link expiry is replaced by a new sign up for the address. A repeated sign up for an address that is still waiting for verification sends a new link and stops the earlier links working, and verifying a link sets the password given with that sign up, so whoever signed up first for an address cannot keep their password. The verification tokens are stored hashed, used once and kept in the password reset storage with the password hash of their sign up, which is never returned. The default roles may not include the escalated privilege role.
+Password sign up is enabled when the `3sixty` provider is registered with the authentication provider factory, otherwise `register` and `verifyRegistration` are refused with a 403, `selfRegistrationDisabled`. A sign up must verify its e-mail address: `register` resolves when the sign up is accepted, and the route answers 202 Accepted without a body, whether or not the address already has an account. A new account is stored unverified without roles and sent a verification link, while the owner of an address that already has an account is told of the sign up instead. Verifying the link gives the account the default roles, until then it cannot sign in. Resetting the password with a link sent to the address also verifies the account and gives it the default roles. An unverified sign up older than the link expiry is replaced by a new sign up for the address. A repeated sign up for an address that is still waiting for verification sends a new link and stops the earlier links working, and verifying a link sets the password given with that sign up, so whoever signed up first for an address cannot keep their password. The verification tokens are stored hashed, used once and kept in the password reset storage with the password hash of their sign up, which is never returned. The default roles may not include the escalated privilege role.
 
 The limits per client address, for provider logins, sign ups, verifying a sign up, asking for and using a password reset link, and logins with `loginRateLimitPerClient`, are only applied when `clientAddressRateLimitEnabled` is set. Only set it when the client address can be trusted, such as behind configured trusted proxies, as otherwise every client may share the address of a proxy or send a false one. When it is off, those limits are applied per provider account, per e-mail address or per token instead, or skipped for logins per client, and the limits per e-mail address still apply. A limit per e-mail address lets anyone use up the attempts of an address, a limit per token or provider account does not stop one client trying many, so set `clientAddressRateLimitEnabled` wherever the client address can be trusted.
 

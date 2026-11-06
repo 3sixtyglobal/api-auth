@@ -171,7 +171,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -235,7 +235,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			providerAccountId: "user@example.com",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
@@ -243,6 +243,7 @@ describe("EntityStorageAuthenticationService", () => {
 		vi.spyOn(AuthenticationProviderFactory, "get").mockReturnValue({
 			className: () => "PasswordProvider",
 			getCapabilities: () => ({
+				type: "basic",
 				signInMethod: "password",
 				passwordChange: "api",
 				profileReadOnly: false
@@ -285,6 +286,7 @@ describe("EntityStorageAuthenticationService", () => {
 		vi.spyOn(AuthenticationProviderFactory, "get").mockReturnValue({
 			className: () => "PasswordProvider",
 			getCapabilities: () => ({
+				type: "basic",
 				signInMethod: "password",
 				passwordChange: "api",
 				profileReadOnly: false
@@ -314,7 +316,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -350,7 +352,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -415,7 +417,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -549,7 +551,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -587,7 +589,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -695,7 +697,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -732,7 +734,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 2
@@ -770,7 +772,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 2
@@ -834,7 +836,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		};
@@ -860,7 +862,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		};
@@ -886,7 +888,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -954,6 +956,7 @@ describe("EntityStorageAuthenticationService", () => {
 		AuthenticationProviderFactory.register("google", () => ({
 			className: () => "TestGoogleProvider",
 			getCapabilities: () => ({
+				type: "oauth2",
 				signInMethod: "redirect",
 				passwordChange: "external",
 				profileReadOnly: true
@@ -963,18 +966,47 @@ describe("EntityStorageAuthenticationService", () => {
 
 		await expect(service.providers()).resolves.toEqual([
 			{
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
+				type: "basic",
 				signInMethod: "password",
 				passwordChange: "api",
 				profileReadOnly: false
 			},
 			{
 				authProviderId: "google",
+				type: "oauth2",
 				signInMethod: "redirect",
 				passwordChange: "external",
 				profileReadOnly: true
 			}
 		]);
+
+		AuthenticationProviderFactory.unregister("google");
+	});
+
+	it("should list only the authentication providers of the requested types", async () => {
+		AuthenticationProviderFactory.register("google", () => ({
+			className: () => "TestGoogleProvider",
+			getCapabilities: () => ({
+				type: "oauth2",
+				signInMethod: "redirect",
+				passwordChange: "external",
+				profileReadOnly: true
+			}),
+			authenticate: async () => ({ providerAccountId: "subject-1", email: "user@example.com" })
+		}));
+
+		await expect(service.providers(["oauth2"])).resolves.toEqual([
+			{
+				authProviderId: "google",
+				type: "oauth2",
+				signInMethod: "redirect",
+				passwordChange: "external",
+				profileReadOnly: true
+			}
+		]);
+		await expect(service.providers(["basic", "oauth2"])).resolves.toHaveLength(2);
+		await expect(service.providers([])).resolves.toHaveLength(2);
 
 		AuthenticationProviderFactory.unregister("google");
 	});
@@ -1000,6 +1032,7 @@ describe("EntityStorageAuthenticationService", () => {
 			AuthenticationProviderFactory.register("google", () => ({
 				className: () => "TestGoogleProvider",
 				getCapabilities: () => ({
+					type: "oauth2",
 					signInMethod: "redirect",
 					passwordChange: "external",
 					profileReadOnly: true
@@ -1135,7 +1168,7 @@ describe("EntityStorageAuthenticationService", () => {
 				email: "user@example.com",
 				password: "stored-password-hash",
 				salt: "c2FsdA==",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				providerAccountId: "user@example.com",
 				dateCreated: "2026-01-01T00:00:00.000Z",
 				dateModified: "2026-01-01T00:00:00.000Z"
@@ -1277,7 +1310,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 		it("should refuse password logins so they stay rate limited", async () => {
 			await expect(
-				service.loginWithProvider("entity-storage", {
+				service.loginWithProvider("3sixty", {
 					email: "missing@example.com",
 					password: "any-password"
 				})
@@ -1580,7 +1613,7 @@ describe("EntityStorageAuthenticationService", () => {
 
 			expect(await userEntityStorage.get("account-1")).toMatchObject({
 				email: "new@example.com",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				providerAccountId: "new@example.com",
 				verified: false
 			});
@@ -1653,6 +1686,7 @@ describe("EntityStorageAuthenticationService", () => {
 			AuthenticationProviderFactory.register("google", () => ({
 				className: () => "TestGoogleProvider",
 				getCapabilities: () => ({
+					type: "oauth2",
 					signInMethod: "redirect",
 					passwordChange: "external",
 					profileReadOnly: true,
@@ -1697,7 +1731,7 @@ describe("EntityStorageAuthenticationService", () => {
 			vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 				accountId: "account-1",
 				email: "user@example.com",
-				authProviderId: "entity-storage"
+				authProviderId: "3sixty"
 			});
 			service = createService();
 			await service.start();
@@ -1717,6 +1751,7 @@ describe("EntityStorageAuthenticationService", () => {
 				providerTenantId: "tenant-1"
 			});
 			const getCapabilities = vi.fn().mockReturnValue({
+				type: "oauth2",
 				signInMethod: "redirect",
 				passwordChange: "external",
 				profileReadOnly: true,
@@ -1793,7 +1828,7 @@ describe("EntityStorageAuthenticationService", () => {
 						accountId: "user-1",
 						password: "stored-password-hash",
 						salt: "c2FsdA==",
-						authProviderId: "entity-storage",
+						authProviderId: "3sixty",
 						providerAccountId: "user@example.com",
 						dateCreated: "2026-01-01T00:00:00.000Z",
 						dateModified: "2026-01-01T00:00:00.000Z"
@@ -1818,7 +1853,7 @@ describe("EntityStorageAuthenticationService", () => {
 					accountId: "user-1",
 					password: "stored-password-hash",
 					salt: "c2FsdA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1848,7 +1883,7 @@ describe("EntityStorageAuthenticationService", () => {
 					accountId: "user-1",
 					password: "stored-password-hash",
 					salt: "c2FsdA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1861,7 +1896,7 @@ describe("EntityStorageAuthenticationService", () => {
 					accountId: "user-b",
 					password: "stored-password-hash",
 					salt: "c2FsdA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1902,7 +1937,7 @@ describe("EntityStorageAuthenticationService", () => {
 						accountId: "user-1",
 						password: "stored-password-hash",
 						salt: "c2FsdA==",
-						authProviderId: "entity-storage",
+						authProviderId: "3sixty",
 						providerAccountId: "user@example.com",
 						dateCreated: "2026-01-01T00:00:00.000Z",
 						dateModified: "2026-01-01T00:00:00.000Z"
@@ -1931,7 +1966,7 @@ describe("EntityStorageAuthenticationService", () => {
 					accountId: "user-1",
 					password: "stored-password-hash",
 					salt: "c2FsdA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1955,7 +1990,7 @@ describe("EntityStorageAuthenticationService", () => {
 					accountId: "user-1",
 					password: "stored-password-hash",
 					salt: "c2FsdA==",
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
 					providerAccountId: "user@example.com",
 					dateCreated: "2026-01-01T00:00:00.000Z",
 					dateModified: "2026-01-01T00:00:00.000Z"
@@ -1993,7 +2028,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -2027,7 +2062,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -2079,7 +2114,7 @@ describe("EntityStorageAuthenticationService", () => {
 			accountId: "user-1",
 			password: "stored-password-hash",
 			salt: "c2FsdA==",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});

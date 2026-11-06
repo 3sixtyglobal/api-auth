@@ -1,10 +1,16 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import type { AuthenticationProviderType } from "./authenticationProviderType.js";
 
 /**
  * What an authentication provider supports, so a client knows how to present it.
  */
 export interface IAuthenticationProviderCapabilities {
+	/**
+	 * The protocol the provider signs accounts in with.
+	 */
+	type: AuthenticationProviderType;
+
 	/**
 	 * How people sign in, password for an e-mail and password form, redirect to send the browser to the provider.
 	 */

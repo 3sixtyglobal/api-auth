@@ -1,5 +1,6 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { AuthOperation } from "@3sixty/api-auth-entity-storage-models";
 import type {
 	IOAuthCallbackRequest,
 	IOAuthComponent,
@@ -17,7 +18,7 @@ import {
 import { ContextIdStore } from "@3sixty/context";
 import { ComponentFactory, GeneralError, Guards, Is, Url } from "@3sixty/core";
 import { nameof } from "@3sixty/nameof";
-import { CookieHelper, HeaderTypes, HttpStatusCode } from "@3sixty/web";
+import { CookieHelper, CookieSameSite, HeaderTypes, HttpStatusCode } from "@3sixty/web";
 
 /**
  * The source used when communicating about these routes.
@@ -157,7 +158,7 @@ export async function oauthStart(
 				{
 					secure: true,
 					httpOnly: true,
-					sameSite: "Lax",
+					sameSite: CookieSameSite.Lax,
 					path: "/"
 				}
 			)
@@ -202,7 +203,7 @@ export async function oauthCallback(
 
 	if (Is.stringValue(result.login?.token)) {
 		// The auth processor sets the session cookie for a login, which replaces the transaction cookie.
-		httpRequestContext.processorState.authOperation = "login";
+		httpRequestContext.processorState.authOperation = AuthOperation.Login;
 		httpRequestContext.processorState.authToken = result.login.token;
 	}
 
@@ -213,7 +214,7 @@ export async function oauthCallback(
 			[HeaderTypes.SetCookie]: CookieHelper.deleteCookie(OAUTH_TRANSACTION_COOKIE, {
 				secure: true,
 				httpOnly: true,
-				sameSite: "Lax",
+				sameSite: CookieSameSite.Lax,
 				path: "/"
 			})
 		}

@@ -1,6 +1,7 @@
 // Copyright 2026 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { OAuthParameter } from "@3sixty/api-auth-entity-storage-models";
 import { GuardError } from "@3sixty/core";
 import { HttpMethod } from "@3sixty/web";
 import { EntityStorageAuthenticationRestClient } from "../src/entityStorageAuthenticationRestClient.js";
@@ -27,6 +28,85 @@ describe("EntityStorageAuthenticationRestClient", () => {
 
 	afterEach(() => {
 		teardownFetchMock(fetchMock);
+	});
+
+	describe("authorize", () => {
+		const authorization = {
+			state: "state-1",
+			nonce: "nonce-1",
+			codeChallenge: "challenge",
+			codeChallengeMethod: "S256",
+			redirectUri: "https://node.example.com/callback"
+		};
+
+		test("throws when the authorization request is missing", async () => {
+			await expect(
+				client.authorize(
+					"user@example.com",
+					"MyPassword123!",
+					undefined as unknown as typeof authorization
+				)
+			).rejects.toMatchObject({ name: GuardError.CLASS_NAME });
+		});
+
+		test("sends POST to /authorize and returns the location", async () => {
+			fetchMock.mockResolvedValueOnce(
+				jsonResponse({ location: "https://node.example.com/callback?code=c&state=state-1" })
+			);
+
+			const location = await client.authorize("user@example.com", "MyPassword123!", authorization);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/authorize`);
+			expect(options.method).toBe(HttpMethod.POST);
+			expect(JSON.parse(options.body)).toEqual({
+				...authorization,
+				email: "user@example.com",
+				password: "MyPassword123!"
+			});
+			expect(location).toBe("https://node.example.com/callback?code=c&state=state-1");
+		});
+	});
+
+	describe("exchangeAuthorizationCode", () => {
+		test("sends the RFC 6749 token request to /token and returns the access token", async () => {
+			const accessToken = {
+				[OAuthParameter.AccessToken]: "jwt",
+				[OAuthParameter.TokenType]: "Bearer",
+				[OAuthParameter.ExpiresIn]: 3600
+			};
+			fetchMock.mockResolvedValueOnce(jsonResponse(accessToken));
+
+			const result = await client.exchangeAuthorizationCode(
+				"code-1",
+				"verifier-1",
+				"https://app.example.com/callback"
+			);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/token`);
+			expect(options.method).toBe(HttpMethod.POST);
+			expect(JSON.parse(options.body)).toEqual({
+				[OAuthParameter.GrantType]: "authorization_code",
+				[OAuthParameter.Code]: "code-1",
+				[OAuthParameter.CodeVerifier]: "verifier-1",
+				[OAuthParameter.RedirectUri]: "https://app.example.com/callback"
+			});
+			expect(result).toEqual(accessToken);
+		});
+	});
+
+	describe("authorizationServerMetadata", () => {
+		test("gets the metadata from the well-known address at the root of the node", async () => {
+			const metadata = { issuer: ENDPOINT };
+			fetchMock.mockResolvedValueOnce(jsonResponse(metadata));
+
+			await expect(client.authorizationServerMetadata()).resolves.toEqual(metadata);
+
+			const [url, options] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/.well-known/oauth-authorization-server`);
+			expect(options.method).toBe(HttpMethod.GET);
+		});
 	});
 
 	describe("login", () => {
@@ -201,7 +281,8 @@ describe("EntityStorageAuthenticationRestClient", () => {
 		test("sends GET to /providers and returns the provider details", async () => {
 			const details = [
 				{
-					authProviderId: "entity-storage",
+					authProviderId: "3sixty",
+					type: "basic",
 					signInMethod: "password",
 					passwordChange: "api",
 					profileReadOnly: false
@@ -215,6 +296,15 @@ describe("EntityStorageAuthenticationRestClient", () => {
 			expect(url).toBe(`${ENDPOINT}/${PREFIX}/providers`);
 			expect(options.method).toBe(HttpMethod.GET);
 			expect(providers).toEqual(details);
+		});
+
+		test("sends the requested types as a comma separated query", async () => {
+			fetchMock.mockResolvedValueOnce(jsonResponse({ providers: [] }));
+
+			await client.providers(["oauth2", "basic"]);
+
+			const [url] = fetchMock.mock.calls[0];
+			expect(url).toBe(`${ENDPOINT}/${PREFIX}/providers?types=oauth2%2Cbasic`);
 		});
 	});
 

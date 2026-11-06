@@ -148,6 +148,10 @@ for (const provider of await authClient.providers()) {
     console.log(`Change the password at ${provider.passwordChangeUrl}`);
   }
 }
+
+// A client that only signs in through OAuth 2.0 asks for those providers alone.
+const oauthProviders = await authClient.providers(['oauth2']);
+console.log(oauthProviders.map(provider => provider.authProviderId)); // ['google']
 ```
 
 ## Forgotten Password
