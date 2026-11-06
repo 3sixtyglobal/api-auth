@@ -11,5 +11,6 @@
 	"packages/api-auth-oauth-connector-microsoft": "0.9.2",
 	"packages/api-auth-oauth-service": "0.9.2",
 	"packages/api-auth-account-service": "0.9.2",
-	"packages/api-auth-account-rest-client": "0.9.2"
+	"packages/api-auth-account-rest-client": "0.9.2",
+	"packages/api-auth-oauth-connector-entity-storage": "0.9.2"
 }
