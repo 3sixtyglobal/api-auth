@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0-next.8](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.7...api-auth-models-v0.20.0-next.8) (2026-11-06)
+
+
+### Features
+
+* sign in password accounts through oauth 2.0 ([#23](https://github.com/3sixtyglobal/api-auth/issues/23)) ([eb5edff](https://github.com/3sixtyglobal/api-auth/commit/eb5edff7625e6d3ee10987f8c4fa2e26ab90e1cc))
+
 ## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-models-v0.20.0-next.6...api-auth-models-v0.20.0-next.7) (2026-11-04)
 
 

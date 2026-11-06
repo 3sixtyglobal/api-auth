@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.0-next.8](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-models-v0.20.0-next.7...api-auth-oauth-models-v0.20.0-next.8) (2026-11-06)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-entity-storage-models bumped from 0.20.0-next.7 to 0.20.0-next.8
+    * @3sixty/api-auth-models bumped from 0.20.0-next.7 to 0.20.0-next.8
+
 ## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-oauth-models-v0.20.0-next.6...api-auth-oauth-models-v0.20.0-next.7) (2026-11-04)
 
 

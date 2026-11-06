@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0-next.8](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.7...api-auth-service-v0.20.0-next.8) (2026-11-06)
+
+
+### Miscellaneous Chores
+
+* **api-auth-service:** Synchronize repo versions
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @3sixty/api-auth-models bumped from 0.20.0-next.7 to 0.20.0-next.8
+
 ## [0.20.0-next.7](https://github.com/3sixtyglobal/api-auth/compare/api-auth-service-v0.20.0-next.6...api-auth-service-v0.20.0-next.7) (2026-11-04)
 
 
