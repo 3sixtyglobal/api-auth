@@ -1,6 +1,6 @@
 {
 	"name": "@3sixty/api-auth-oauth-connector-entity-storage",
-	"version": "0.0.1",
+	"version": "0.20.0-next.8",
 	"description": "Authentication provider that signs password accounts held in entity storage in through OAuth 2.0.",
 	"repository": {
 		"type": "git",

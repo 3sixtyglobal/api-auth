@@ -12,5 +12,5 @@
 	"packages/api-auth-oauth-service": "0.20.0-next.8",
 	"packages/api-auth-account-service": "0.20.0-next.8",
 	"packages/api-auth-account-rest-client": "0.20.0-next.8",
-	"packages/api-auth-oauth-connector-entity-storage": "0.0.1"
+	"packages/api-auth-oauth-connector-entity-storage": "0.20.0-next.8"
 }
