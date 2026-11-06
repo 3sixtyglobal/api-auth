@@ -149,7 +149,7 @@ const meResponse: IMeResponse = {
   body: {
     accountId: '01a17afb-e05f-7939-83f2-d4f04c4bdf2e',
     email: 'carol@example.org',
-    authProviderId: 'entity-storage',
+    authProviderId: '3sixty',
     profileReadOnly: false,
     identity: 'did:example:carol'
   }
@@ -189,7 +189,7 @@ const queryResponse: IAdminUserQueryResponse = {
       {
         email: 'carol@example.org',
         accountId: '01a17afb-e05f-7939-83f2-d4f04c4bdf2e',
-        authProviderId: 'entity-storage',
+        authProviderId: '3sixty',
         dateDisabled: '2026-01-13T10:00:00.000Z'
       }
     ]

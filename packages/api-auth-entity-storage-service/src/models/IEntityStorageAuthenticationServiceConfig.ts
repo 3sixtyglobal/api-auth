@@ -167,6 +167,31 @@ export interface IEntityStorageAuthenticationServiceConfig {
 	passwordResetExpiryMinutes?: number;
 
 	/**
+	 * How long an OAuth 2.0 authorization code for a password account can be used for, in seconds.
+	 * @default 60
+	 */
+	authorizationCodeExpirySeconds?: number;
+
+	/**
+	 * The redirect addresses, besides those on the node's public origin, an authorization code may be
+	 * sent to, matched exactly, such as the callback of an app that exchanges the code at the token
+	 * endpoint.
+	 */
+	authorizationRedirectUris?: string[];
+
+	/**
+	 * The address of the login page that takes an OAuth 2.0 authorization request, given as the
+	 * authorization endpoint in the authorization server metadata, which is only served when it is set.
+	 */
+	authorizationEndpoint?: string;
+
+	/**
+	 * The path of the token endpoint on the node's public origin, given in the authorization server metadata.
+	 * @default authentication/token
+	 */
+	tokenEndpointPath?: string;
+
+	/**
 	 * The template of the password reset e-mail, given the resetUrl, expires and expiryMinutes values.
 	 * @default password-reset
 	 */

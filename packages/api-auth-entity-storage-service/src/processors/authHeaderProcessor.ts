@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import { AuthOperation } from "@3sixty/api-auth-entity-storage-models";
 import {
 	HttpContextIdKeys,
 	HttpErrorHelper,
@@ -29,7 +30,7 @@ import {
 } from "@3sixty/entity-storage-models";
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
-import { CookieHelper, HeaderTypes, HttpStatusCode } from "@3sixty/web";
+import { CookieHelper, CookieSameSite, HeaderTypes, HttpStatusCode } from "@3sixty/web";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IAuthHeaderProcessorConstructorOptions } from "../models/IAuthHeaderProcessorConstructorOptions.js";
 import type { IAuthTokenContext } from "../models/IAuthTokenContext.js";
@@ -50,7 +51,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	/**
 	 * The default SameSite attribute of the token cookie.
 	 */
-	public static readonly DEFAULT_COOKIE_SAME_SITE: "Strict" | "Lax" | "None" = "None";
+	public static readonly DEFAULT_COOKIE_SAME_SITE: CookieSameSite = CookieSameSite.None;
 
 	/**
 	 * The default other cookies to remove on logout.
@@ -102,7 +103,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 	 * The SameSite attribute of the token cookie.
 	 * @internal
 	 */
-	private readonly _cookieSameSite: "Strict" | "Lax" | "None";
+	private readonly _cookieSameSite: CookieSameSite;
 
 	/**
 	 * The other cookies to remove on logout.
@@ -167,7 +168,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			AuthHeaderProcessor.CLASS_NAME,
 			nameof(options?.config?.cookieSameSite),
 			this._cookieSameSite,
-			["Strict", "Lax", "None"]
+			Object.values(CookieSameSite)
 		);
 		this._logoutCookieNames =
 			options?.config?.logoutCookieNames ?? AuthHeaderProcessor.DEFAULT_LOGOUT_COOKIE_NAMES;
@@ -304,7 +305,8 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 			processorState.authTokenLocation !== "authorization"
 		) {
 			if (
-				(responseAuthOperation === "login" || responseAuthOperation === "refresh") &&
+				(responseAuthOperation === AuthOperation.Login ||
+					responseAuthOperation === AuthOperation.Refresh) &&
 				Is.stringValue(responseAuthToken)
 			) {
 				this.appendSetCookie(
@@ -316,7 +318,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 						path: "/"
 					})
 				);
-			} else if (responseAuthOperation === "logout") {
+			} else if (responseAuthOperation === AuthOperation.Logout) {
 				this.appendSetCookie(
 					response,
 					CookieHelper.deleteCookie(this._cookieName, {
@@ -332,7 +334,7 @@ export class AuthHeaderProcessor implements IBaseRouteProcessor {
 						CookieHelper.deleteCookie(cookieName, {
 							secure: true,
 							httpOnly: true,
-							sameSite: "Lax",
+							sameSite: CookieSameSite.Lax,
 							path: "/"
 						})
 					);

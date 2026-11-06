@@ -59,7 +59,7 @@ export class EntityStorageAuthenticationAdminService implements IAuthenticationA
 	/**
 	 * The provider id stored on accounts created by this service.
 	 */
-	public static readonly AUTH_PROVIDER_ID: string = "entity-storage";
+	public static readonly AUTH_PROVIDER_ID: string = "3sixty";
 
 	/**
 	 * The default role that grants escalated privilege.

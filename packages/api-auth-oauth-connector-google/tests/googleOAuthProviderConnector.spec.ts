@@ -27,6 +27,7 @@ describe("GoogleOAuthProviderConnector", () => {
 
 	it("should redirect to Google and send password and profile changes there", () => {
 		expect(connector.getCapabilities()).toEqual({
+			type: "oauth2",
 			signInMethod: "redirect",
 			passwordChange: "external",
 			passwordChangeUrl: GoogleOAuthProviderConnector.PASSWORD_CHANGE_URL,

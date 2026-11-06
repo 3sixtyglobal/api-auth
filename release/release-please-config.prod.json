@@ -49,6 +49,10 @@
 			"package-name": "api-auth-oauth-connector-microsoft",
 			"changelog-path": "docs/changelog.md"
 		},
+		"packages/api-auth-oauth-connector-entity-storage": {
+			"package-name": "api-auth-oauth-connector-entity-storage",
+			"changelog-path": "docs/changelog.md"
+		},
 		"packages/api-auth-oauth-service": {
 			"package-name": "api-auth-oauth-service",
 			"changelog-path": "docs/changelog.md"

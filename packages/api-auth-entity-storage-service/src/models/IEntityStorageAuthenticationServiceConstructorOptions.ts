@@ -20,6 +20,12 @@ export interface IEntityStorageAuthenticationServiceConstructorOptions {
 	passwordResetEntityStorageType?: string;
 
 	/**
+	 * The entity storage for the OAuth 2.0 authorization codes of password accounts, which must be registered.
+	 * @default authentication-authorization-code
+	 */
+	authorizationCodeEntityStorageType?: string;
+
+	/**
 	 * The vault for the private keys.
 	 * @default vault
 	 */

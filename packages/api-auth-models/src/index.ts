@@ -80,6 +80,7 @@ export * from "./models/api/IOrganizationUpdateRequest.js";
 export * from "./models/accountImageLimits.js";
 export * from "./models/authAuditEvent.js";
 export * from "./models/authenticationAccountDataType.js";
+export * from "./models/authenticationProviderType.js";
 export * from "./models/exportFileType.js";
 export * from "./models/featureAuthorization.js";
 export * from "./models/IAccountDataVerifier.js";

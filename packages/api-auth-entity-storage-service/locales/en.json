@@ -2,6 +2,10 @@
 	"error": {
 		"entityStorageAuthenticationService": {
 			"loginFailed": "Login failed",
+			"authorizationRedirectInvalid": "The redirect address must be on the public origin of the node, without a query or fragment, or a registered redirect address",
+			"authorizationCodeInvalid": "The authorization code is not valid, has expired or has already been used",
+			"authorizationServerNotConfigured": "The node is not configured as an OAuth 2.0 authorization server",
+			"tokenMissing": "The session token could not be created",
 			"accountNotVerified": "The e-mail address of the account has not been verified, follow the link sent to it to verify it",
 			"refreshFailed": "The token could not be refreshed",
 			"sessionExpired": "The session has reached its maximum length, sign in again",

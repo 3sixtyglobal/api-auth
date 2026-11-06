@@ -54,6 +54,7 @@ describe("MicrosoftOAuthProviderConnector", () => {
 		});
 
 		expect(connector.getCapabilities()).toEqual({
+			type: "oauth2",
 			signInMethod: "redirect",
 			passwordChange: "external",
 			passwordChangeUrl: MicrosoftOAuthProviderConnector.PASSWORD_CHANGE_URL,

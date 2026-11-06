@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { EntitySchemaFactory, EntitySchemaHelper } from "@3sixty/entity";
 import { nameof } from "@3sixty/nameof";
+import { AuthenticationAuthorizationCode } from "./entities/authenticationAuthorizationCode.js";
 import { AuthenticationPasswordReset } from "./entities/authenticationPasswordReset.js";
 import { AuthenticationUser } from "./entities/authenticationUser.js";
 import { AuthenticationUserV0 } from "./entities/authenticationUserV0.js";
@@ -17,6 +18,9 @@ export function initSchema(): void {
 	);
 	EntitySchemaFactory.register(nameof<AuthenticationPasswordReset>(), () =>
 		EntitySchemaHelper.getSchema(AuthenticationPasswordReset)
+	);
+	EntitySchemaFactory.register(nameof<AuthenticationAuthorizationCode>(), () =>
+		EntitySchemaHelper.getSchema(AuthenticationAuthorizationCode)
 	);
 	EntitySchemaFactory.register(nameof<AuthenticationUserV0>(), () =>
 		EntitySchemaHelper.getSchema(AuthenticationUserV0)

@@ -143,6 +143,7 @@ describe("EntityStorageAuthenticationService provider avatar", () => {
 		AuthenticationProviderFactory.register("google", () => ({
 			className: () => "TestGoogleProvider",
 			getCapabilities: () => ({
+				type: "oauth2",
 				signInMethod: "redirect",
 				passwordChange: "external",
 				profileReadOnly: true

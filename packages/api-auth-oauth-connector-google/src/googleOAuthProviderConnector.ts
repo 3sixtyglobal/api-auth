@@ -1,8 +1,9 @@
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type {
-	IAuthenticationProviderCapabilities,
-	IAuthenticationProviderIdentity
+import {
+	AuthenticationProviderType,
+	type IAuthenticationProviderCapabilities,
+	type IAuthenticationProviderIdentity
 } from "@3sixty/api-auth-models";
 import {
 	AvatarHelper,
@@ -199,6 +200,7 @@ export class GoogleOAuthProviderConnector implements IOAuthProviderConnector {
 	 */
 	public getCapabilities(): IAuthenticationProviderCapabilities {
 		return {
+			type: AuthenticationProviderType.OAuth2,
 			signInMethod: "redirect",
 			passwordChange: "external",
 			passwordChangeUrl:

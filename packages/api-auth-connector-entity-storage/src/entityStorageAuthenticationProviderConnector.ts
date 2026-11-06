@@ -7,6 +7,7 @@ import {
 	PasswordHelper
 } from "@3sixty/api-auth-entity-storage-service";
 import {
+	AuthenticationProviderType,
 	EmailHelper,
 	type IAuthenticationProvider,
 	type IAuthenticationProviderCapabilities,
@@ -28,7 +29,7 @@ export class EntityStorageAuthenticationProviderConnector implements IAuthentica
 	/**
 	 * The authentication provider id to register the connector with.
 	 */
-	public static readonly NAMESPACE: string = "entity-storage";
+	public static readonly NAMESPACE: string = "3sixty";
 
 	/**
 	 * Runtime name for the class.
@@ -73,6 +74,7 @@ export class EntityStorageAuthenticationProviderConnector implements IAuthentica
 	 */
 	public getCapabilities(): IAuthenticationProviderCapabilities {
 		return {
+			type: AuthenticationProviderType.Basic,
 			signInMethod: "password",
 			passwordChange: "api",
 			profileReadOnly: false

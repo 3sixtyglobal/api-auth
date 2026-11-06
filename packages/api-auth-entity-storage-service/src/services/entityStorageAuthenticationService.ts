@@ -5,11 +5,19 @@ import type {
 	IAuthenticationAccountSummary,
 	IAuthenticationComponent,
 	IAuthenticationRegistration,
+	IAuthorizationCodeRequest,
+	IAuthorizationServerMetadata,
 	ILoginResult,
+	IOAuthAccessToken,
 	IPasswordHashOptions,
 	IPasswordOptions
 } from "@3sixty/api-auth-entity-storage-models";
+import {
+	AuthorizationServerMetadataField,
+	OAuthParameter
+} from "@3sixty/api-auth-entity-storage-models";
 import type {
+	AuthenticationProviderType,
 	IAuthenticationAccountAdminComponent,
 	IAuthenticationAccountComponent,
 	IAuthenticationProvider,
@@ -31,6 +39,7 @@ import {
 import {
 	ForbiddenError,
 	HttpContextIdKeys,
+	HttpUrlHelper,
 	type IPlatformComponent,
 	type ITenantAdminComponent
 } from "@3sixty/api-models";
@@ -50,7 +59,9 @@ import {
 	NotFoundError,
 	ObjectHelper,
 	RandomHelper,
-	UnauthorizedError
+	StringHelper,
+	UnauthorizedError,
+	UnprocessableError
 } from "@3sixty/core";
 import { PasswordValidator, Sha256 } from "@3sixty/crypto";
 import { ComparisonOperator } from "@3sixty/entity";
@@ -63,10 +74,12 @@ import type { IMessagingComponent } from "@3sixty/messaging-models";
 import { nameof } from "@3sixty/nameof";
 import { VaultConnectorFactory, type IVaultConnector } from "@3sixty/vault-models";
 import { EntityStorageAuthenticationAdminService } from "./entityStorageAuthenticationAdminService.js";
+import type { AuthenticationAuthorizationCode } from "../entities/authenticationAuthorizationCode.js";
 import type { AuthenticationPasswordReset } from "../entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../entities/authenticationUser.js";
 import type { IEntityStorageAuthenticationServiceConstructorOptions } from "../models/IEntityStorageAuthenticationServiceConstructorOptions.js";
 import { AccountHelper } from "../utils/accountHelper.js";
+import { AuthorizationCodeHelper } from "../utils/authorizationCodeHelper.js";
 import { PasswordHelper } from "../utils/passwordHelper.js";
 import { PasswordResetHelper } from "../utils/passwordResetHelper.js";
 import { TokenHelper } from "../utils/tokenHelper.js";
@@ -94,6 +107,21 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * The default time a password reset link can be used for, in minutes.
 	 */
 	public static readonly DEFAULT_PASSWORD_RESET_EXPIRY_MINUTES: number = 30;
+
+	/**
+	 * The default time an authorization code can be used for, in seconds.
+	 */
+	public static readonly DEFAULT_AUTHORIZATION_CODE_EXPIRY_SECONDS: number = 60;
+
+	/**
+	 * The only PKCE code challenge method accepted.
+	 */
+	public static readonly CODE_CHALLENGE_METHOD: string = "S256";
+
+	/**
+	 * The default path of the token endpoint on the node's public origin.
+	 */
+	public static readonly DEFAULT_TOKEN_ENDPOINT_PATH: string = "authentication/token";
 
 	/**
 	 * The default template of the password reset e-mail.
@@ -238,6 +266,12 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	private readonly _passwordResetEntityStorage: IEntityStorageConnector<AuthenticationPasswordReset>;
 
 	/**
+	 * The entity storage for the authorization codes.
+	 * @internal
+	 */
+	private readonly _authorizationCodeEntityStorage: IEntityStorageConnector<AuthenticationAuthorizationCode>;
+
+	/**
 	 * The vault for the keys.
 	 * @internal
 	 */
@@ -350,6 +384,30 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 * @internal
 	 */
 	private readonly _passwordResetExpiryMinutes: number;
+
+	/**
+	 * How long an authorization code can be used for, in seconds.
+	 * @internal
+	 */
+	private readonly _authorizationCodeExpirySeconds: number;
+
+	/**
+	 * The redirect addresses, besides those on the public origin, a code may be sent to.
+	 * @internal
+	 */
+	private readonly _authorizationRedirectUris: string[];
+
+	/**
+	 * The login page given as the authorization endpoint in the metadata.
+	 * @internal
+	 */
+	private readonly _authorizationEndpoint?: string;
+
+	/**
+	 * The path of the token endpoint on the public origin.
+	 * @internal
+	 */
+	private readonly _tokenEndpointPath: string;
 
 	/**
 	 * The sender of the password reset and sign up e-mails.
@@ -479,6 +537,10 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			options?.passwordResetEntityStorageType ?? "authentication-password-reset"
 		);
 
+		this._authorizationCodeEntityStorage = EntityStorageConnectorFactory.get(
+			options?.authorizationCodeEntityStorageType ?? "authentication-authorization-code"
+		);
+
 		this._vaultConnector = VaultConnectorFactory.get(options?.vaultConnectorType ?? "vault");
 
 		this._authenticationAuditService = ComponentFactory.get<IAuthenticationAuditComponent>(
@@ -584,6 +646,13 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 		this._passwordResetExpiryMinutes =
 			config?.passwordResetExpiryMinutes ??
 			EntityStorageAuthenticationService.DEFAULT_PASSWORD_RESET_EXPIRY_MINUTES;
+		this._authorizationCodeExpirySeconds =
+			config?.authorizationCodeExpirySeconds ??
+			EntityStorageAuthenticationService.DEFAULT_AUTHORIZATION_CODE_EXPIRY_SECONDS;
+		this._authorizationRedirectUris = config?.authorizationRedirectUris ?? [];
+		this._authorizationEndpoint = config?.authorizationEndpoint;
+		this._tokenEndpointPath =
+			config?.tokenEndpointPath ?? EntityStorageAuthenticationService.DEFAULT_TOKEN_ENDPOINT_PATH;
 		this._emailSender = config.emailSender;
 		// Always given, so a template never shows an unfilled placeholder.
 		this._emailTemplateData = {
@@ -692,96 +761,21 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
 		}
 
-		const normalisedEmail = EmailHelper.normalise(email);
-		// Per client limiting is opt in. A failing client is then limited on its own, and per e-mail
-		// address only together with the client, so an attacker cannot lock the account out for
-		// everyone. The account wide limit is higher and only guards against many addresses.
-		const clientKey = this._loginRateLimitPerClient ? await this.clientRateKey() : undefined;
-		const loginKey = Is.stringValue(clientKey)
-			? `${normalisedEmail}|${clientKey}`
-			: normalisedEmail;
+		const { user, identity, normalisedEmail, loginKey } = await this.checkPassword(email, password);
 
 		let session: { user: AuthenticationUser; tenantId?: string; token?: string; expiry: number };
-		let identity: IAuthenticationProviderIdentity;
-		let accountNotVerified = false;
-
 		try {
-			const checks = [
-				this._authenticationRateService.check(
-					EntityStorageAuthenticationService.RATE_ACTION_LOGIN,
-					loginKey
-				)
-			];
-			if (this._loginRateLimitPerClient) {
-				checks.push(
-					this._authenticationRateService.check(
-						EntityStorageAuthenticationService.RATE_ACTION_LOGIN_ACCOUNT,
-						normalisedEmail
-					)
-				);
-				if (Is.stringValue(clientKey)) {
-					checks.push(
-						this._authenticationRateService.check(
-							EntityStorageAuthenticationService.RATE_ACTION_LOGIN_CLIENT,
-							clientKey
-						)
-					);
-				}
-			}
-			await Promise.all(checks);
-
-			const provider = AuthenticationProviderFactory.get(
-				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
-			);
-			identity = await provider.authenticate({ email, password });
-
-			// The account is read again, by its id when the provider gives it, so its state is current.
-			const user = Is.stringValue(identity.accountId)
-				? await this._userEntityStorage.get(identity.accountId)
-				: await AccountHelper.findByProviderAccount(
-						this._userEntityStorage,
-						EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
-						identity.providerAccountId
-					);
-			if (
-				!Is.object<AuthenticationUser>(user) ||
-				user.authProviderId !== EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
-			) {
-				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
-			}
-			// The password matched, so only its owner learns the e-mail address must be verified.
-			accountNotVerified = !AccountHelper.isDisabled(user) && user.verified === false;
-
 			session = await this.startSession(this._nodeId, user);
 		} catch {
 			await this._authenticationAuditService.create({
 				actorId: normalisedEmail,
 				event: AuthAuditEvent.LoginFailure
 			});
-
-			if (accountNotVerified) {
-				throw new UnauthorizedError(
-					EntityStorageAuthenticationService.CLASS_NAME,
-					"accountNotVerified"
-				);
-			}
-			// The cause is not returned, so a disabled or unknown account looks the same as a wrong
-			// password. A rate limited login is also refused this way, as before.
 			throw new UnauthorizedError(EntityStorageAuthenticationService.CLASS_NAME, "loginFailed");
 		}
 
-		// The account wide entry is only kept with per client limiting.
 		await Promise.all([
-			this._authenticationRateService.clear(
-				EntityStorageAuthenticationService.RATE_ACTION_LOGIN,
-				loginKey
-			),
-			this._loginRateLimitPerClient
-				? this._authenticationRateService.clear(
-						EntityStorageAuthenticationService.RATE_ACTION_LOGIN_ACCOUNT,
-						normalisedEmail
-					)
-				: undefined,
+			this.clearPasswordRateLimits(normalisedEmail, loginKey),
 			this._authenticationAuditService.create({
 				actorId: session.user.email,
 				event: AuthAuditEvent.LoginSuccess,
@@ -804,6 +798,216 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				this._authorizationModelId,
 				session.user.accountId
 			)
+		};
+	}
+
+	/**
+	 * Check the e-mail address and password of a password account and issue an OAuth 2.0
+	 * authorization code for it, redeemed by the entity storage OAuth provider. The password is
+	 * checked and rate limited the same way as a login, the sign in itself is audited when the code
+	 * is redeemed.
+	 * @param email The email address for the user.
+	 * @param password The password for the user.
+	 * @param authorization The authorization request the code is issued for.
+	 * @returns The address to send the browser to, with the code and state added.
+	 * @throws UnprocessableError when the redirect address is not on the node's public origin.
+	 * @throws UnauthorizedError the same way as a login.
+	 */
+	public async authorize(
+		email: string,
+		password: string,
+		authorization: IAuthorizationCodeRequest
+	): Promise<string> {
+		Guards.stringValue(EntityStorageAuthenticationService.CLASS_NAME, nameof(email), email);
+		Guards.stringValue(EntityStorageAuthenticationService.CLASS_NAME, nameof(password), password);
+		Guards.object<IAuthorizationCodeRequest>(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization),
+			authorization
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization.state),
+			authorization.state
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization.nonce),
+			authorization.nonce
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization.codeChallenge),
+			authorization.codeChallenge
+		);
+		Guards.arrayOneOf(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization.codeChallengeMethod),
+			authorization.codeChallengeMethod,
+			[EntityStorageAuthenticationService.CODE_CHALLENGE_METHOD]
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(authorization.redirectUri),
+			authorization.redirectUri
+		);
+
+		// A code is only sent back to the node, where the callback redeems it with the code verifier,
+		// or to a registered redirect address, so a crafted request cannot send the code of an account
+		// to another site.
+		const contextIds = await ContextIdStore.getContextIds();
+		const publicOrigin = contextIds?.[HttpContextIdKeys.PublicOrigin];
+		const redirect = URL.canParse(authorization.redirectUri)
+			? new URL(authorization.redirectUri)
+			: undefined;
+		const origin =
+			Is.stringValue(publicOrigin) && URL.canParse(publicOrigin)
+				? new URL(publicOrigin)
+				: undefined;
+		const onNode =
+			Is.object(origin) &&
+			redirect?.origin === origin.origin &&
+			redirect.pathname.startsWith(`${StringHelper.trimTrailingSlashes(origin.pathname)}/`) &&
+			redirect.search.length === 0 &&
+			redirect.hash.length === 0;
+		if (
+			Is.undefined(redirect) ||
+			(!onNode && !this._authorizationRedirectUris.includes(authorization.redirectUri))
+		) {
+			throw new UnprocessableError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"authorizationRedirectInvalid"
+			);
+		}
+
+		const { user, normalisedEmail, loginKey } = await this.checkPassword(email, password);
+
+		const code = await AuthorizationCodeHelper.create(
+			this._authorizationCodeEntityStorage,
+			user.accountId,
+			authorization,
+			this._authorizationCodeExpirySeconds
+		);
+		await this.clearPasswordRateLimits(normalisedEmail, loginKey);
+
+		redirect.searchParams.set("code", code);
+		redirect.searchParams.set("state", authorization.state);
+		return redirect.toString();
+	}
+
+	/**
+	 * Exchange an OAuth 2.0 authorization code issued by authorize for a session of its account, as
+	 * the token endpoint does. The code can only be used once, and only with the redirect address and
+	 * code verifier it was issued for.
+	 * @param code The authorization code.
+	 * @param codeVerifier The PKCE code verifier the code challenge was made from.
+	 * @param redirectUri The redirect address the code was sent to.
+	 * @returns The access token, a session token of the node.
+	 * @throws UnauthorizedError when the code is unknown, used, expired or does not match, or the
+	 * account can no longer sign in.
+	 */
+	public async exchangeAuthorizationCode(
+		code: string,
+		codeVerifier: string,
+		redirectUri: string
+	): Promise<IOAuthAccessToken> {
+		Guards.stringValue(EntityStorageAuthenticationService.CLASS_NAME, nameof(code), code);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(codeVerifier),
+			codeVerifier
+		);
+		Guards.stringValue(
+			EntityStorageAuthenticationService.CLASS_NAME,
+			nameof(redirectUri),
+			redirectUri
+		);
+
+		if (!Is.stringValue(this._nodeId)) {
+			throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "nodeIdNotSet");
+		}
+
+		let session: { user: AuthenticationUser; tenantId?: string; token?: string; expiry: number };
+		try {
+			const issued = await AuthorizationCodeHelper.redeem(
+				this._authorizationCodeEntityStorage,
+				code,
+				codeVerifier,
+				redirectUri
+			);
+			const user = Is.object(issued)
+				? await this._userEntityStorage.get(issued.accountId)
+				: undefined;
+			if (
+				!Is.object<AuthenticationUser>(user) ||
+				user.authProviderId !== EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			) {
+				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
+			}
+			session = await this.startSession(this._nodeId, user);
+			if (!Is.stringValue(session.token)) {
+				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "tokenMissing");
+			}
+		} catch {
+			await this._authenticationAuditService.create({
+				actorId: EntityStorageAuthenticationService.CLASS_NAME,
+				event: AuthAuditEvent.LoginFailure
+			});
+			throw new UnauthorizedError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"authorizationCodeInvalid"
+			);
+		}
+
+		await this._authenticationAuditService.create({
+			actorId: session.user.email,
+			event: AuthAuditEvent.LoginSuccess,
+			data: {
+				accountId: session.user.accountId,
+				tenantId: session.tenantId
+			}
+		});
+
+		return {
+			[OAuthParameter.AccessToken]: session.token,
+			[OAuthParameter.TokenType]: "Bearer",
+			[OAuthParameter.ExpiresIn]: Math.max(
+				0,
+				Math.floor((session.expiry - Date.now()) / DurationConstants.MsPerSecond)
+			)
+		};
+	}
+
+	/**
+	 * Get the OAuth 2.0 authorization server metadata of the node, for the public origin of the request.
+	 * @returns The metadata.
+	 * @throws NotFoundError when no authorization endpoint is configured.
+	 */
+	public async authorizationServerMetadata(): Promise<IAuthorizationServerMetadata> {
+		const contextIds = await ContextIdStore.getContextIds();
+		const publicOrigin = contextIds?.[HttpContextIdKeys.PublicOrigin];
+		const tokenEndpoint = HttpUrlHelper.combineOriginPath(publicOrigin, this._tokenEndpointPath);
+		if (
+			!Is.stringValue(this._authorizationEndpoint) ||
+			!Is.stringValue(publicOrigin) ||
+			!Is.stringValue(tokenEndpoint)
+		) {
+			throw new NotFoundError(
+				EntityStorageAuthenticationService.CLASS_NAME,
+				"authorizationServerNotConfigured"
+			);
+		}
+
+		return {
+			[AuthorizationServerMetadataField.Issuer]: StringHelper.trimTrailingSlashes(publicOrigin),
+			[AuthorizationServerMetadataField.AuthorizationEndpoint]: this._authorizationEndpoint,
+			[AuthorizationServerMetadataField.TokenEndpoint]: tokenEndpoint,
+			[AuthorizationServerMetadataField.ResponseTypesSupported]: ["code"],
+			[AuthorizationServerMetadataField.GrantTypesSupported]: ["authorization_code"],
+			[AuthorizationServerMetadataField.CodeChallengeMethodsSupported]: [
+				EntityStorageAuthenticationService.CODE_CHALLENGE_METHOD
+			],
+			[AuthorizationServerMetadataField.TokenEndpointAuthMethodsSupported]: ["none"]
 		};
 	}
 
@@ -865,7 +1069,14 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 				);
 			}
 
-			const user = await this.findOrCreateProviderAccount(authProviderId, identity);
+			// A provider that signs in an account the node holds, such as a password account through
+			// OAuth, gives its id, so the account is read and never created.
+			const user = Is.stringValue(identity.accountId)
+				? await this._userEntityStorage.get(identity.accountId)
+				: await this.findOrCreateProviderAccount(authProviderId, identity);
+			if (!Is.object<AuthenticationUser>(user)) {
+				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
+			}
 			session = await this.startSession(this._nodeId, user, identity);
 			await this.storeProviderProfile(user.accountId, identity);
 		} catch {
@@ -1491,13 +1702,142 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 
 	/**
 	 * Get the authentication providers enabled on the server.
+	 * @param types The provider types to include, all types when left out.
 	 * @returns The providers and what each supports, in the order they were registered.
 	 */
-	public async providers(): Promise<IAuthenticationProviderDetails[]> {
-		return AuthenticationProviderFactory.names().map(authProviderId => ({
+	public async providers(
+		types?: AuthenticationProviderType[]
+	): Promise<IAuthenticationProviderDetails[]> {
+		const providers = AuthenticationProviderFactory.names().map(authProviderId => ({
 			authProviderId,
 			...AuthenticationProviderFactory.get(authProviderId).getCapabilities()
 		}));
+		return Is.arrayValue(types)
+			? providers.filter(provider => types.includes(provider.type))
+			: providers;
+	}
+
+	/**
+	 * Check the e-mail address and password of a password account that may sign in, rate limited,
+	 * with a failure audited.
+	 * @param email The email address for the user.
+	 * @param password The password for the user.
+	 * @returns The account, the identity the provider verified, and the keys it was rate limited with.
+	 * @throws UnauthorizedError the same way when the account is unknown, disabled, the password does
+	 * not match or the e-mail address or client tries too often, and with accountNotVerified when the
+	 * password matches an enabled account whose e-mail address is not verified yet.
+	 * @internal
+	 */
+	private async checkPassword(
+		email: string,
+		password: string
+	): Promise<{
+		user: AuthenticationUser;
+		identity: IAuthenticationProviderIdentity;
+		normalisedEmail: string;
+		loginKey: string;
+	}> {
+		const normalisedEmail = EmailHelper.normalise(email);
+		// Per client limiting is opt in. A failing client is then limited on its own, and per e-mail
+		// address only together with the client, so an attacker cannot lock the account out for
+		// everyone. The account wide limit is higher and only guards against many addresses.
+		const clientKey = this._loginRateLimitPerClient ? await this.clientRateKey() : undefined;
+		const loginKey = Is.stringValue(clientKey)
+			? `${normalisedEmail}|${clientKey}`
+			: normalisedEmail;
+
+		let accountNotVerified = false;
+
+		try {
+			const checks = [
+				this._authenticationRateService.check(
+					EntityStorageAuthenticationService.RATE_ACTION_LOGIN,
+					loginKey
+				)
+			];
+			if (this._loginRateLimitPerClient) {
+				checks.push(
+					this._authenticationRateService.check(
+						EntityStorageAuthenticationService.RATE_ACTION_LOGIN_ACCOUNT,
+						normalisedEmail
+					)
+				);
+				if (Is.stringValue(clientKey)) {
+					checks.push(
+						this._authenticationRateService.check(
+							EntityStorageAuthenticationService.RATE_ACTION_LOGIN_CLIENT,
+							clientKey
+						)
+					);
+				}
+			}
+			await Promise.all(checks);
+
+			const provider = AuthenticationProviderFactory.get(
+				EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			);
+			const identity = await provider.authenticate({ email, password });
+
+			// The account is read again, by its id when the provider gives it, so its state is current.
+			const user = Is.stringValue(identity.accountId)
+				? await this._userEntityStorage.get(identity.accountId)
+				: await AccountHelper.findByProviderAccount(
+						this._userEntityStorage,
+						EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID,
+						identity.providerAccountId
+					);
+			if (
+				!Is.object<AuthenticationUser>(user) ||
+				user.authProviderId !== EntityStorageAuthenticationAdminService.AUTH_PROVIDER_ID
+			) {
+				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "userNotFound");
+			}
+			// The password matched, so only its owner learns the e-mail address must be verified.
+			accountNotVerified = !AccountHelper.isDisabled(user) && user.verified === false;
+			if (!AccountHelper.canSignIn(user)) {
+				throw new GeneralError(EntityStorageAuthenticationService.CLASS_NAME, "accountDisabled");
+			}
+
+			return { user, identity, normalisedEmail, loginKey };
+		} catch {
+			await this._authenticationAuditService.create({
+				actorId: normalisedEmail,
+				event: AuthAuditEvent.LoginFailure
+			});
+
+			if (accountNotVerified) {
+				throw new UnauthorizedError(
+					EntityStorageAuthenticationService.CLASS_NAME,
+					"accountNotVerified"
+				);
+			}
+			// The cause is not returned, so a disabled or unknown account looks the same as a wrong
+			// password. A rate limited login is also refused this way, as before.
+			throw new UnauthorizedError(EntityStorageAuthenticationService.CLASS_NAME, "loginFailed");
+		}
+	}
+
+	/**
+	 * Clear the login rate limits of a password account once its password has been accepted. The
+	 * account wide entry is only kept with per client limiting.
+	 * @param normalisedEmail The normalised e-mail address of the account.
+	 * @param loginKey The key the login was rate limited with.
+	 * @returns A promise that resolves when the rate limits have been cleared.
+	 * @internal
+	 */
+	private async clearPasswordRateLimits(normalisedEmail: string, loginKey: string): Promise<void> {
+		await Promise.all([
+			this._authenticationRateService.clear(
+				EntityStorageAuthenticationService.RATE_ACTION_LOGIN,
+				loginKey
+			),
+			this._loginRateLimitPerClient
+				? this._authenticationRateService.clear(
+						EntityStorageAuthenticationService.RATE_ACTION_LOGIN_ACCOUNT,
+						normalisedEmail
+					)
+				: undefined
+		]);
 	}
 
 	/**
@@ -1751,6 +2091,7 @@ export class EntityStorageAuthenticationService implements IAuthenticationCompon
 	 */
 	private async removeExpiredInTenant(): Promise<void> {
 		await PasswordResetHelper.removeExpired(this._passwordResetEntityStorage);
+		await AuthorizationCodeHelper.removeExpired(this._authorizationCodeEntityStorage);
 
 		// The ids are gathered first, as removing while paging would move the cursor past accounts.
 		const expiryMs = this._registrationVerificationExpiryMinutes * DurationConstants.MsPerMinute;

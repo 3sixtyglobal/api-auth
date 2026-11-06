@@ -66,7 +66,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
@@ -120,7 +120,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
@@ -220,7 +220,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 1
@@ -286,7 +286,7 @@ describe("AuthHeaderProcessor", () => {
 			vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 				email: "user@example.com",
 				accountId: "user-1",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				dateCreated: "2026-01-01T00:00:00.000Z",
 				dateModified: "2026-01-01T00:00:00.000Z",
 				...status
@@ -313,7 +313,7 @@ describe("AuthHeaderProcessor", () => {
 		vi.mocked(mockUserEntityStorage.get).mockResolvedValue({
 			email: "user@example.com",
 			accountId: "user-1",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			dateDisabled: "2026-02-01T00:00:00.000Z"
@@ -355,7 +355,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
 		});
@@ -396,7 +396,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
@@ -453,7 +453,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
@@ -498,7 +498,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0
@@ -549,7 +549,7 @@ describe("AuthHeaderProcessor", () => {
 				accountId: "user-1",
 				password: "hashed",
 				salt: "salt",
-				authProviderId: "entity-storage",
+				authProviderId: "3sixty",
 				dateCreated: "2026-01-01T00:00:00.000Z",
 				dateModified: "2026-01-01T00:00:00.000Z",
 				passwordVersion: 0
@@ -804,7 +804,7 @@ describe("AuthHeaderProcessor", () => {
 			accountId: "user-1",
 			password: "hashed",
 			salt: "salt",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z",
 			passwordVersion: 0

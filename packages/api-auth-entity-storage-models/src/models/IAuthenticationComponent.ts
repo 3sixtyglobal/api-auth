@@ -1,11 +1,17 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
-import type { IAuthenticationProviderDetails } from "@3sixty/api-auth-models";
+import type {
+	AuthenticationProviderType,
+	IAuthenticationProviderDetails
+} from "@3sixty/api-auth-models";
 import type { IComponent } from "@3sixty/core";
 import type { IAuthenticationAccountSummary } from "./IAuthenticationAccountSummary.js";
 import type { IAuthenticationRegistration } from "./IAuthenticationRegistration.js";
+import type { IAuthorizationCodeRequest } from "./IAuthorizationCodeRequest.js";
+import type { IAuthorizationServerMetadata } from "./IAuthorizationServerMetadata.js";
 import type { ILoginResult } from "./ILoginResult.js";
+import type { IOAuthAccessToken } from "./IOAuthAccessToken.js";
 import type { IPasswordOptions } from "./IPasswordOptions.js";
 
 /**
@@ -19,6 +25,39 @@ export interface IAuthenticationComponent extends IComponent {
 	 * @returns The token, and the profile when the provider holds one.
 	 */
 	login(email: string, password: string): Promise<ILoginResult>;
+
+	/**
+	 * Check the e-mail address and password of a password account and issue an OAuth 2.0
+	 * authorization code for it, redeemed by the entity storage OAuth provider.
+	 * @param email The email address for the user.
+	 * @param password The password for the user.
+	 * @param authorization The authorization request the code is issued for.
+	 * @returns The address to send the browser to, with the code and state added.
+	 */
+	authorize(
+		email: string,
+		password: string,
+		authorization: IAuthorizationCodeRequest
+	): Promise<string>;
+
+	/**
+	 * Exchange an OAuth 2.0 authorization code issued by authorize for a session of its account.
+	 * @param code The authorization code.
+	 * @param codeVerifier The PKCE code verifier the code challenge was made from.
+	 * @param redirectUri The redirect address the code was sent to.
+	 * @returns The access token.
+	 */
+	exchangeAuthorizationCode(
+		code: string,
+		codeVerifier: string,
+		redirectUri: string
+	): Promise<IOAuthAccessToken>;
+
+	/**
+	 * Get the OAuth 2.0 authorization server metadata of the node.
+	 * @returns The metadata.
+	 */
+	authorizationServerMetadata(): Promise<IAuthorizationServerMetadata>;
 
 	/**
 	 * Perform a login through an authentication provider, creating the account on the first login.
@@ -117,7 +156,8 @@ export interface IAuthenticationComponent extends IComponent {
 
 	/**
 	 * Get the authentication providers enabled on the server.
+	 * @param types The provider types to include, all types when left out.
 	 * @returns The providers and what each supports, in the order they were registered.
 	 */
-	providers(): Promise<IAuthenticationProviderDetails[]>;
+	providers(types?: AuthenticationProviderType[]): Promise<IAuthenticationProviderDetails[]>;
 }

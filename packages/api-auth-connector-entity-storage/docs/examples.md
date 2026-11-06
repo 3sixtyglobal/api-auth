@@ -16,7 +16,7 @@ AuthenticationProviderFactory.register(
     })
 );
 
-const provider = AuthenticationProviderFactory.get('entity-storage');
+const provider = AuthenticationProviderFactory.get('3sixty');
 const identity = await provider.authenticate({
   email: 'alice@example.org',
   password: 'correct-horse-battery-staple'

@@ -16,6 +16,7 @@ Alongside these flows, the repository includes authentication audit logging, rat
 - [api-auth-oauth-models](packages/api-auth-oauth-models/README.md) - Contracts and helpers for OAuth authentication providers.
 - [api-auth-oauth-connector-google](packages/api-auth-oauth-connector-google/README.md) - Authentication provider that signs accounts in with Google.
 - [api-auth-oauth-connector-microsoft](packages/api-auth-oauth-connector-microsoft/README.md) - Authentication provider that signs accounts in with Microsoft.
+- [api-auth-oauth-connector-entity-storage](packages/api-auth-oauth-connector-entity-storage/README.md) - Authentication provider that signs password accounts held in entity storage in through OAuth 2.0.
 - [api-auth-oauth-service](packages/api-auth-oauth-service/README.md) - OAuth sign in flow and REST routes for authentication providers.
 - [api-auth-account-service](packages/api-auth-account-service/README.md) - Account data storage, request processing and REST routes backed by entity storage.
 - [api-auth-account-rest-client](packages/api-auth-account-rest-client/README.md) - REST clients for account data and account data administration.

@@ -1,6 +1,7 @@
 // Copyright 2024 IOTA Stiftung.
 // Copyright 2026 3Sixty Trade Ltd.
 // SPDX-License-Identifier: Apache-2.0.
+import type { CookieSameSite } from "@3sixty/web";
 
 /**
  * Configuration for the authentication header processor
@@ -33,7 +34,7 @@ export interface IAuthHeaderProcessorConfig {
 	 * from other origins.
 	 * @default None
 	 */
-	cookieSameSite?: "Strict" | "Lax" | "None";
+	cookieSameSite?: CookieSameSite;
 
 	/**
 	 * Include the stack with errors.

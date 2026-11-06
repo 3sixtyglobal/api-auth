@@ -223,14 +223,14 @@ describe("EntityStorageAuthenticationAdminRestClient", () => {
 		test("sends GET to /users with the filters as query parameters", async () => {
 			fetchMock.mockResolvedValueOnce(jsonResponse({ entities: [TEST_USER], cursor: "c2" }));
 
-			const result = await client.query("user@", true, "entity-storage", "c1", 10);
+			const result = await client.query("user@", true, "3sixty", "c1", 10);
 
 			const [url, options] = fetchMock.mock.calls[0];
 			const parsed = new URL(url);
 			expect(`${parsed.origin}${parsed.pathname}`).toBe(`${ENDPOINT}/${PREFIX}/users`);
 			expect(parsed.searchParams.get("email")).toBe("user@");
 			expect(parsed.searchParams.get("exactEmail")).toBe("true");
-			expect(parsed.searchParams.get("authProviderId")).toBe("entity-storage");
+			expect(parsed.searchParams.get("authProviderId")).toBe("3sixty");
 			expect(parsed.searchParams.get("cursor")).toBe("c1");
 			expect(parsed.searchParams.get("limit")).toBe("10");
 			expect(options.method).toBe(HttpMethod.GET);

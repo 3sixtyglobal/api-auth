@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0.
 import { EntitySchemaFactory, EntitySchemaHelper } from "@3sixty/entity";
 import { nameof } from "@3sixty/nameof";
+import type { AuthenticationAuthorizationCode } from "../src/entities/authenticationAuthorizationCode.js";
 import type { AuthenticationPasswordReset } from "../src/entities/authenticationPasswordReset.js";
 import type { AuthenticationUser } from "../src/entities/authenticationUser.js";
 import type { AuthenticationUserV1 } from "../src/entities/authenticationUserV1.js";
@@ -50,6 +51,20 @@ describe("initSchema", () => {
 			"used"
 		]);
 		expect(EntitySchemaHelper.findVersionProperty(schema)).toBeUndefined();
+	});
+
+	test("registers the authorization code schema", () => {
+		const schema = EntitySchemaFactory.get(nameof<AuthenticationAuthorizationCode>());
+
+		expect(schema.properties?.map(p => p.property)).toEqual([
+			"id",
+			"accountId",
+			"redirectUri",
+			"codeChallenge",
+			"nonce",
+			"expires",
+			"dateCreated"
+		]);
 	});
 
 	test("keeps the version 1 schema so the node can migrate it", () => {

@@ -21,7 +21,7 @@ describe("AccountHelper", () => {
 		return {
 			accountId: "user-1",
 			email: "user@example.com",
-			authProviderId: "entity-storage",
+			authProviderId: "3sixty",
 			passwordVersion: 0,
 			dateCreated: "2026-01-01T00:00:00.000Z",
 			dateModified: "2026-01-01T00:00:00.000Z"
