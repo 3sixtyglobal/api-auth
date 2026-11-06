@@ -1,6 +1,6 @@
 {
 	"name": "@3sixty/api-auth-service",
-	"version": "0.20.0-next.8",
+	"version": "0.20.0-next.9",
 	"description": "Authentication audit and rate limiting services, tenant override processing, the feature service and audit and feature REST routes.",
 	"repository": {
 		"type": "git",
@@ -32,7 +32,7 @@
 		"dist:no-test": "pnpm run clean && concurrently -g -n build,locales,types \"pnpm run build\" \"pnpm run validate-locales\" \"pnpm run test:build\""
 	},
 	"dependencies": {
-		"@3sixty/api-auth-models": "0.20.0-next.8",
+		"@3sixty/api-auth-models": "0.20.0-next.9",
 		"@3sixty/api-models": "next",
 		"@3sixty/authorization-models": "next",
 		"@3sixty/background-task-models": "next",
